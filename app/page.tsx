@@ -13,6 +13,8 @@ type Reflection = {
 }
 
 export default function Home() {
+  const [technicianName, setTechnicianName] = useState('')
+  const [jobType, setJobType] = useState('Service Call')
   const [challenge, setChallenge] = useState('')
   const [frustration, setFrustration] = useState('')
   const [wentWell, setWentWell] = useState('')
@@ -38,13 +40,18 @@ export default function Home() {
   }, [])
 
   const handleSubmit = async () => {
+    if (!technicianName.trim()) {
+      alert('Please enter technician name')
+      return
+    }
+
     try {
       setLoading(true)
 
       const { error } = await supabase.from('Reflections').insert([
         {
-          technician_name: 'Test Technician',
-          job_type: 'Service Call',
+          technician_name: technicianName,
+          job_type: jobType,
           challenge,
           frustration,
           went_well: wentWell,
@@ -59,6 +66,8 @@ export default function Home() {
 
       alert('Saved successfully!')
 
+      setTechnicianName('')
+      setJobType('Service Call')
       setChallenge('')
       setFrustration('')
       setWentWell('')
@@ -76,6 +85,38 @@ export default function Home() {
       <h1 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '24px' }}>
         TradeWise Reflection
       </h1>
+
+      <input
+        type="text"
+        placeholder="Technician Name"
+        value={technicianName}
+        onChange={(e) => setTechnicianName(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '12px',
+          marginBottom: '16px',
+          border: '1px solid #ccc',
+          borderRadius: '6px',
+        }}
+      />
+
+      <select
+        value={jobType}
+        onChange={(e) => setJobType(e.target.value)}
+        style={{
+          width: '100%',
+          padding: '12px',
+          marginBottom: '16px',
+          border: '1px solid #ccc',
+          borderRadius: '6px',
+        }}
+      >
+        <option value="Service Call">Service Call</option>
+        <option value="Install">Install</option>
+        <option value="Maintenance">Maintenance</option>
+        <option value="Inspection">Inspection</option>
+        <option value="Callback">Callback</option>
+      </select>
 
       <textarea
         placeholder="What was challenging?"
