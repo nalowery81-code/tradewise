@@ -1,48 +1,78 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
+
+type Reflection = {
+  technician_name: string
+  job_type: string
+  challenge: string
+  frustration: string
+  went_well: string
+  created_at?: string
+}
 
 export default function Home() {
   const [challenge, setChallenge] = useState('')
   const [frustration, setFrustration] = useState('')
   const [wentWell, setWentWell] = useState('')
+  const [reflections, setReflections] = useState<Reflection[]>([])
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = async () => {
-  try {
-    const { data, error } = await supabase.from('Reflections').insert([
-      {
-        technician_name: 'Test Technician',
-        job_type: 'Service Call',
-        challenge: challenge,
-        frustration: frustration,
-        went_well: wentWell,
-      },
-    ])
+  const fetchReflections = async () => {
+    const { data, error } = await supabase
+      .from('Reflections')
+      .select('*')
 
     if (error) {
-      alert(`Supabase error: ${error.message}`)
-      console.log('SUPABASE ERROR MESSAGE:', error.message)
-      console.log('SUPABASE ERROR DETAILS:', error.details)
-      console.log('SUPABASE ERROR HINT:', error.hint)
-      console.log('SUPABASE ERROR CODE:', error.code)
-      console.log('FULL ERROR:', JSON.stringify(error, null, 2))
+      alert(`Fetch error: ${error.message}`)
+      console.error(error)
       return
     }
 
-    alert('Saved successfully!')
-    console.log('Saved row:', data)
-    setChallenge('')
-    setFrustration('')
-    setWentWell('')
-  } catch (err: any) {
-    alert(`Catch error: ${err?.message || 'Unknown error'}`)
-    console.log('CATCH ERROR:', err)
+    setReflections(data || [])
   }
-}
+
+  useEffect(() => {
+    fetchReflections()
+  }, [])
+
+  const handleSubmit = async () => {
+    try {
+      setLoading(true)
+
+      const { error } = await supabase.from('Reflections').insert([
+        {
+          technician_name: 'Test Technician',
+          job_type: 'Service Call',
+          challenge,
+          frustration,
+          went_well: wentWell,
+        },
+      ])
+
+      if (error) {
+        alert(`Supabase error: ${error.message}`)
+        console.error(error)
+        return
+      }
+
+      alert('Saved successfully!')
+
+      setChallenge('')
+      setFrustration('')
+      setWentWell('')
+      fetchReflections()
+    } catch (err: any) {
+      alert(`Catch error: ${err?.message || 'Unknown error'}`)
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   return (
-    <main style={{ padding: '40px', maxWidth: '700px', margin: '0 auto' }}>
+    <main style={{ padding: '40px', maxWidth: '900px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '28px', fontWeight: 'bold', marginBottom: '24px' }}>
         TradeWise Reflection
       </h1>
@@ -70,15 +100,45 @@ export default function Home() {
 
       <button
         onClick={handleSubmit}
+        disabled={loading}
         style={{
           padding: '12px 20px',
           backgroundColor: 'blue',
           color: 'white',
           border: 'none',
+          cursor: 'pointer',
+          marginBottom: '32px',
         }}
       >
-        Submit
+        {loading ? 'Saving...' : 'Submit'}
       </button>
+
+      <h2 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '16px' }}>
+        Saved Reflections
+      </h2>
+
+      {reflections.length === 0 ? (
+        <p>No reflections saved yet.</p>
+      ) : (
+        <div style={{ display: 'grid', gap: '16px' }}>
+          {reflections.map((reflection, index) => (
+            <div
+              key={index}
+              style={{
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                padding: '16px',
+              }}
+            >
+              <p><strong>Technician:</strong> {reflection.technician_name}</p>
+              <p><strong>Job Type:</strong> {reflection.job_type}</p>
+              <p><strong>Challenge:</strong> {reflection.challenge}</p>
+              <p><strong>Frustration:</strong> {reflection.frustration}</p>
+              <p><strong>Went Well:</strong> {reflection.went_well}</p>
+            </div>
+          ))}
+        </div>
+      )}
     </main>
   )
 }
