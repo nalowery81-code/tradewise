@@ -21,6 +21,28 @@ export default function Home() {
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [loading, setLoading] = useState(false)
 
+  const generateInsight = (reflection: Reflection) => {
+    const text = `${reflection.challenge} ${reflection.frustration}`.toLowerCase()
+
+    if (text.includes('confused') || text.includes('unsure')) {
+      return 'Technician may need additional training or clarification.'
+    }
+
+    if (text.includes('long') || text.includes('took too long')) {
+      return 'Job efficiency could be improved.'
+    }
+
+    if (text.includes('customer') && text.includes('frustrated')) {
+      return 'Customer communication may need support.'
+    }
+
+    if (reflection.went_well.length > 20) {
+      return 'Strong reflection and awareness shown — good growth mindset.'
+    }
+
+    return 'No major issues detected. Keep up the good work.'
+  }
+
   const fetchReflections = async () => {
     const { data, error } = await supabase
       .from('Reflections')
@@ -176,6 +198,10 @@ export default function Home() {
               <p><strong>Challenge:</strong> {reflection.challenge}</p>
               <p><strong>Frustration:</strong> {reflection.frustration}</p>
               <p><strong>Went Well:</strong> {reflection.went_well}</p>
+
+              <p style={{ marginTop: '10px', color: 'green' }}>
+                <strong>Insight:</strong> {generateInsight(reflection)}
+              </p>
             </div>
           ))}
         </div>
