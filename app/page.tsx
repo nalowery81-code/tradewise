@@ -983,28 +983,45 @@ Suggested Next Step: ${interpretation.nextStep}`
       return
     }
 
-    let data: any
+        let data: any
 
     try {
       data = JSON.parse(rawText)
     } catch {
-      // 🔥 THIS IS THE KEY DEBUG FALLBACK
-      setTeamSummaryResult({
-        human_read: rawText,
-        team_status: rawText,
-        full_report: rawText,
-        who_should_i_talk_to_tomorrow: [],
-        what_the_team_is_carrying: [],
-        who_may_need_support: [],
-        system_issues_to_watch: [],
-        manager_moves: [],
-      })
+      setTeamSummaryError(`Team summary returned invalid JSON: ${rawText}`)
       setTeamSummaryLoading(false)
       return
     }
 
+    setTeamSummaryResult({
+      report_title: data.report_title || 'Full Team AI Report',
+      human_read: data.human_read || data.team_summary || 'No human read returned.',
+      team_status: data.team_status || data.emotional_read || 'No team status returned.',
+      who_should_i_talk_to_tomorrow: data.who_should_i_talk_to_tomorrow || [],
+      what_the_team_is_carrying:
+        data.what_the_team_is_carrying || data.top_friction_themes || [],
+      who_may_need_support:
+        data.who_may_need_support || data.likely_root_causes || [],
+      system_issues_to_watch:
+        data.system_issues_to_watch || data.positive_signals || [],
+      manager_moves: data.manager_moves || data.manager_actions || [],
+      full_report: data.full_report || data.coaching_message || 'No full report returned.',
+    })
+
     // ✅ NORMAL PATH
-    setTeamSummaryResult(data)
+    setTeamSummaryResult({
+  human_read: data.team_summary,
+  team_status: data.emotional_read,
+
+  what_the_team_is_carrying: data.top_friction_themes || [],
+  who_may_need_support: data.likely_root_causes || [],
+  system_issues_to_watch: data.positive_signals || [],
+  manager_moves: data.manager_actions || [],
+
+  full_report: data.coaching_message,
+
+  who_should_i_talk_to_tomorrow: [], // optional for now
+})
 
   } catch (err) {
     console.error('TEAM SUMMARY ERROR:', err)
