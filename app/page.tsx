@@ -1706,272 +1706,89 @@ const generatedBurnoutSignal =
           {view === 'tech' && (
             <div style={styles.techLayout}>
               <div style={styles.techLeft}>
-                <div style={styles.wowCard}>
-                  <div style={styles.wowBadge}>First WOW</div>
-                  <h3 style={styles.wowTitle}>A technician can reflect in minutes.</h3>
-                  <p style={styles.wowText}>
-                    TradeWise captures what happened, what went well, and what support would have
-                    helped — then interprets the moment and responds in a way that feels human
-                    instead of cold.
-                  </p>
 
-                  <div style={styles.wowGrid}>
-                    <div style={styles.miniInfoCard}>
-                      <strong>Capture</strong>
-                      <p style={styles.miniInfoText}>
-                        Guided reflection collects what happened in the field.
-                      </p>
-                    </div>
-                    <div style={styles.miniInfoCard}>
-                      <strong>Interpret</strong>
-                      <p style={styles.miniInfoText}>
-                        TradeWise identifies the situation, emotion, risk, and likely root cause.
-                      </p>
-                    </div>
-                    <div style={styles.miniInfoCard}>
-                      <strong>Respond + Improve</strong>
-                      <p style={styles.miniInfoText}>
-                        Technicians get support while managers get a next step they can act on.
-                      </p>
-                    </div>
-                  </div>
-                </div>
+  {/* VOICE SECTION */}
+  <div style={styles.voiceCard}>
+    <h3>Voice Reflection</h3>
 
-                <form onSubmit={handleSubmit} style={styles.formCard}>
-                  <div style={styles.formHeader}>
-                    <h3 style={{ margin: 0 }}>Submit Reflection</h3>
-                    <span style={styles.formHeaderBadge}>Live Demo Flow</span>
-                  </div>
-
-                  {speechSupported && (
-                      <div style={styles.guidedBox}>
-                        <div style={styles.guidedHeader}>
-                          <strong>Voice Reflection</strong>
-                          <span style={styles.guidedBadge}>Guided</span>
-                        </div>
-
-                        <p style={styles.guidedText}>
-                          Tap one button and TradeWise will guide the technician through name, job
-                          type, job details, what went well, and what would have helped.
-                        </p>
-
-                        <div style={styles.guidedActions}>
-                          <button
-                            type="button"
-                            onClick={startFullReflectionRecording}
-                            style={styles.recordButton}
-                            disabled={guidedRecording}
-                          >
-                            {guidedRecording
-                              ? 'Recording in Progress...'
-                              : '🎙️ Record Full Reflection'}
-                          </button>
-
-                          {guidedRecording && (
-                            <button
-                              type="button"
-                              onClick={cancelFullReflectionRecording}
-                              style={styles.cancelButton}
-                            >
-                              Stop Recording
-                            </button>
-                          )}
-                        </div>
-
-                        {guidedRecording && (
-                          <div style={styles.promptBox}>
-                            <strong>Current Prompt:</strong>
-                            <p style={{ margin: '8px 0 0 0' }}>
-                              {guidedPrompt || 'Preparing first question...'}
-                            </p>
-                            {guidedStep && (
-                              <p style={styles.promptSubtext}>
-                                Active section:{' '}
-                                {guidedStep === 'technicianName'
-                                  ? 'Technician Name'
-                                  : guidedStep === 'jobType'
-                                  ? 'Job Type'
-                                  : 'Reflection'}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                  <div style={styles.form}>
-                    <div style={styles.fieldWrap}>
-                      <label style={styles.label}>Technician Name</label>
-                      <input
-                        list="technician-name-options"
-                        placeholder="Technician Name"
-                        value={technicianName}
-                        onChange={(e) => setTechnicianName(e.target.value)}
-                        style={styles.input}
-                      />
-                      <datalist id="technician-name-options">
-                        {technicians.map((tech) => (
-                          <option key={tech.id} value={tech.canonical_name} />
-                        ))}
-                      </datalist>
-
-                      {speechSupported && (
-                        <button
-                          type="button"
-                          onClick={() => startListening('technicianName')}
-                          style={styles.micButton}
-                        >
-                          {isListening && activeField === 'technicianName'
-                            ? 'Listening...'
-                            : '🎤 Speak Name'}
-                        </button>
-                      )}
-                    </div>
-
-                    <div style={styles.fieldWrap}>
-                      <label style={styles.label}>Job Type</label>
-                      <select
-                        value={jobType}
-                        onChange={(e) => setJobType(e.target.value)}
-                        style={styles.input}
-                      >
-                        <option value="">Select Job Type</option>
-                        {JOB_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-
-                      {speechSupported && (
-                        <button
-                          type="button"
-                          onClick={() => startListening('jobType')}
-                          style={styles.micButton}
-                        >
-                          {isListening && activeField === 'jobType'
-                            ? 'Listening...'
-                            : '🎤 Speak Job Type'}
-                        </button>
-                      )}
-                    </div>
-
-                    
-
-                    <div style={styles.fieldWrap}>
-  <label style={styles.label}>Reflection</label>
-  <textarea
-    placeholder="Talk like you normally would... what happened today?"
-    value={reflection}
-    onChange={(e) => setReflection(e.target.value)}
-    style={styles.textarea}
-  />
-  {speechSupported && (
     <button
       type="button"
-      onClick={() => startListening('reflection')}
-      style={styles.micButton}
+      onClick={startFullReflectionRecording}
+      style={styles.primaryButton}
     >
-      {isListening && activeField === 'reflection'
-        ? 'Listening...'
-        : '🎤 Speak Reflection'}
+      🎤 Start Guided Reflection
     </button>
+
+    {guidedRecording && (
+      <button
+        type="button"
+        onClick={cancelFullReflectionRecording}
+        style={styles.secondaryButton}
+      >
+        Cancel
+      </button>
+    )}
+
+    {guidedPrompt && (
+      <p style={{ marginTop: 10 }}>{guidedPrompt}</p>
+    )}
+  </div>
+
+  {/* FORM */}
+  <form onSubmit={handleSubmit} style={styles.formCard}>
+    <h3>Submit Reflection</h3>
+
+    <input
+      type="text"
+      placeholder="Technician Name"
+      value={technicianName}
+      onChange={(e) => setTechnicianName(e.target.value)}
+      style={styles.input}
+    />
+
+    <select
+      value={jobType}
+      onChange={(e) => setJobType(e.target.value)}
+      style={styles.input}
+    >
+      <option value="">Select Job Type</option>
+      {JOB_TYPE_OPTIONS.map((job) => (
+        <option key={job} value={job}>
+          {job}
+        </option>
+      ))}
+    </select>
+
+    <textarea
+      placeholder="Tell me about the job..."
+      value={reflection}
+      onChange={(e) => setReflection(e.target.value)}
+      style={styles.textarea}
+    />
+
+    <button type="submit" disabled={loading} style={styles.primaryButton}>
+      {loading ? 'Submitting...' : 'Submit Reflection'}
+    </button>
+  </form>
+
+  {/* AI RESPONSE */}
+  {aiResponse && (
+    <div style={styles.responseCard}>
+      <h4>AI Response</h4>
+      <p>{aiResponse}</p>
+    </div>
   )}
+
+  {/* BURNOUT SIGNAL */}
+  {burnoutSignal && (
+    <div style={styles.burnoutCard}>
+      <strong>{burnoutSignal}</strong>
+    </div>
+  )}
+
 </div>
 
-                    
 
-                    
-
-                    {!speechSupported && (
-                      <div style={styles.infoBox}>
-                        Speech-to-text is not supported in this browser. Chrome usually works best.
-                      </div>
-                    )}
-
-                    <button type="submit" style={styles.submit}>
-                      {loading ? 'Submitting...' : 'Submit Reflection'}
-                    </button>
-
-                    {message && (
-                      <div
-                        style={
-                          message === 'Reflection submitted.' ? styles.successBox : styles.warningBox
-                        }
-                      >
-                        {message}
-                      </div>
-                    )}
-
-                    {aiResponse && message === 'Reflection submitted.' && (
-                      <div style={styles.aiResponseFeature}>
-                        <div style={styles.aiResponseHeader}>
-                          <div>
-                            <div style={styles.aiLabel}>AI Response</div>
-                            <h3 style={{ margin: '6px 0 0 0' }}>Technician Support Message</h3>
-                          </div>
-                          <span style={styles.aiBadge}>Empathy Layer</span>
-                        </div>
-
-                        <p style={styles.aiResponseText}>{aiResponse}</p>
-
-                        {understandingSnapshot && (
-                          <div style={styles.frameworkBox}>
-                            <div style={styles.frameworkHeader}>
-                              <div>
-                                <div style={styles.frameworkLabel}>Understanding Framework</div>
-                                <h3 style={{ margin: '6px 0 0 0' }}>Interpretation Snapshot</h3>
-                              </div>
-                              <span
-                                style={
-                                  understandingSnapshot.riskLevel === 'High'
-                                    ? styles.riskHigh
-                                    : understandingSnapshot.riskLevel === 'Medium'
-                                    ? styles.riskMedium
-                                    : styles.riskLow
-                                }
-                              >
-                                {understandingSnapshot.riskLevel} Risk
-                              </span>
-                            </div>
-
-                            <div style={styles.frameworkGrid}>
-                              <div style={styles.frameworkItem}>
-                                <strong>Situation</strong>
-                                <p style={styles.frameworkText}>{understandingSnapshot.situation}</p>
-                              </div>
-
-                              <div style={styles.frameworkItem}>
-                                <strong>Emotion</strong>
-                                <p style={styles.frameworkText}>{understandingSnapshot.emotion}</p>
-                              </div>
-
-                              <div style={styles.frameworkItem}>
-                                <strong>Root Cause Guess</strong>
-                                <p style={styles.frameworkText}>
-                                  {understandingSnapshot.rootCause}
-                                </p>
-                              </div>
-
-                              <div style={styles.frameworkItem}>
-                                <strong>Next Step</strong>
-                                <p style={styles.frameworkText}>{understandingSnapshot.nextStep}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {burnoutSignal && (
-                          <div style={styles.burnoutBox}>
-                            <strong>Burnout Signal</strong>
-                            <p style={{ margin: '8px 0 0 0' }}>{burnoutSignal}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </form>
-              </div>
 
               <div style={styles.techRight}>
                 <div style={styles.previewCard}>
