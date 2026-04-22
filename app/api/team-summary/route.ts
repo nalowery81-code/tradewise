@@ -71,9 +71,7 @@ ${JSON.stringify(reflections, null, 2)}
     })
 
     const raw = completion.choices[0]?.message?.content || ''
-    return NextResponse.json({
-  DEBUG_RAW: raw
-})
+
 
     console.log('TEAM SUMMARY RAW:', raw)
 
