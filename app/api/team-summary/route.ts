@@ -9,128 +9,90 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
 
-    const technicianName = body.technicianName || ''
-    const jobType = body.jobType || ''
-    const reflection = body.reflection || ''
     const managerReflection = body.managerReflection || ''
-
-    const isManagerSummary = !!managerReflection?.trim()
-
-    if (isManagerSummary) {
-      const response = await client.responses.create({
-        model: 'gpt-4.1-mini',
-        instructions: `
-You are the manager insight layer for TradeWise, a human-first reflection and support system for the trades.
-
-Your job:
-1. Summarize what the team may be experiencing in a contractor-style voice.
-2. Explain what the team may be feeling beneath the surface.
-3. Identify the top friction themes.
-4. Identify the positive signals still present on the team.
-5. Assess burnout risk.
-6. Suggest practical manager actions for this week.
-7. Write a short coaching message for the manager.
-
-Rules:
-- Sound grounded, human, practical, and contractor-friendly.
-- Do not sound corporate, robotic, or overly polished.
-- Do not shame technicians or managers.
-- Be direct, supportive, and useful.
-- Return valid JSON only.
-        `,
-        input: `
-Manager Reflection:
-${managerReflection}
-        `,
-        text: {
-          format: {
-            type: 'json_schema',
-            name: 'manager_team_summary',
-            schema: {
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                team_summary: { type: 'string' },
-                emotional_read: { type: 'string' },
-                top_friction_themes: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                positive_signals: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                burnout_risk: { type: 'string' },
-                likely_root_causes: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                manager_actions: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                coaching_message: { type: 'string' },
-              },
-              required: [
-                'team_summary',
-                'emotional_read',
-                'top_friction_themes',
-                'positive_signals',
-                'burnout_risk',
-                'likely_root_causes',
-                'manager_actions',
-                'coaching_message',
-              ],
-            },
-          },
-        },
-      })
-
-      const output = response.output_text
-
-      if (!output) {
-        return NextResponse.json(
-          { error: 'OpenAI returned no manager summary output.' },
-          { status: 500 }
-        )
-      }
-
-      const parsed = JSON.parse(output)
-      return NextResponse.json(parsed)
-    }
+    const reflections = body.reflections || []
+    const weeklySummary = body.weeklySummary || ''
+    const overallSummary = body.overallSummary || ''
 
     const response = await client.responses.create({
       model: 'gpt-4.1-mini',
       instructions: `
-You are the empathy and coaching layer for a trades feedback app called TradeWise.
+You are the manager insight layer for TradeWise, a human-first reflection and support system for the trades.
 
-Your job:
-1. Write a short, supportive technician response.
-2. Write a clear, actionable manager insight.
-3. Return valid JSON only.
+Write like a seasoned plumbing or HVAC field leader.
+Be grounded, human, practical, and contractor-friendly.
+Do not sound corporate, robotic, or overly polished.
+Do not shame technicians or managers.
+Be direct, supportive, and useful.
 
-Rules:
-- Be human and respectful
-- Do not shame the technician
-- Keep responses concise
-      `,
+Return valid JSON only.
+`,
       input: `
-Technician Name: ${technicianName}
-Job Type: ${jobType}
-Reflection: ${reflection}
-      `,
+Manager Question:
+${managerReflection || 'Give me a contractor-style read on what my team is dealing with and where I should focus next.'}
+
+Weekly Summary:
+${weeklySummary}
+
+Overall Summary:
+${overallSummary}
+
+Recent Reflections:
+${JSON.stringify(reflections, null, 2)}
+`,
       text: {
         format: {
           type: 'json_schema',
-          name: 'tradewise_output',
+          name: 'manager_team_summary',
           schema: {
             type: 'object',
             additionalProperties: false,
             properties: {
-              technician_response: { type: 'string' },
-              manager_insight: { type: 'string' },
+              report_title: { type: 'string' },
+              human_read: { type: 'string' },
+              team_status: { type: 'string' },
+              who_should_i_talk_to_tomorrow: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    name: { type: 'string' },
+                    reason: { type: 'string' },
+                    risk: { type: 'string' },
+                  },
+                  required: ['name', 'reason', 'risk'],
+                },
+              },
+              what_the_team_is_carrying: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              who_may_need_support: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              system_issues_to_watch: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              manager_moves: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              full_report: { type: 'string' },
             },
-            required: ['technician_response', 'manager_insight'],
+            required: [
+              'report_title',
+              'human_read',
+              'team_status',
+              'who_should_i_talk_to_tomorrow',
+              'what_the_team_is_carrying',
+              'who_may_need_support',
+              'system_issues_to_watch',
+              'manager_moves',
+              'full_report',
+            ],
           },
         },
       },
@@ -140,7 +102,7 @@ Reflection: ${reflection}
 
     if (!output) {
       return NextResponse.json(
-        { error: 'OpenAI returned no technician output.' },
+        { error: 'OpenAI returned no manager summary output.' },
         { status: 500 }
       )
     }
