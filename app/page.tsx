@@ -1743,6 +1743,62 @@ const generatedBurnoutSignal =
                     <span style={styles.formHeaderBadge}>Live Demo Flow</span>
                   </div>
 
+                  {speechSupported && (
+                      <div style={styles.guidedBox}>
+                        <div style={styles.guidedHeader}>
+                          <strong>Voice Reflection</strong>
+                          <span style={styles.guidedBadge}>Guided</span>
+                        </div>
+
+                        <p style={styles.guidedText}>
+                          Tap one button and TradeWise will guide the technician through name, job
+                          type, job details, what went well, and what would have helped.
+                        </p>
+
+                        <div style={styles.guidedActions}>
+                          <button
+                            type="button"
+                            onClick={startFullReflectionRecording}
+                            style={styles.recordButton}
+                            disabled={guidedRecording}
+                          >
+                            {guidedRecording
+                              ? 'Recording in Progress...'
+                              : '🎙️ Record Full Reflection'}
+                          </button>
+
+                          {guidedRecording && (
+                            <button
+                              type="button"
+                              onClick={cancelFullReflectionRecording}
+                              style={styles.cancelButton}
+                            >
+                              Stop Recording
+                            </button>
+                          )}
+                        </div>
+
+                        {guidedRecording && (
+                          <div style={styles.promptBox}>
+                            <strong>Current Prompt:</strong>
+                            <p style={{ margin: '8px 0 0 0' }}>
+                              {guidedPrompt || 'Preparing first question...'}
+                            </p>
+                            {guidedStep && (
+                              <p style={styles.promptSubtext}>
+                                Active section:{' '}
+                                {guidedStep === 'technicianName'
+                                  ? 'Technician Name'
+                                  : guidedStep === 'jobType'
+                                  ? 'Job Type'
+                                  : 'Reflection'}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                   <div style={styles.form}>
                     <div style={styles.fieldWrap}>
                       <label style={styles.label}>Technician Name</label>
@@ -1800,61 +1856,7 @@ const generatedBurnoutSignal =
                       )}
                     </div>
 
-                    {speechSupported && (
-                      <div style={styles.guidedBox}>
-                        <div style={styles.guidedHeader}>
-                          <strong>Voice Reflection</strong>
-                          <span style={styles.guidedBadge}>Guided</span>
-                        </div>
-
-                        <p style={styles.guidedText}>
-                          Tap one button and TradeWise will guide the technician through name, job
-                          type, job details, what went well, and what would have helped.
-                        </p>
-
-                        <div style={styles.guidedActions}>
-                          <button
-                            type="button"
-                            onClick={startFullReflectionRecording}
-                            style={styles.recordButton}
-                            disabled={guidedRecording}
-                          >
-                            {guidedRecording
-                              ? 'Recording in Progress...'
-                              : '🎙️ Record Full Reflection'}
-                          </button>
-
-                          {guidedRecording && (
-                            <button
-                              type="button"
-                              onClick={cancelFullReflectionRecording}
-                              style={styles.cancelButton}
-                            >
-                              Stop Recording
-                            </button>
-                          )}
-                        </div>
-
-                        {guidedRecording && (
-                          <div style={styles.promptBox}>
-                            <strong>Current Prompt:</strong>
-                            <p style={{ margin: '8px 0 0 0' }}>
-                              {guidedPrompt || 'Preparing first question...'}
-                            </p>
-                            {guidedStep && (
-                              <p style={styles.promptSubtext}>
-                                Active section:{' '}
-                                {guidedStep === 'technicianName'
-                                  ? 'Technician Name'
-                                  : guidedStep === 'jobType'
-                                  ? 'Job Type'
-                                  : 'Reflection'}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
+                    
 
                     <div style={styles.fieldWrap}>
   <label style={styles.label}>Reflection</label>
