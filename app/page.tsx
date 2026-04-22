@@ -958,24 +958,40 @@ Suggested Next Step: ${interpretation.nextStep}`
   setTeamSummaryError('')
   setTeamSummaryResult(null)
 
-  if (!managerReflection.trim()) {
-    setTeamSummaryError('Please enter a manager reflection first.')
-    setTeamSummaryLoading(false)
-    return
-  }
-
   try {
     const res = await fetch('/api/team-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        managerReflection,
+        managerReflection:
+          managerReflection.trim() ||
+          'Give me a contractor-style read on what my team is dealing with and where I should focus next.',
+        reflections: reflections.slice(0, 25),
+        weeklySummary: weeklyRecap.summary,
+        overallSummary: aiOverview.summary,
       }),
     })
 
-    const data = await res.json()
+    const rawText = await res.text()
 
-    console.log('TEAM SUMMARY:', data)
+    console.log('TEAM SUMMARY STATUS:', res.status)
+    console.log('TEAM SUMMARY RAW:', rawText)
+
+    if (!res.ok) {
+      setTeamSummaryError(`Team summary route error: ${rawText}`)
+      setTeamSummaryLoading(false)
+      return
+    }
+
+    let data: any
+
+    try {
+      data = JSON.parse(rawText)
+    } catch {
+      setTeamSummaryError(`Team summary returned invalid JSON: ${rawText}`)
+      setTeamSummaryLoading(false)
+      return
+    }
 
     setTeamSummaryResult(data)
   } catch (err) {
@@ -984,9 +1000,7 @@ Suggested Next Step: ${interpretation.nextStep}`
   }
 
   setTeamSummaryLoading(false)
-  }
-  
-
+}
   
 
 const handleSubmit = async (e: React.FormEvent) => {
