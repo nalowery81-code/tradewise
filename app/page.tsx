@@ -2024,6 +2024,175 @@ const generatedBurnoutSignal =
 
               {!loadingReflections && !managerError && managerScreen === 'dashboard' && (
                 <>
+                <div style={styles.overviewCard}>
+  <div style={styles.overviewHeader}>
+    <h3 style={{ margin: 0 }}>Ask AI About Your Team</h3>
+    <span style={styles.overviewBadge}>Contractor View</span>
+  </div>
+
+  <p style={styles.overviewText}>
+    Generate a full AI read on what your team appears to be dealing with, where strain may be
+    building, and what manager moves make the most sense next.
+  </p>
+
+  <textarea
+    value={managerReflection}
+    onChange={(e) => setManagerReflection(e.target.value)}
+    placeholder="Ask something like: Who seems overloaded right now? Where are my systems breaking down? What should I focus on this week?"
+    style={styles.noteTextarea}
+  />
+
+  <div style={styles.noteActions}>
+    <button
+      type="button"
+      onClick={handleGenerateTeamSummary}
+      style={styles.saveNoteButton}
+      disabled={teamSummaryLoading || reflections.length === 0}
+    >
+      {teamSummaryLoading ? 'Generating Report...' : 'Generate Full AI Team Report'}
+    </button>
+  </div>
+
+  {teamSummaryError && (
+    <div style={styles.errorBox}>
+      <strong>Team report error:</strong>
+      <p style={{ marginTop: 8 }}>{teamSummaryError}</p>
+    </div>
+  )}
+
+  {teamSummaryResult && (
+    <div style={styles.frameworkBox}>
+      <div style={styles.frameworkHeader}>
+        <div>
+          <div style={styles.frameworkLabel}>TradeWise Team Read</div>
+          <h3 style={{ margin: '6px 0 0 0' }}>
+            {teamSummaryResult.report_title || 'Full Team AI Report'}
+          </h3>
+        </div>
+        <span style={styles.aiBadge}>Manager Report</span>
+      </div>
+
+      <div style={styles.humanReadHero}>
+        <div style={styles.humanReadKicker}>Human Read</div>
+        <p style={styles.humanReadText}>
+          {teamSummaryResult.human_read || 'No human read returned.'}
+        </p>
+      </div>
+
+      <div style={styles.overviewSection}>
+        <strong>Team Status</strong>
+        <p style={styles.overviewText}>
+          {teamSummaryResult.team_status || 'No team status returned.'}
+        </p>
+      </div>
+
+      <div style={styles.frameworkItem}>
+        <div style={styles.frameworkHeader}>
+          <strong>Who Should I Talk To Tomorrow</strong>
+          <span style={styles.overviewBadge}>Immediate Follow-Up</span>
+        </div>
+
+        {teamSummaryResult.who_should_i_talk_to_tomorrow?.length > 0 ? (
+          <div style={styles.tomorrowTalkList}>
+            {teamSummaryResult.who_should_i_talk_to_tomorrow.map(
+              (
+                person: { name: string; reason: string; risk: 'Low' | 'Medium' | 'High' },
+                index: number
+              ) => (
+                <div key={index} style={styles.tomorrowTalkCard}>
+                  <div style={styles.frameworkHeader}>
+                    <strong>{person.name}</strong>
+                    <span
+                      style={
+                        person.risk === 'High'
+                          ? styles.riskHigh
+                          : person.risk === 'Medium'
+                          ? styles.riskMedium
+                          : styles.riskLow
+                      }
+                    >
+                      {person.risk === 'High'
+                        ? '🔥 High Risk'
+                        : person.risk === 'Medium'
+                        ? '⚠️ Medium Risk'
+                        : 'Low Risk'}
+                    </span>
+                  </div>
+                  <p style={styles.frameworkText}>{person.reason}</p>
+                </div>
+              )
+            )}
+          </div>
+        ) : (
+          <p style={styles.overviewText}>
+            No one clearly stands out for a next-day check-in right now.
+          </p>
+        )}
+      </div>
+
+      <div style={styles.frameworkGrid}>
+        <div style={styles.frameworkItem}>
+          <strong>What the Team Is Carrying</strong>
+          <div style={styles.previewList}>
+            {(teamSummaryResult.what_the_team_is_carrying || []).map(
+              (item: string, index: number) => (
+                <p key={index} style={styles.frameworkText}>
+                  • {item}
+                </p>
+              )
+            )}
+          </div>
+        </div>
+
+        <div style={styles.frameworkItem}>
+          <strong>Who May Need Support</strong>
+          <div style={styles.previewList}>
+            {(teamSummaryResult.who_may_need_support || []).map(
+              (item: string, index: number) => (
+                <p key={index} style={styles.frameworkText}>
+                  • {item}
+                </p>
+              )
+            )}
+          </div>
+        </div>
+
+        <div style={styles.frameworkItem}>
+          <strong>System Issues to Watch</strong>
+          <div style={styles.previewList}>
+            {(teamSummaryResult.system_issues_to_watch || []).map(
+              (item: string, index: number) => (
+                <p key={index} style={styles.frameworkText}>
+                  • {item}
+                </p>
+              )
+            )}
+          </div>
+        </div>
+
+        <div style={styles.frameworkItem}>
+          <strong>Manager Moves</strong>
+          <div style={styles.previewList}>
+            {(teamSummaryResult.manager_moves || []).map(
+              (item: string, index: number) => (
+                <p key={index} style={styles.frameworkText}>
+                  • {item}
+                </p>
+              )
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div style={styles.actionBox}>
+        <strong>Full Report</strong>
+        <p style={{ margin: '8px 0 0 0' }}>
+          {teamSummaryResult.full_report || 'No full report returned.'}
+        </p>
+      </div>
+    </div>
+  )}
+</div>
                   <div style={styles.weeklyCard}>
                     <div style={styles.overviewHeader}>
                       <h3 style={{ margin: 0 }}>Weekly AI Recap</h3>
