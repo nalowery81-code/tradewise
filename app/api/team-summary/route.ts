@@ -98,30 +98,30 @@ ${JSON.stringify(reflections, null, 2)}
       },
     })
 
-    const raw = response.output?.[0]?.content?.[0]?.text
+    const raw = response.output_text
 
-console.log('RAW AI OUTPUT:', raw)
+    console.log('RAW AI OUTPUT:', raw)
 
-if (!raw) {
-  return NextResponse.json(
-    { error: 'No AI output returned' },
-    { status: 500 }
-  )
-}
+    if (!raw) {
+      return NextResponse.json(
+        { error: 'OpenAI returned no manager summary output.' },
+        { status: 500 }
+      )
+    }
 
-let parsed
+    let parsed: any
 
-try {
-  parsed = JSON.parse(raw)
-} catch (err) {
-  console.error('JSON PARSE ERROR:', raw)
-  return NextResponse.json(
-    { error: 'Invalid JSON from AI', raw },
-    { status: 500 }
-  )
-}
+    try {
+      parsed = JSON.parse(raw)
+    } catch (err) {
+      console.error('JSON PARSE ERROR:', raw)
+      return NextResponse.json(
+        { error: 'Invalid JSON from AI', raw },
+        { status: 500 }
+      )
+    }
 
-return NextResponse.json(parsed)
+    return NextResponse.json(parsed)
   } catch (err: any) {
     console.error('TEAM SUMMARY ROUTE ERROR:', err)
 
