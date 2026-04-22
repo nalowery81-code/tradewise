@@ -993,7 +993,9 @@ Suggested Next Step: ${interpretation.nextStep}`
       return
     }
 
-    setTeamSummaryResult(data)
+    setTeamSummaryError(rawText)
+setTeamSummaryLoading(false)
+return
   } catch (err) {
     console.error('TEAM SUMMARY ERROR:', err)
     setTeamSummaryError('Failed to generate team summary.')
