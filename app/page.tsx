@@ -988,14 +988,24 @@ Suggested Next Step: ${interpretation.nextStep}`
     try {
       data = JSON.parse(rawText)
     } catch {
-      setTeamSummaryError(`Team summary returned invalid JSON: ${rawText}`)
+      // 🔥 THIS IS THE KEY DEBUG FALLBACK
+      setTeamSummaryResult({
+        human_read: rawText,
+        team_status: rawText,
+        full_report: rawText,
+        who_should_i_talk_to_tomorrow: [],
+        what_the_team_is_carrying: [],
+        who_may_need_support: [],
+        system_issues_to_watch: [],
+        manager_moves: [],
+      })
       setTeamSummaryLoading(false)
       return
     }
 
-    setTeamSummaryError(rawText)
-setTeamSummaryLoading(false)
-return
+    // ✅ NORMAL PATH
+    setTeamSummaryResult(data)
+
   } catch (err) {
     console.error('TEAM SUMMARY ERROR:', err)
     setTeamSummaryError('Failed to generate team summary.')
