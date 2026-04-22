@@ -18,9 +18,7 @@ type Reflection = {
 type VoiceField =
   | 'technicianName'
   | 'jobType'
-  | 'challenge'
-  | 'whatWentWell'
-  | 'helpNeeded'
+  | 'reflection'
 
 type GuidedStep = VoiceField | null
 
@@ -40,20 +38,12 @@ type TechnicianAliasRow = {
   alias: string
 }
 
-type BurnoutSignalLevel = 'Low' | 'Moderate' | 'High'
-
-type BurnoutSignal = {
-  technicianName: string
-  score: number
-  level: BurnoutSignalLevel
-  summary: string
-  managerAction: string
-  weeklyReflectionCount: number
-  pressureMentions: number
-  supportMentions: number
-  positiveMentions: number
-  heavyJobMixCount: number
-  latestEntry: string | null
+type InterpretationResult = {
+  situation: string
+  emotion: string
+  riskLevel: 'Low' | 'Medium' | 'High'
+  rootCause: string
+  nextStep: string
 }
 
 const JOB_TYPE_OPTIONS = [
@@ -68,85 +58,24 @@ const JOB_TYPE_OPTIONS = [
   'Other',
 ]
 
-const BURNOUT_PRESSURE_KEYWORDS = [
-  'rushed',
-  'rush',
-  'pressure',
-  'behind',
-  'late',
-  'overtime',
-  'fatigue',
-  'tired',
-  'exhausted',
-  'frustrated',
-  'stress',
-  'stressed',
-  'overwhelmed',
-  'too much',
-  'missed',
-  'family',
-  'baseball',
-  'practice',
-  'long day',
-  'long install',
-  'after hours',
-  'waiting',
-  'delay',
-  'delayed',
-  'customer upset',
-  'upset',
-]
-
-const BURNOUT_SUPPORT_KEYWORDS = [
-  'help',
-  'support',
-  'training',
-  'unsure',
-  'unclear',
-  'miscommunication',
-  'did not know',
-  "didn't know",
-  'parts',
-  'material',
-  'truck stock',
-  'schedule',
-  'scheduling',
-  'communication',
-  'prep',
-  'prepared',
-]
-
-const POSITIVE_SIGNAL_KEYWORDS = [
-  'finished',
-  'completed',
-  'solved',
-  'customer happy',
-  'happy',
-  'teamwork',
-  'worked together',
-  'learned',
-  'confident',
-  'smooth',
-  'success',
-  'grateful',
-  'good job',
-  'went well',
-]
-
 export default function Home() {
   const [view, setView] = useState<'tech' | 'manager'>('tech')
   const [managerScreen, setManagerScreen] = useState<'dashboard' | 'directory' | 'profile'>(
     'dashboard'
   )
   const [selectedTechnician, setSelectedTechnician] = useState<string | null>(null)
-
   const [technicianName, setTechnicianName] = useState('')
   const [jobType, setJobType] = useState('')
-  const [challenge, setChallenge] = useState('')
-  const [whatWentWell, setWhatWentWell] = useState('')
-  const [helpNeeded, setHelpNeeded] = useState('')
+  const [reflection, setReflection] = useState('')
+  const [managerReflection, setManagerReflection] = useState('')
+  const [teamSummaryLoading, setTeamSummaryLoading] = useState(false)
+  const [teamSummaryError, setTeamSummaryError] = useState('')
+  const [teamSummaryResult, setTeamSummaryResult] = useState<any>(null)  
   const [message, setMessage] = useState('')
   const [aiResponse, setAiResponse] = useState('')
+  const [burnoutSignal, setBurnoutSignal] = useState('')
+  const [understandingSnapshot, setUnderstandingSnapshot] =
+    useState<InterpretationResult | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [reflections, setReflections] = useState<Reflection[]>([])
@@ -174,6 +103,32 @@ export default function Home() {
   const guidedModeRef = useRef(false)
   const clearMessageTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  useEffect(() => {
+    const SpeechRecognition =
+      typeof window !== 'undefined' &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+
+    setSpeechSupported(!!SpeechRecognition)
+
+    return () => {
+      if (clearMessageTimeoutRef.current) {
+        clearTimeout(clearMessageTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchTechnicianIdentityData()
+  }, [])
+
+  useEffect(() => {
+    if (selectedTechnician) {
+      const existingNote = managerNotes[selectedTechnician]?.note || ''
+      setManagerNoteText(existingNote)
+      setManagerNoteMessage('')
+    }
+  }, [selectedTechnician, managerNotes])
+
   const normalizeAliasKey = (value: string) => value.trim().toLowerCase()
 
   const normalizeJobType = (spokenValue: string) => {
@@ -183,7 +138,11 @@ export default function Home() {
       return 'Service Call'
     }
 
-    if (value.includes('install') || value.includes('installation') || value.includes('new install')) {
+    if (
+      value.includes('install') ||
+      value.includes('installation') ||
+      value.includes('new install')
+    ) {
       return 'Installation'
     }
 
@@ -320,9 +279,7 @@ export default function Home() {
 
     setTechnicians((prev) => {
       const alreadyExists = prev.some((t) => t.id === technicianRecord.id)
-      return alreadyExists ? prev : [...prev, technicianRecord].sort((a, b) =>
-        a.canonical_name.localeCompare(b.canonical_name)
-      )
+      return alreadyExists ? prev : [...prev, technicianRecord]
     })
 
     return resolved
@@ -348,37 +305,28 @@ export default function Home() {
   const setFieldValue = (field: VoiceField, value: string) => {
     if (field === 'technicianName') setTechnicianName(value.trim())
     if (field === 'jobType') setJobType(normalizeJobType(value))
-    if (field === 'challenge') setChallenge(value.trim())
-    if (field === 'whatWentWell') setWhatWentWell(value.trim())
-    if (field === 'helpNeeded') setHelpNeeded(value.trim())
+    if (field === 'reflection') setReflection(value.trim())
+  
   }
 
   const appendFieldValue = (field: VoiceField, value: string) => {
-    const cleanValue = value.trim()
-    if (!cleanValue) return
+  const cleanValue = value.trim()
+  if (!cleanValue) return
 
-    if (field === 'technicianName') {
-      setTechnicianName(cleanValue)
-      return
-    }
-
-    if (field === 'jobType') {
-      setJobType(normalizeJobType(cleanValue))
-      return
-    }
-
-    if (field === 'challenge') {
-      setChallenge((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
-    }
-
-    if (field === 'whatWentWell') {
-      setWhatWentWell((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
-    }
-
-    if (field === 'helpNeeded') {
-      setHelpNeeded((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
-    }
+  if (field === 'technicianName') {
+    setTechnicianName(cleanValue)
+    return
   }
+
+  if (field === 'jobType') {
+    setJobType(normalizeJobType(cleanValue))
+    return
+  }
+
+  if (field === 'reflection') {
+    setReflection((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
+  }
+}
 
   const stopRecognition = () => {
     if (recognitionRef.current) {
@@ -395,70 +343,6 @@ export default function Home() {
     setGuidedPrompt('')
     setIsListening(false)
     setActiveField(null)
-  }
-
-  const moveToNextGuidedStep = (completedField: VoiceField) => {
-    if (!guidedModeRef.current) return
-
-    if (completedField === 'technicianName') {
-      const nextPrompt =
-        'Next question. What type of job was this? You can say service call, installation, callback, maintenance, inspection, warranty, estimate, emergency call, or other.'
-      setGuidedStep('jobType')
-      setGuidedPrompt(nextPrompt)
-
-      speakPrompt(nextPrompt, () => {
-        if (guidedModeRef.current) {
-          startRecognitionForField('jobType', false)
-        }
-      })
-      return
-    }
-
-    if (completedField === 'jobType') {
-      const nextPrompt = 'Tell me about the job and any challenges you faced.'
-      setGuidedStep('challenge')
-      setGuidedPrompt(nextPrompt)
-
-      speakPrompt(nextPrompt, () => {
-        if (guidedModeRef.current) {
-          startRecognitionForField('challenge', false)
-        }
-      })
-      return
-    }
-
-    if (completedField === 'challenge') {
-      const nextPrompt = 'What went well?'
-      setGuidedStep('whatWentWell')
-      setGuidedPrompt(nextPrompt)
-
-      speakPrompt(nextPrompt, () => {
-        if (guidedModeRef.current) {
-          startRecognitionForField('whatWentWell', false)
-        }
-      })
-      return
-    }
-
-    if (completedField === 'whatWentWell') {
-      const nextPrompt = 'What would have helped?'
-      setGuidedStep('helpNeeded')
-      setGuidedPrompt(nextPrompt)
-
-      speakPrompt(nextPrompt, () => {
-        if (guidedModeRef.current) {
-          startRecognitionForField('helpNeeded', false)
-        }
-      })
-      return
-    }
-
-    if (completedField === 'helpNeeded') {
-      const donePrompt = 'Reflection recording complete.'
-      setGuidedPrompt(donePrompt)
-      speakPrompt(donePrompt)
-      resetGuidedRecording()
-    }
   }
 
   const startRecognitionForField = (field: VoiceField, append = false) => {
@@ -553,6 +437,273 @@ export default function Home() {
       window.speechSynthesis.cancel()
     }
     resetGuidedRecording()
+  }
+
+  const moveToNextGuidedStep = (completedField: VoiceField) => {
+  if (!guidedModeRef.current) return
+
+  if (completedField === 'technicianName') {
+    const nextPrompt = 'What type of job was this?'
+    setGuidedStep('jobType')
+    setGuidedPrompt(nextPrompt)
+
+    speakPrompt(nextPrompt, () => {
+      if (guidedModeRef.current) {
+        startRecognitionForField('jobType', false)
+      }
+    })
+    return
+  }
+
+  if (completedField === 'jobType') {
+    const nextPrompt = 'Tell me about the job. What happened today?'
+    setGuidedStep('reflection')
+    setGuidedPrompt(nextPrompt)
+
+    speakPrompt(nextPrompt, () => {
+      if (guidedModeRef.current) {
+        startRecognitionForField('reflection', true)
+      }
+    })
+    return
+  }
+
+  if (completedField === 'reflection') {
+    speakPrompt('Got it. Reflection recorded.', () => {
+      resetGuidedRecording()
+    })
+  }
+}
+  const buildBurnoutSignal = (
+    challengeValue: string,
+    helpNeededValue: string,
+    whatWentWellValue: string
+  ) => {
+    const combined = `${challengeValue} ${helpNeededValue}`.toLowerCase()
+    const positive = `${whatWentWellValue}`.toLowerCase()
+
+    let score = 0
+
+    if (
+      combined.includes('tired') ||
+      combined.includes('exhausted') ||
+      combined.includes('burned out') ||
+      combined.includes('burnout') ||
+      combined.includes('fatigue')
+    ) {
+      score += 2
+    }
+
+    if (
+      combined.includes('overwhelmed') ||
+      combined.includes('stressed') ||
+      combined.includes('stress') ||
+      combined.includes('pressure')
+    ) {
+      score += 1
+    }
+
+    if (
+      combined.includes('rushed') ||
+      combined.includes('behind') ||
+      combined.includes('late') ||
+      combined.includes('overtime') ||
+      combined.includes('long day') ||
+      combined.includes('long days')
+    ) {
+      score += 1
+    }
+
+    if (
+      combined.includes('family') ||
+      combined.includes('missed') ||
+      combined.includes('kids') ||
+      combined.includes('son') ||
+      combined.includes('daughter') ||
+      combined.includes('wife') ||
+      combined.includes('home')
+    ) {
+      score += 1
+    }
+
+    if (
+      positive.includes('good') ||
+      positive.includes('smooth') ||
+      positive.includes('confident') ||
+      positive.includes('success')
+    ) {
+      score -= 1
+    }
+
+    if (score >= 3) {
+      return 'This reflection suggests elevated strain. A supportive manager check-in may be needed.'
+    }
+
+    if (score >= 2) {
+      return 'Some signs of strain are present. Keep an eye on workload, support, and repeated pressure.'
+    }
+
+    return ''
+  }
+
+  const interpretReflection = (
+    jobTypeValue: string,
+    challengeValue: string,
+    whatWentWellValue: string,
+    helpNeededValue: string
+  ): InterpretationResult => {
+    const challengeText = `${challengeValue} ${helpNeededValue}`.toLowerCase()
+    const winText = `${whatWentWellValue}`.toLowerCase()
+
+    let situation = `${jobTypeValue || 'Job'} with normal field friction`
+    let emotion = 'Some pressure, but manageable'
+    let riskLevel: 'Low' | 'Medium' | 'High' = 'Low'
+    let rootCause = 'General field friction'
+    let nextStep = 'Recognize the effort and keep watching for patterns.'
+
+    let score = 0
+
+    if (
+      challengeText.includes('rushed') ||
+      challengeText.includes('behind') ||
+      challengeText.includes('late') ||
+      challengeText.includes('overtime') ||
+      challengeText.includes('long day') ||
+      challengeText.includes('time')
+    ) {
+      situation = 'The job appears to have run under time pressure'
+      emotion = 'Felt rushed or squeezed by the pace'
+      rootCause = 'Time estimate mismatch or schedule pressure'
+      nextStep = 'Review scheduling, pacing, and whether the expected job time was realistic.'
+      score += 1
+    }
+
+    if (
+      challengeText.includes('part') ||
+      challengeText.includes('parts') ||
+      challengeText.includes('material') ||
+      challengeText.includes('truck stock') ||
+      challengeText.includes('waiting')
+    ) {
+      situation = 'The job appears to have been slowed by prep or material issues'
+      emotion = 'Likely frustrated by things outside the technician’s control'
+      rootCause = 'Material readiness or job prep gap'
+      nextStep = 'Check parts staging, truck stock, and pre-job preparation.'
+      score += 1
+    }
+
+    if (
+      challengeText.includes('customer') ||
+      challengeText.includes('frustrated') ||
+      challengeText.includes('upset')
+    ) {
+      situation = 'The job included customer-facing pressure'
+      emotion = 'Likely felt tension while trying to manage both the work and the customer'
+      rootCause = 'Customer expectation mismatch or communication strain'
+      nextStep = 'Coach customer communication and set clearer expectations earlier in the job.'
+      score += 1
+    }
+
+    if (
+      challengeText.includes('communication') ||
+      challengeText.includes('miscommunication') ||
+      challengeText.includes('unclear') ||
+      challengeText.includes("didn't know") ||
+      challengeText.includes('did not know')
+    ) {
+      situation = 'The job appears to have been affected by communication gaps'
+      emotion = 'Likely uncertain or unsupported in the moment'
+      rootCause = 'Handoff or communication clarity issue'
+      nextStep = 'Improve communication between dispatch, manager, and field technician.'
+      score += 1
+    }
+
+    if (
+      challengeText.includes('help') ||
+      challengeText.includes('support') ||
+      challengeText.includes('training') ||
+      challengeText.includes('unsure') ||
+      challengeText.includes('confidence')
+    ) {
+      situation = 'The technician appears to have needed more support on this job'
+      emotion = 'Likely felt uncertain, stretched, or alone'
+      rootCause = 'Coaching, confidence, or training gap'
+      nextStep = 'Provide brief coaching, backup, or a quick review before similar jobs.'
+      score += 1
+    }
+
+    if (
+      challengeText.includes('tired') ||
+      challengeText.includes('exhausted') ||
+      challengeText.includes('burned out') ||
+      challengeText.includes('burnout') ||
+      challengeText.includes('fatigue') ||
+      challengeText.includes('missed') ||
+      challengeText.includes('family') ||
+      challengeText.includes('kids') ||
+      challengeText.includes('son') ||
+      challengeText.includes('daughter') ||
+      challengeText.includes('wife') ||
+      challengeText.includes('home')
+    ) {
+      emotion = 'There are signs this strain may be affecting the technician personally'
+      score += 2
+    }
+
+    if (
+      winText.includes('smooth') ||
+      winText.includes('confident') ||
+      winText.includes('good') ||
+      winText.includes('success') ||
+      winText.includes('solved') ||
+      winText.includes('finished') ||
+      winText.includes('completed')
+    ) {
+      score -= 1
+    }
+
+    if (score >= 3) {
+      riskLevel = 'High'
+    } else if (score >= 1) {
+      riskLevel = 'Medium'
+    } else {
+      riskLevel = 'Low'
+    }
+
+    return {
+      situation,
+      emotion,
+      riskLevel,
+      rootCause,
+      nextStep,
+    }
+  }
+
+  const buildSupportResponse = (
+    technicianNameValue: string,
+    interpretation: InterpretationResult
+  ) => {
+    const firstName = technicianNameValue.trim() || 'there'
+
+    return `Thanks for sharing this, ${firstName}. It sounds like ${interpretation.situation.toLowerCase()} and that ${interpretation.emotion.toLowerCase()}. That is a real spot to be in, and it helps to capture it honestly. The next best step is to look at ${interpretation.rootCause.toLowerCase()} so the next job can feel smoother and better supported.`
+  }
+
+  const buildFrameworkManagerInsight = (
+    jobTypeValue: string,
+    interpretation: InterpretationResult,
+    whatWentWellValue: string
+  ) => {
+    const wins = whatWentWellValue?.trim()
+      ? whatWentWellValue.trim()
+      : 'No specific win was entered.'
+
+    return `Understanding Framework for ${jobTypeValue || 'Job'}:
+Situation: ${interpretation.situation}.
+Emotion: ${interpretation.emotion}.
+Risk Level: ${interpretation.riskLevel}.
+Root Cause Guess: ${interpretation.rootCause}.
+What Went Well: ${wins}
+Suggested Next Step: ${interpretation.nextStep}`
   }
 
   const buildManagerInsight = (
@@ -759,30 +910,6 @@ export default function Home() {
   }
 
   useEffect(() => {
-    const SpeechRecognition =
-      typeof window !== 'undefined' &&
-      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-
-    setSpeechSupported(!!SpeechRecognition)
-
-    fetchTechnicianIdentityData()
-
-    return () => {
-      if (clearMessageTimeoutRef.current) {
-        clearTimeout(clearMessageTimeoutRef.current)
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    if (selectedTechnician) {
-      const existingNote = managerNotes[selectedTechnician]?.note || ''
-      setManagerNoteText(existingNote)
-      setManagerNoteMessage('')
-    }
-  }, [selectedTechnician, managerNotes])
-
-  useEffect(() => {
     if (view === 'manager') {
       fetchReflections()
     }
@@ -826,76 +953,176 @@ export default function Home() {
 
     setSavingManagerNote(false)
   }
+ const handleGenerateTeamSummary = async () => {
+  setTeamSummaryLoading(true)
+  setTeamSummaryError('')
+  setTeamSummaryResult(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setMessage('')
-    setAiResponse('')
+  try {
+    const res = await fetch('/api/team-summary', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        managerReflection:
+          managerReflection.trim() ||
+          'Give me a contractor-style read on what my team is dealing with and where I should focus next.',
+        reflections: reflections.slice(0, 25),
+        weeklySummary: weeklyRecap.summary,
+        overallSummary: aiOverview.summary,
+      }),
+    })
 
-    if (!technicianName || !jobType || !challenge) {
-      setMessage('Please fill out name, job type, and the job/challenge field.')
-      setLoading(false)
+    const rawText = await res.text()
+
+    console.log('TEAM SUMMARY STATUS:', res.status)
+    console.log('TEAM SUMMARY RAW:', rawText)
+
+    if (!res.ok) {
+      setTeamSummaryError(`Team summary route error: ${rawText}`)
+      setTeamSummaryLoading(false)
       return
     }
 
-    let resolvedTechnician: { technicianId: string; canonicalName: string }
+    let data: any
 
     try {
-      resolvedTechnician = await resolveTechnicianIdentity(technicianName)
-    } catch (err: any) {
-      setMessage(`Technician identity error: ${err.message || 'Unable to resolve technician.'}`)
-      setLoading(false)
+      data = JSON.parse(rawText)
+    } catch {
+      setTeamSummaryError(`Team summary returned invalid JSON: ${rawText}`)
+      setTeamSummaryLoading(false)
       return
     }
 
-    const generatedResponse = `Thanks for sharing this, ${resolvedTechnician.canonicalName}. It sounds like this job brought some real pressure, but it is also helpful to capture what went right. Your honesty matters and helps create a better workplace.`
-
-    const generatedManagerInsight = buildManagerInsight(
-      jobType,
-      challenge,
-      whatWentWell,
-      helpNeeded
-    )
-
-    const { error } = await supabase.from('Reflections').insert([
-      {
-        technician_id: resolvedTechnician.technicianId,
-        technician_name: resolvedTechnician.canonicalName,
-        job_type: jobType,
-        challenge,
-        what_went_well: whatWentWell,
-        help_needed: helpNeeded,
-        ai_response: generatedResponse,
-        manager_insight: generatedManagerInsight,
-        created_at: new Date().toISOString(),
-      },
-    ])
-
-    if (error) {
-      setMessage(`Submit error: ${error.message}`)
-      console.log('Supabase insert error details:', JSON.stringify(error, null, 2))
-    } else {
-      setMessage('Reflection submitted.')
-      setAiResponse(generatedResponse)
-      setTechnicianName('')
-      setJobType('')
-      setChallenge('')
-      setWhatWentWell('')
-      setHelpNeeded('')
-
-      if (clearMessageTimeoutRef.current) {
-        clearTimeout(clearMessageTimeoutRef.current)
-      }
-
-      clearMessageTimeoutRef.current = setTimeout(() => {
-        setAiResponse('')
-        setMessage('')
-      }, 30000)
-    }
-
-    setLoading(false)
+    setTeamSummaryResult(data)
+  } catch (err) {
+    console.error('TEAM SUMMARY ERROR:', err)
+    setTeamSummaryError('Failed to generate team summary.')
   }
+
+  setTeamSummaryLoading(false)
+}
+  
+
+  
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  setLoading(true)
+  setMessage('')
+  setAiResponse('')
+  setBurnoutSignal('')
+  setUnderstandingSnapshot(null)
+
+  if (!technicianName || !jobType || !reflection) {
+    setMessage('Please fill out name, job type, and reflection.')
+    setLoading(false)
+    return
+  }
+
+  let resolvedTechnician: { technicianId: string; canonicalName: string }
+
+  try {
+    resolvedTechnician = await resolveTechnicianIdentity(technicianName)
+  } catch (err: any) {
+    setMessage(`Technician identity error: ${err.message || 'Unable to resolve technician.'}`)
+    setLoading(false)
+    return
+  }
+
+  // ✅ CALL OPENAI
+let generatedResponse = ''
+let generatedManagerInsight = ''
+
+try {
+  const res = await fetch('/api/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      technicianName,
+      jobType,
+      reflection,
+    }),
+  })
+
+  const rawText = await res.text()
+
+  console.log('API STATUS:', res.status)
+  console.log('API RAW RESPONSE:', rawText)
+
+  if (!res.ok) {
+    setMessage(`AI route error: ${rawText}`)
+    setLoading(false)
+    return
+  }
+
+  let data: any
+
+  try {
+    data = JSON.parse(rawText)
+  } catch {
+    setMessage(`AI route returned invalid JSON: ${rawText}`)
+    setLoading(false)
+    return
+  }
+
+  console.log('AI RESPONSE:', data)
+
+  generatedResponse = data.technician_response
+  generatedManagerInsight = data.manager_insight
+
+  if (!generatedResponse || !generatedManagerInsight) {
+    setMessage(`AI route returned incomplete data: ${rawText}`)
+    setLoading(false)
+    return
+  }
+} catch (err) {
+  console.error('AI FETCH ERROR:', err)
+  setMessage('AI failed to generate response.')
+  setLoading(false)
+  return
+}
+
+// ✅ KEEP YOUR LOGIC (THIS IS GOOD)
+const interpretation = interpretReflection(jobType, reflection, '', '')
+
+const generatedBurnoutSignal =
+  interpretation.riskLevel === 'High'
+    ? 'High strain signal detected. A supportive manager check-in is recommended soon.'
+    : interpretation.riskLevel === 'Medium'
+    ? 'Moderate strain signal detected. Watch for repeated pressure and support needs.'
+    : buildBurnoutSignal(reflection, '', '')
+
+  // ✅ SAVE TO SUPABASE
+  const { error } = await supabase.from('Reflections').insert([
+    {
+      technician_id: resolvedTechnician.technicianId,
+      technician_name: resolvedTechnician.canonicalName,
+      job_type: jobType,
+      challenge: reflection,
+      what_went_well: null,
+      help_needed: null,
+      ai_response: generatedResponse,
+      manager_insight: generatedManagerInsight,
+      created_at: new Date().toISOString(),
+    },
+  ])
+
+  if (error) {
+    setMessage(`Submit error: ${error.message}`)
+  } else {
+    setMessage('Reflection submitted.')
+    setAiResponse(generatedResponse)
+    setBurnoutSignal(generatedBurnoutSignal)
+    setUnderstandingSnapshot(interpretation)
+
+    setTechnicianName('')
+    setJobType('')
+    setReflection('')
+  }
+
+  setLoading(false)
+}
+  
 
   const aiOverview = useMemo(() => {
     const total = reflections.length
@@ -1205,163 +1432,6 @@ export default function Home() {
       })
   }, [reflections, technicianAliasMap])
 
-  const burnoutSignals = useMemo(() => {
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-
-    const grouped: Record<string, Reflection[]> = {}
-
-    reflections.forEach((r) => {
-      const aliasName = r.technician_name?.trim() || 'Unknown Technician'
-      const resolved = technicianAliasMap[normalizeAliasKey(aliasName)]
-      const canonicalName = resolved?.canonicalName || aliasName
-
-      if (!grouped[canonicalName]) grouped[canonicalName] = []
-
-      if (r.created_at && new Date(r.created_at) >= sevenDaysAgo) {
-        grouped[canonicalName].push(r)
-      }
-    })
-
-    const signals: BurnoutSignal[] = Object.entries(grouped).map(([technicianName, techRefs]) => {
-      let pressureMentions = 0
-      let supportMentions = 0
-      let positiveMentions = 0
-      let heavyJobMixCount = 0
-
-      techRefs.forEach((r) => {
-        const combinedChallenge = `${r.challenge || ''} ${r.help_needed || ''}`.toLowerCase()
-        const winText = `${r.what_went_well || ''}`.toLowerCase()
-        const jobTypeText = `${r.job_type || ''}`.toLowerCase()
-
-        BURNOUT_PRESSURE_KEYWORDS.forEach((word) => {
-          if (combinedChallenge.includes(word)) pressureMentions += 1
-        })
-
-        BURNOUT_SUPPORT_KEYWORDS.forEach((word) => {
-          if (combinedChallenge.includes(word)) supportMentions += 1
-        })
-
-        POSITIVE_SIGNAL_KEYWORDS.forEach((word) => {
-          if (winText.includes(word)) positiveMentions += 1
-        })
-
-        if (
-          jobTypeText.includes('installation') ||
-          jobTypeText.includes('callback') ||
-          jobTypeText.includes('emergency')
-        ) {
-          heavyJobMixCount += 1
-        }
-      })
-
-      let score = 0
-
-      if (techRefs.length >= 4) score += 2
-      else if (techRefs.length >= 2) score += 1
-
-      if (pressureMentions >= 5) score += 3
-      else if (pressureMentions >= 3) score += 2
-      else if (pressureMentions >= 1) score += 1
-
-      if (supportMentions >= 4) score += 2
-      else if (supportMentions >= 2) score += 1
-
-      if (heavyJobMixCount >= 3) score += 2
-      else if (heavyJobMixCount >= 1) score += 1
-
-      if (positiveMentions >= 4) score -= 1
-
-      let level: BurnoutSignalLevel = 'Low'
-      if (score >= 6) level = 'High'
-      else if (score >= 3) level = 'Moderate'
-
-      const reasons: string[] = []
-
-      if (pressureMentions >= 3) reasons.push('repeated pressure signals')
-      if (supportMentions >= 2) reasons.push('signs of needing support')
-      if (heavyJobMixCount >= 2) reasons.push('heavy install/callback/emergency mix')
-      if (techRefs.length >= 4) reasons.push('high reflection volume this week')
-
-      const positiveCounterweight =
-        positiveMentions >= 3
-          ? 'There are still some positive signals showing effort and resilience.'
-          : ''
-
-      let summary = `${technicianName} is showing a ${level.toLowerCase()} burnout signal this week.`
-      if (reasons.length > 0) {
-        summary += ` Main drivers: ${reasons.slice(0, 2).join(' and ')}.`
-      }
-      if (positiveCounterweight) {
-        summary += ` ${positiveCounterweight}`
-      }
-
-      let managerAction =
-        'Check in briefly, thank them for the effort, and keep watching for repeat patterns.'
-
-      if (level === 'Moderate') {
-        managerAction =
-          'Have a quick supportive check-in, look for one friction point to remove, and reinforce any recent win.'
-      }
-
-      if (level === 'High') {
-        managerAction =
-          'Prioritize a direct supportive conversation, reduce avoidable friction, and review workload, prep, or coaching needs before the next heavy call.'
-      }
-
-      const latestEntry =
-        techRefs.length > 0
-          ? techRefs
-              .map((r) => r.created_at)
-              .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-          : null
-
-      return {
-        technicianName,
-        score,
-        level,
-        summary,
-        managerAction,
-        weeklyReflectionCount: techRefs.length,
-        pressureMentions,
-        supportMentions,
-        positiveMentions,
-        heavyJobMixCount,
-        latestEntry,
-      }
-    })
-
-    return signals.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score
-      return b.weeklyReflectionCount - a.weeklyReflectionCount
-    })
-  }, [reflections, technicianAliasMap])
-
-  const topBurnoutSignals = useMemo(
-    () => burnoutSignals.filter((s) => s.level !== 'Low').slice(0, 3),
-    [burnoutSignals]
-  )
-
-  const wowMoment = useMemo(() => {
-    if (topBurnoutSignals.length === 0) {
-      return {
-        headline: 'No major burnout signals are standing out right now.',
-        summary:
-          'TradeWise is not seeing a strong technician risk spike this week. Keep collecting reflections so the system can spot strain early when it appears.',
-        action:
-          'Best next move: keep getting honest reflections so contractor insights become sharper over time.',
-      }
-    }
-
-    const top = topBurnoutSignals[0]
-
-    return {
-      headline: `${top.technicianName} is the clearest current support flag.`,
-      summary: `TradeWise sees a ${top.level.toLowerCase()} burnout signal for ${top.technicianName} based on repeated pressure markers, support signals, and this week’s workload pattern. This is the kind of issue a contractor usually does not see until performance slips or the technician pulls back.`,
-      action: top.managerAction,
-    }
-  }, [topBurnoutSignals])
-
   const selectedTechnicianReflections = useMemo(() => {
     if (!selectedTechnician) return []
 
@@ -1516,17 +1586,6 @@ export default function Home() {
     }
   }, [selectedTechnicianReflections, selectedTechnician])
 
-  const selectedTechnicianSignal = useMemo(() => {
-    if (!selectedTechnician) return null
-    return burnoutSignals.find((signal) => signal.technicianName === selectedTechnician) || null
-  }, [selectedTechnician, burnoutSignals])
-
-  const getSignalBadgeStyle = (level: BurnoutSignalLevel) => {
-    if (level === 'High') return styles.signalBadgeHigh
-    if (level === 'Moderate') return styles.signalBadgeModerate
-    return styles.signalBadgeLow
-  }
-
   const openTechnicianProfile = (name: string) => {
     const resolved = technicianAliasMap[normalizeAliasKey(name)]
     setSelectedTechnician(resolved?.canonicalName || name)
@@ -1563,407 +1622,714 @@ export default function Home() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>TradeWise</h1>
+      <div style={styles.shell}>
+        <div style={styles.topHero}>
+          <div>
+            <div style={styles.kicker}>AI for Humans in the Trades</div>
+            <h1 style={styles.heroTitle}>TradeWise</h1>
+            <p style={styles.heroSubtitle}>
+              A reflection and support system designed to help technicians feel heard, managers
+              see patterns sooner, and teams grow with more empathy and clarity.
+            </p>
+          </div>
 
-          <div style={styles.toggle}>
-            <button
-              onClick={() => setView('tech')}
-              style={view === 'tech' ? styles.activeBtn : styles.btn}
-            >
-              Technician
-            </button>
-            <button
-              onClick={() => setView('manager')}
-              style={view === 'manager' ? styles.activeBtn : styles.btn}
-            >
-              Manager
-            </button>
+          <div style={styles.heroStatRow}>
+            <div style={styles.heroStatCard}>
+              <div style={styles.heroStatNumber}>{reflections.length}</div>
+              <div style={styles.heroStatLabel}>Reflections Loaded</div>
+            </div>
+            <div style={styles.heroStatCard}>
+              <div style={styles.heroStatNumber}>{technicians.length}</div>
+              <div style={styles.heroStatLabel}>Known Technicians</div>
+            </div>
           </div>
         </div>
 
-        {view === 'tech' && (
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <select
-              value={technicianName}
-              onChange={(e) => setTechnicianName(e.target.value)}
-              style={styles.input}
-            >
-              <option value="">Select Technician</option>
-              {technicians.map((tech) => (
-                <option key={tech.id} value={tech.canonical_name}>
-                  {tech.canonical_name}
-                </option>
-              ))}
-            </select>
+        <div style={styles.container}>
+          <div style={styles.header}>
+            <div>
+              <div style={styles.sectionEyebrow}>
+                {view === 'tech' ? 'Technician Experience' : 'Manager Experience'}
+              </div>
+              <h2 style={styles.title}>
+                {view === 'tech'
+                  ? 'Daily reflection with guided support'
+                  : 'Insights, trends, and technician follow-up'}
+              </h2>
+            </div>
 
-            <input
-              placeholder="Or type new technician name"
-              value={technicianName}
-              onChange={(e) => setTechnicianName(e.target.value)}
-              style={styles.input}
-            />
+            <div style={styles.toggleWrap}>
+              <div style={styles.toggle}>
+                <button
+                  onClick={() => setView('tech')}
+                  style={view === 'tech' ? styles.activeBtn : styles.btn}
+                >
+                  Technician
+                </button>
+                <button
+                  onClick={() => setView('manager')}
+                  style={view === 'manager' ? styles.activeBtn : styles.btn}
+                >
+                  Manager
+                </button>
+              </div>
+            </div>
+          </div>
 
-            <select
-              value={jobType}
-              onChange={(e) => setJobType(e.target.value)}
-              style={styles.input}
-            >
-              <option value="">Select Job Type</option>
-              {JOB_TYPE_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
+          {view === 'tech' && (
+            <div style={styles.techLayout}>
+              <div style={styles.techLeft}>
+                <div style={styles.wowCard}>
+                  <div style={styles.wowBadge}>First WOW</div>
+                  <h3 style={styles.wowTitle}>A technician can reflect in minutes.</h3>
+                  <p style={styles.wowText}>
+                    TradeWise captures what happened, what went well, and what support would have
+                    helped — then interprets the moment and responds in a way that feels human
+                    instead of cold.
+                  </p>
 
-            {speechSupported && (
-              <div style={styles.guidedBox}>
-                <div style={styles.guidedHeader}>
-                  <strong>Voice Reflection</strong>
-                  <span style={styles.guidedBadge}>Guided</span>
-                </div>
-
-                <p style={styles.guidedText}>
-                  Tap one button and TradeWise will guide the technician through name, job type,
-                  job details, what went well, and what would have helped.
-                </p>
-
-                <div style={styles.guidedActions}>
-                  <button
-                    type="button"
-                    onClick={startFullReflectionRecording}
-                    style={styles.recordButton}
-                    disabled={guidedRecording}
-                  >
-                    {guidedRecording ? 'Recording in Progress...' : '🎙️ Record Full Reflection'}
-                  </button>
-
-                  {guidedRecording && (
-                    <button
-                      type="button"
-                      onClick={cancelFullReflectionRecording}
-                      style={styles.cancelButton}
-                    >
-                      Stop Recording
-                    </button>
-                  )}
-                </div>
-
-                {guidedRecording && (
-                  <div style={styles.promptBox}>
-                    <strong>Current Prompt:</strong>
-                    <p style={{ margin: '8px 0 0 0' }}>
-                      {guidedPrompt || 'Preparing first question...'}
-                    </p>
-                    {guidedStep && (
-                      <p style={styles.promptSubtext}>
-                        Active section:{' '}
-                        {guidedStep === 'technicianName'
-                          ? 'Technician Name'
-                          : guidedStep === 'jobType'
-                          ? 'Job Type'
-                          : guidedStep === 'challenge'
-                          ? 'Job Details and Challenges'
-                          : guidedStep === 'whatWentWell'
-                          ? 'What Went Well'
-                          : 'What Would Have Helped'}
+                  <div style={styles.wowGrid}>
+                    <div style={styles.miniInfoCard}>
+                      <strong>Capture</strong>
+                      <p style={styles.miniInfoText}>
+                        Guided reflection collects what happened in the field.
                       </p>
+                    </div>
+                    <div style={styles.miniInfoCard}>
+                      <strong>Interpret</strong>
+                      <p style={styles.miniInfoText}>
+                        TradeWise identifies the situation, emotion, risk, and likely root cause.
+                      </p>
+                    </div>
+                    <div style={styles.miniInfoCard}>
+                      <strong>Respond + Improve</strong>
+                      <p style={styles.miniInfoText}>
+                        Technicians get support while managers get a next step they can act on.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSubmit} style={styles.formCard}>
+                  <div style={styles.formHeader}>
+                    <h3 style={{ margin: 0 }}>Submit Reflection</h3>
+                    <span style={styles.formHeaderBadge}>Live Demo Flow</span>
+                  </div>
+
+                  <div style={styles.form}>
+                    <div style={styles.fieldWrap}>
+                      <label style={styles.label}>Technician Name</label>
+                      <input
+                        list="technician-name-options"
+                        placeholder="Technician Name"
+                        value={technicianName}
+                        onChange={(e) => setTechnicianName(e.target.value)}
+                        style={styles.input}
+                      />
+                      <datalist id="technician-name-options">
+                        {technicians.map((tech) => (
+                          <option key={tech.id} value={tech.canonical_name} />
+                        ))}
+                      </datalist>
+
+                      {speechSupported && (
+                        <button
+                          type="button"
+                          onClick={() => startListening('technicianName')}
+                          style={styles.micButton}
+                        >
+                          {isListening && activeField === 'technicianName'
+                            ? 'Listening...'
+                            : '🎤 Speak Name'}
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={styles.fieldWrap}>
+                      <label style={styles.label}>Job Type</label>
+                      <select
+                        value={jobType}
+                        onChange={(e) => setJobType(e.target.value)}
+                        style={styles.input}
+                      >
+                        <option value="">Select Job Type</option>
+                        {JOB_TYPE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+
+                      {speechSupported && (
+                        <button
+                          type="button"
+                          onClick={() => startListening('jobType')}
+                          style={styles.micButton}
+                        >
+                          {isListening && activeField === 'jobType'
+                            ? 'Listening...'
+                            : '🎤 Speak Job Type'}
+                        </button>
+                      )}
+                    </div>
+
+                    {speechSupported && (
+                      <div style={styles.guidedBox}>
+                        <div style={styles.guidedHeader}>
+                          <strong>Voice Reflection</strong>
+                          <span style={styles.guidedBadge}>Guided</span>
+                        </div>
+
+                        <p style={styles.guidedText}>
+                          Tap one button and TradeWise will guide the technician through name, job
+                          type, job details, what went well, and what would have helped.
+                        </p>
+
+                        <div style={styles.guidedActions}>
+                          <button
+                            type="button"
+                            onClick={startFullReflectionRecording}
+                            style={styles.recordButton}
+                            disabled={guidedRecording}
+                          >
+                            {guidedRecording
+                              ? 'Recording in Progress...'
+                              : '🎙️ Record Full Reflection'}
+                          </button>
+
+                          {guidedRecording && (
+                            <button
+                              type="button"
+                              onClick={cancelFullReflectionRecording}
+                              style={styles.cancelButton}
+                            >
+                              Stop Recording
+                            </button>
+                          )}
+                        </div>
+
+                        {guidedRecording && (
+                          <div style={styles.promptBox}>
+                            <strong>Current Prompt:</strong>
+                            <p style={{ margin: '8px 0 0 0' }}>
+                              {guidedPrompt || 'Preparing first question...'}
+                            </p>
+                            {guidedStep && (
+                              <p style={styles.promptSubtext}>
+                                Active section:{' '}
+                                {guidedStep === 'technicianName'
+                                  ? 'Technician Name'
+                                  : guidedStep === 'jobType'
+                                  ? 'Job Type'
+                                  : 'Reflection'}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={styles.fieldWrap}>
+  <label style={styles.label}>Reflection</label>
+  <textarea
+    placeholder="Talk like you normally would... what happened today?"
+    value={reflection}
+    onChange={(e) => setReflection(e.target.value)}
+    style={styles.textarea}
+  />
+  {speechSupported && (
+    <button
+      type="button"
+      onClick={() => startListening('reflection')}
+      style={styles.micButton}
+    >
+      {isListening && activeField === 'reflection'
+        ? 'Listening...'
+        : '🎤 Speak Reflection'}
+    </button>
+  )}
+</div>
+
+                    
+
+                    
+
+                    {!speechSupported && (
+                      <div style={styles.infoBox}>
+                        Speech-to-text is not supported in this browser. Chrome usually works best.
+                      </div>
+                    )}
+
+                    <button type="submit" style={styles.submit}>
+                      {loading ? 'Submitting...' : 'Submit Reflection'}
+                    </button>
+
+                    {message && (
+                      <div
+                        style={
+                          message === 'Reflection submitted.' ? styles.successBox : styles.warningBox
+                        }
+                      >
+                        {message}
+                      </div>
+                    )}
+
+                    {aiResponse && message === 'Reflection submitted.' && (
+                      <div style={styles.aiResponseFeature}>
+                        <div style={styles.aiResponseHeader}>
+                          <div>
+                            <div style={styles.aiLabel}>AI Response</div>
+                            <h3 style={{ margin: '6px 0 0 0' }}>Technician Support Message</h3>
+                          </div>
+                          <span style={styles.aiBadge}>Empathy Layer</span>
+                        </div>
+
+                        <p style={styles.aiResponseText}>{aiResponse}</p>
+
+                        {understandingSnapshot && (
+                          <div style={styles.frameworkBox}>
+                            <div style={styles.frameworkHeader}>
+                              <div>
+                                <div style={styles.frameworkLabel}>Understanding Framework</div>
+                                <h3 style={{ margin: '6px 0 0 0' }}>Interpretation Snapshot</h3>
+                              </div>
+                              <span
+                                style={
+                                  understandingSnapshot.riskLevel === 'High'
+                                    ? styles.riskHigh
+                                    : understandingSnapshot.riskLevel === 'Medium'
+                                    ? styles.riskMedium
+                                    : styles.riskLow
+                                }
+                              >
+                                {understandingSnapshot.riskLevel} Risk
+                              </span>
+                            </div>
+
+                            <div style={styles.frameworkGrid}>
+                              <div style={styles.frameworkItem}>
+                                <strong>Situation</strong>
+                                <p style={styles.frameworkText}>{understandingSnapshot.situation}</p>
+                              </div>
+
+                              <div style={styles.frameworkItem}>
+                                <strong>Emotion</strong>
+                                <p style={styles.frameworkText}>{understandingSnapshot.emotion}</p>
+                              </div>
+
+                              <div style={styles.frameworkItem}>
+                                <strong>Root Cause Guess</strong>
+                                <p style={styles.frameworkText}>
+                                  {understandingSnapshot.rootCause}
+                                </p>
+                              </div>
+
+                              <div style={styles.frameworkItem}>
+                                <strong>Next Step</strong>
+                                <p style={styles.frameworkText}>{understandingSnapshot.nextStep}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {burnoutSignal && (
+                          <div style={styles.burnoutBox}>
+                            <strong>Burnout Signal</strong>
+                            <p style={{ margin: '8px 0 0 0' }}>{burnoutSignal}</p>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                )}
+                </form>
               </div>
-            )}
 
-            <div style={styles.fieldWrap}>
-              <textarea
-                placeholder="Tell me about the job and any challenges you faced"
-                value={challenge}
-                onChange={(e) => setChallenge(e.target.value)}
-                style={styles.textarea}
-              />
-              {speechSupported && (
-                <button
-                  type="button"
-                  onClick={() => startListening('challenge')}
-                  style={styles.micButton}
-                >
-                  {isListening && activeField === 'challenge' ? 'Listening...' : '🎤 Speak'}
-                </button>
-              )}
-            </div>
-
-            <div style={styles.fieldWrap}>
-              <textarea
-                placeholder="What went well?"
-                value={whatWentWell}
-                onChange={(e) => setWhatWentWell(e.target.value)}
-                style={styles.textarea}
-              />
-              {speechSupported && (
-                <button
-                  type="button"
-                  onClick={() => startListening('whatWentWell')}
-                  style={styles.micButton}
-                >
-                  {isListening && activeField === 'whatWentWell'
-                    ? 'Listening...'
-                    : '🎤 Speak'}
-                </button>
-              )}
-            </div>
-
-            <div style={styles.fieldWrap}>
-              <textarea
-                placeholder="What would have helped?"
-                value={helpNeeded}
-                onChange={(e) => setHelpNeeded(e.target.value)}
-                style={styles.textarea}
-              />
-              {speechSupported && (
-                <button
-                  type="button"
-                  onClick={() => startListening('helpNeeded')}
-                  style={styles.micButton}
-                >
-                  {isListening && activeField === 'helpNeeded' ? 'Listening...' : '🎤 Speak'}
-                </button>
-              )}
-            </div>
-
-            {!speechSupported && (
-              <div style={styles.infoBox}>
-                Speech-to-text is not supported in this browser. Chrome usually works best.
-              </div>
-            )}
-
-            <button type="submit" style={styles.submit}>
-              {loading ? 'Submitting...' : 'Submit'}
-            </button>
-
-            {message && <p>{message}</p>}
-
-            {aiResponse && message === 'Reflection submitted.' && (
-              <div style={styles.aiBox}>
-                <strong>AI Response:</strong>
-                <p>{aiResponse}</p>
-              </div>
-            )}
-          </form>
-        )}
-
-        {view === 'manager' && (
-          <div>
-            <h2 style={{ marginBottom: '16px' }}>Manager Dashboard</h2>
-
-            {renderManagerNav()}
-
-            {loadingReflections && <p>Loading...</p>}
-
-            {managerError && (
-              <div style={styles.errorBox}>
-                <strong>Manager view error:</strong>
-                <p style={{ marginTop: 8 }}>{managerError}</p>
-              </div>
-            )}
-
-            {!loadingReflections && !managerError && managerScreen === 'dashboard' && (
-              <>
-                <div style={styles.wowCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Contractor Wow Moment</h3>
-                    <span style={styles.wowBadge}>Early Warning</span>
+              <div style={styles.techRight}>
+                <div style={styles.previewCard}>
+                  <div style={styles.previewHeader}>
+                    <h3 style={{ margin: 0 }}>What this gives a contractor</h3>
                   </div>
 
-                  <div style={styles.overviewSection}>
-                    <strong>{wowMoment.headline}</strong>
-                    <p style={styles.overviewText}>{wowMoment.summary}</p>
-                  </div>
+                  <div style={styles.previewList}>
+                    <div style={styles.previewItem}>
+                      <div style={styles.previewDot} />
+                      <div>
+                        <strong>Faster honesty from technicians</strong>
+                        <p style={styles.previewItemText}>
+                          A simple, non-threatening way for techs to share friction in the field.
+                        </p>
+                      </div>
+                    </div>
 
-                  <div style={styles.actionBox}>
-                    <strong>Recommended Next Move</strong>
-                    <p style={{ margin: '8px 0 0 0' }}>{wowMoment.action}</p>
+                    <div style={styles.previewItem}>
+                      <div style={styles.previewDot} />
+                      <div>
+                        <strong>Visible interpretation</strong>
+                        <p style={styles.previewItemText}>
+                          TradeWise turns a reflection into situation, emotion, risk, and likely
+                          root cause.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div style={styles.previewItem}>
+                      <div style={styles.previewDot} />
+                      <div>
+                        <strong>A human-first signal system</strong>
+                        <p style={styles.previewItemText}>
+                          The goal is not just data collection. It is better coaching, healthier
+                          culture, and stronger retention.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                <div style={styles.overviewCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Burnout Signal Watch</h3>
-                    <span style={styles.overviewBadge}>Last 7 Days</span>
-                  </div>
-
-                  {burnoutSignals.length === 0 && (
-                    <p style={styles.overviewText}>No technician signals to display yet.</p>
-                  )}
-
-                  <div style={styles.signalList}>
-                    {burnoutSignals.slice(0, 5).map((signal) => (
-                      <button
-                        key={signal.technicianName}
-                        type="button"
-                        onClick={() => openTechnicianProfile(signal.technicianName)}
-                        style={styles.signalRow}
-                      >
-                        <div>
-                          <div style={styles.signalRowHeader}>
-                            <strong>{signal.technicianName}</strong>
-                            <span style={getSignalBadgeStyle(signal.level)}>
-                              {signal.level} Signal
-                            </span>
-                          </div>
-                          <p style={styles.signalText}>{signal.summary}</p>
-                        </div>
-
-                        <div style={styles.signalMeta}>
-                          <div>{signal.weeklyReflectionCount} weekly logs</div>
-                          <div>Score: {signal.score}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div style={styles.weeklyCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Weekly AI Recap</h3>
-                    <span style={styles.weeklyBadge}>Last 7 Days</span>
-                  </div>
-
-                  <div style={styles.statGrid}>
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{weeklyRecap.total}</div>
-                      <div style={styles.statLabel}>Weekly Reflections</div>
-                    </div>
-
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{weeklyRecap.uniqueTechs}</div>
-                      <div style={styles.statLabel}>Weekly Technicians</div>
-                    </div>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Weekly Job Mix</strong>
-                    <p style={styles.overviewText}>
-                      {weeklyRecap.topJobTypes.length > 0
-                        ? weeklyRecap.topJobTypes
-                            .map(([job, count]) => `${job} (${count})`)
-                            .join(', ')
-                        : 'No weekly job trends yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Weekly Friction Themes</strong>
-                    <p style={styles.overviewText}>
-                      {weeklyRecap.topChallenges.length > 0
-                        ? weeklyRecap.topChallenges.map(([theme]) => theme).join(', ')
-                        : 'No repeated weekly challenge themes detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Weekly Positive Signals</strong>
-                    <p style={styles.overviewText}>
-                      {weeklyRecap.topWins.length > 0
-                        ? weeklyRecap.topWins.map(([theme]) => theme).join(', ')
-                        : 'No repeated weekly positive signals detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Weekly AI Report</strong>
-                    <p style={styles.overviewText}>{weeklyRecap.summary}</p>
-                  </div>
-
-                  <div style={styles.actionBox}>
-                    <strong>Next Week Manager Focus</strong>
-                    <p style={{ margin: '8px 0 0 0' }}>{weeklyRecap.managerFocus}</p>
-                  </div>
-                </div>
-
-                <div style={styles.overviewCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>AI Overview</h3>
-                    <span style={styles.overviewBadge}>Manager Insight</span>
-                  </div>
-
-                  <div style={styles.statGrid}>
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{aiOverview.total}</div>
-                      <div style={styles.statLabel}>Total Reflections</div>
-                    </div>
-
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{aiOverview.uniqueTechs}</div>
-                      <div style={styles.statLabel}>Technicians Represented</div>
-                    </div>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Top Job Types</strong>
-                    <p style={styles.overviewText}>
-                      {aiOverview.topJobTypes.length > 0
-                        ? aiOverview.topJobTypes
-                            .map(([job, count]) => `${job} (${count})`)
-                            .join(', ')
-                        : 'No job trends yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Repeated Challenges</strong>
-                    <p style={styles.overviewText}>
-                      {aiOverview.topThemes.length > 0
-                        ? aiOverview.topThemes.map(([theme]) => theme).join(', ')
-                        : 'No repeated challenge themes detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Positive Signals</strong>
-                    <p style={styles.overviewText}>
-                      {aiOverview.topWins.length > 0
-                        ? aiOverview.topWins.map(([win]) => win).join(', ')
-                        : 'No repeated positive patterns detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>AI Summary</strong>
-                    <p style={styles.overviewText}>{aiOverview.summary}</p>
-                  </div>
-
-                  <div style={styles.actionBox}>
-                    <strong>Suggested Manager Action</strong>
-                    <p style={{ margin: '8px 0 0 0' }}>{aiOverview.managerAction}</p>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {!loadingReflections && !managerError && managerScreen === 'directory' && (
-              <div>
-                <div style={styles.overviewCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Technician Directory</h3>
-                    <span style={styles.overviewBadge}>Merged by Alias</span>
-                  </div>
-                  <p style={styles.overviewText}>
-                    Click a technician to open their profile, view their reflection history, see
-                    their individual weekly recap, add private manager notes, and spot burnout risk
-                    before it turns into a callback, bad attitude, or resignation.
+                <div style={styles.quoteCard}>
+                  <div style={styles.quoteBadge}>Why it matters</div>
+                  <p style={styles.quoteText}>
+                    “When a technician feels understood, feedback stops feeling like punishment and
+                    starts feeling like support.”
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
 
-                {technicianDirectory.length === 0 && <p>No technicians found yet.</p>}
+          {view === 'manager' && (
+            <div>
+              <div style={styles.managerIntroCard}>
+                <div>
+                  <div style={styles.sectionEyebrow}>Manager Console</div>
+                  <h2 style={{ margin: '4px 0 8px 0' }}>
+                    Team visibility without losing the human side
+                  </h2>
+                  <p style={styles.overviewText}>
+                    Review weekly patterns, open technician profiles, and add private manager notes
+                    while keeping the system grounded in support instead of shame.
+                  </p>
+                </div>
+              </div>
 
-                <div style={styles.directoryGrid}>
-                  {technicianDirectory.map((tech) => {
-                    const signal =
-                      burnoutSignals.find((s) => s.technicianName === tech.name) || null
+              <h2 style={{ marginBottom: '16px' }}>Manager Dashboard</h2>
 
-                    return (
+              {renderManagerNav()}
+
+              {loadingReflections && <p>Loading...</p>}
+
+              {managerError && (
+                <div style={styles.errorBox}>
+                  <strong>Manager view error:</strong>
+                  <p style={{ marginTop: 8 }}>{managerError}</p>
+                </div>
+              )}
+
+              {!loadingReflections && !managerError && managerScreen === 'dashboard' && (
+                <>
+                <div style={styles.overviewCard}>
+  <div style={styles.overviewHeader}>
+    <h3 style={{ margin: 0 }}>Ask AI About Your Team</h3>
+    <span style={styles.overviewBadge}>Contractor View</span>
+  </div>
+
+  <p style={styles.overviewText}>
+    Generate a full AI read on what your team appears to be dealing with, where strain may be
+    building, and what manager moves make the most sense next.
+  </p>
+
+  <textarea
+    value={managerReflection}
+    onChange={(e) => setManagerReflection(e.target.value)}
+    placeholder="Ask something like: Who seems overloaded right now? Where are my systems breaking down? What should I focus on this week?"
+    style={styles.noteTextarea}
+  />
+
+  <div style={styles.noteActions}>
+    <button
+      type="button"
+      onClick={handleGenerateTeamSummary}
+      style={styles.saveNoteButton}
+      disabled={teamSummaryLoading || reflections.length === 0}
+    >
+      {teamSummaryLoading ? 'Generating Report...' : 'Generate Full AI Team Report'}
+    </button>
+  </div>
+
+  {teamSummaryError && (
+    <div style={styles.errorBox}>
+      <strong>Team report error:</strong>
+      <p style={{ marginTop: 8 }}>{teamSummaryError}</p>
+    </div>
+  )}
+
+  {teamSummaryResult && (
+  <div style={styles.frameworkBox}>
+    <div style={styles.frameworkHeader}>
+      <div>
+        <div style={styles.frameworkLabel}>TradeWise Team Read</div>
+        <h3 style={{ margin: '6px 0 0 0' }}>
+          {teamSummaryResult.report_title || 'Full Team AI Report'}
+        </h3>
+      </div>
+      <span style={styles.aiBadge}>Manager Report</span>
+    </div>
+
+    <div style={styles.humanReadHero}>
+      <div style={styles.humanReadKicker}>Human Read</div>
+      <p style={styles.humanReadText}>
+        {teamSummaryResult.human_read || 'No human read returned.'}
+      </p>
+    </div>
+
+    <div style={styles.overviewSection}>
+      <strong>Team Status</strong>
+      <p style={styles.overviewText}>
+        {teamSummaryResult.team_status || 'No team status returned.'}
+      </p>
+    </div>
+
+    <div style={styles.frameworkItem}>
+      <div style={styles.frameworkHeader}>
+        <strong>Who Should I Talk To Tomorrow</strong>
+        <span style={styles.overviewBadge}>Immediate Follow-Up</span>
+      </div>
+
+      {teamSummaryResult.who_should_i_talk_to_tomorrow?.length > 0 ? (
+        <div style={styles.tomorrowTalkList}>
+          {teamSummaryResult.who_should_i_talk_to_tomorrow.map(
+            (
+              person: { name: string; reason: string; risk: 'Low' | 'Medium' | 'High' },
+              index: number
+            ) => (
+              <div key={index} style={styles.tomorrowTalkCard}>
+                <div style={styles.frameworkHeader}>
+                  <strong>{person.name}</strong>
+                  <span
+                    style={
+                      person.risk === 'High'
+                        ? styles.riskHigh
+                        : person.risk === 'Medium'
+                        ? styles.riskMedium
+                        : styles.riskLow
+                    }
+                  >
+                    {person.risk === 'High'
+                      ? '🔥 High Risk'
+                      : person.risk === 'Medium'
+                      ? '⚠️ Medium Risk'
+                      : 'Low Risk'}
+                  </span>
+                </div>
+                <p style={styles.frameworkText}>{person.reason}</p>
+              </div>
+            )
+          )}
+        </div>
+      ) : (
+        <p style={styles.overviewText}>
+          No one clearly stands out for a next-day check-in right now.
+        </p>
+      )}
+    </div>
+
+    <div style={styles.frameworkGrid}>
+      <div style={styles.frameworkItem}>
+        <strong>What the Team Is Carrying</strong>
+        <div style={styles.previewList}>
+          {(teamSummaryResult.what_the_team_is_carrying || []).map(
+            (item: string, index: number) => (
+              <p key={index} style={styles.frameworkText}>
+                • {item}
+              </p>
+            )
+          )}
+        </div>
+      </div>
+
+      <div style={styles.frameworkItem}>
+        <strong>Who May Need Support</strong>
+        <div style={styles.previewList}>
+          {(teamSummaryResult.who_may_need_support || []).map(
+            (item: string, index: number) => (
+              <p key={index} style={styles.frameworkText}>
+                • {item}
+              </p>
+            )
+          )}
+        </div>
+      </div>
+
+      <div style={styles.frameworkItem}>
+        <strong>System Issues to Watch</strong>
+        <div style={styles.previewList}>
+          {(teamSummaryResult.system_issues_to_watch || []).map(
+            (item: string, index: number) => (
+              <p key={index} style={styles.frameworkText}>
+                • {item}
+              </p>
+            )
+          )}
+        </div>
+      </div>
+
+      <div style={styles.frameworkItem}>
+        <strong>Manager Moves</strong>
+        <div style={styles.previewList}>
+          {(teamSummaryResult.manager_moves || []).map(
+            (item: string, index: number) => (
+              <p key={index} style={styles.frameworkText}>
+                • {item}
+              </p>
+            )
+          )}
+        </div>
+      </div>
+    </div>
+
+    <div style={styles.actionBox}>
+      <strong>Full Report</strong>
+      <p style={{ margin: '8px 0 0 0' }}>
+        {teamSummaryResult.full_report || 'No full report returned.'}
+      </p>
+    </div>
+  </div>
+)}
+</div>
+                  <div style={styles.weeklyCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>Weekly AI Recap</h3>
+                      <span style={styles.weeklyBadge}>Last 7 Days</span>
+                    </div>
+
+                    <div style={styles.statGrid}>
+                      <div style={styles.statBox}>
+                        <div style={styles.statNumber}>{weeklyRecap.total}</div>
+                        <div style={styles.statLabel}>Weekly Reflections</div>
+                      </div>
+
+                      <div style={styles.statBox}>
+                        <div style={styles.statNumber}>{weeklyRecap.uniqueTechs}</div>
+                        <div style={styles.statLabel}>Weekly Technicians</div>
+                      </div>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Weekly Job Mix</strong>
+                      <p style={styles.overviewText}>
+                        {weeklyRecap.topJobTypes.length > 0
+                          ? weeklyRecap.topJobTypes
+                              .map(([job, count]) => `${job} (${count})`)
+                              .join(', ')
+                          : 'No weekly job trends yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Weekly Friction Themes</strong>
+                      <p style={styles.overviewText}>
+                        {weeklyRecap.topChallenges.length > 0
+                          ? weeklyRecap.topChallenges.map(([theme]) => theme).join(', ')
+                          : 'No repeated weekly challenge themes detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Weekly Positive Signals</strong>
+                      <p style={styles.overviewText}>
+                        {weeklyRecap.topWins.length > 0
+                          ? weeklyRecap.topWins.map(([theme]) => theme).join(', ')
+                          : 'No repeated weekly positive signals detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Weekly AI Report</strong>
+                      <p style={styles.overviewText}>{weeklyRecap.summary}</p>
+                    </div>
+
+                    <div style={styles.actionBox}>
+                      <strong>Next Week Manager Focus</strong>
+                      <p style={{ margin: '8px 0 0 0' }}>{weeklyRecap.managerFocus}</p>
+                    </div>
+                  </div>
+
+                  <div style={styles.overviewCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>AI Overview</h3>
+                      <span style={styles.overviewBadge}>Manager Insight</span>
+                    </div>
+
+                    <div style={styles.statGrid}>
+                      <div style={styles.statBox}>
+                        <div style={styles.statNumber}>{aiOverview.total}</div>
+                        <div style={styles.statLabel}>Total Reflections</div>
+                      </div>
+
+                      <div style={styles.statBox}>
+                        <div style={styles.statNumber}>{aiOverview.uniqueTechs}</div>
+                        <div style={styles.statLabel}>Technicians Represented</div>
+                      </div>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Top Job Types</strong>
+                      <p style={styles.overviewText}>
+                        {aiOverview.topJobTypes.length > 0
+                          ? aiOverview.topJobTypes
+                              .map(([job, count]) => `${job} (${count})`)
+                              .join(', ')
+                          : 'No job trends yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Repeated Challenges</strong>
+                      <p style={styles.overviewText}>
+                        {aiOverview.topThemes.length > 0
+                          ? aiOverview.topThemes.map(([theme]) => theme).join(', ')
+                          : 'No repeated challenge themes detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Positive Signals</strong>
+                      <p style={styles.overviewText}>
+                        {aiOverview.topWins.length > 0
+                          ? aiOverview.topWins.map(([win]) => win).join(', ')
+                          : 'No repeated positive patterns detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>AI Summary</strong>
+                      <p style={styles.overviewText}>{aiOverview.summary}</p>
+                    </div>
+
+                    <div style={styles.actionBox}>
+                      <strong>Suggested Manager Action</strong>
+                      <p style={{ margin: '8px 0 0 0' }}>{aiOverview.managerAction}</p>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {!loadingReflections && !managerError && managerScreen === 'directory' && (
+                <div>
+                  <div style={styles.overviewCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>Technician Directory</h3>
+                      <span style={styles.overviewBadge}>Merged by Alias</span>
+                    </div>
+                    <p style={styles.overviewText}>
+                      Click a technician to open their profile, view their reflection history, see
+                      their individual weekly recap, and add private manager notes.
+                    </p>
+                  </div>
+
+                  {technicianDirectory.length === 0 && <p>No technicians found yet.</p>}
+
+                  <div style={styles.directoryGrid}>
+                    {technicianDirectory.map((tech) => (
                       <button
                         key={tech.name}
                         type="button"
@@ -1974,14 +2340,6 @@ export default function Home() {
                           <h3 style={{ margin: 0 }}>{tech.name}</h3>
                           <span style={styles.techCardBadge}>{tech.count} Logs</span>
                         </div>
-
-                        {signal && (
-                          <div style={styles.techSignalWrap}>
-                            <span style={getSignalBadgeStyle(signal.level)}>
-                              {signal.level} Burnout Signal
-                            </span>
-                          </div>
-                        )}
 
                         <p style={styles.techCardText}>
                           <strong>Most Recent:</strong>{' '}
@@ -1995,219 +2353,179 @@ export default function Home() {
                             : 'No trends yet'}
                         </p>
 
-                        {signal && (
-                          <p style={styles.techCardText}>
-                            <strong>Signal Summary:</strong> {signal.summary}
-                          </p>
-                        )}
-
                         <p style={styles.techCardText}>
                           <strong>Manager Note:</strong>{' '}
                           {managerNotes[tech.name]?.note?.trim() ? 'Saved' : 'No private note yet'}
                         </p>
                       </button>
-                    )
-                  })}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {!loadingReflections && !managerError && managerScreen === 'profile' && (
-              <div>
-                <div style={styles.profileHeaderCard}>
-                  <div>
-                    <div style={styles.profileTitleRow}>
+              {!loadingReflections && !managerError && managerScreen === 'profile' && (
+                <div>
+                  <div style={styles.profileHeaderCard}>
+                    <div>
                       <h3 style={{ margin: 0 }}>{selectedTechnician || 'Technician Profile'}</h3>
-                      {selectedTechnicianSignal && (
-                        <span style={getSignalBadgeStyle(selectedTechnicianSignal.level)}>
-                          {selectedTechnicianSignal.level} Burnout Signal
+                      <p style={{ marginTop: 8, marginBottom: 0, color: '#486581' }}>
+                        Reflection history, weekly AI recap, and private manager notes
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setManagerScreen('directory')}
+                      style={styles.backButton}
+                    >
+                      Back to Directory
+                    </button>
+                  </div>
+
+                  <div style={styles.noteCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>Private Manager Notes</h3>
+                      <span style={styles.overviewBadge}>Internal Only</span>
+                    </div>
+
+                    <textarea
+                      value={managerNoteText}
+                      onChange={(e) => setManagerNoteText(e.target.value)}
+                      placeholder="Add a private manager note for this technician..."
+                      style={styles.noteTextarea}
+                    />
+
+                    <div style={styles.noteActions}>
+                      <button
+                        type="button"
+                        onClick={saveManagerNote}
+                        style={styles.saveNoteButton}
+                        disabled={savingManagerNote || !selectedTechnician}
+                      >
+                        {savingManagerNote ? 'Saving...' : 'Save Manager Note'}
+                      </button>
+
+                      {selectedTechnician && managerNotes[selectedTechnician]?.updated_at && (
+                        <span style={styles.noteMeta}>
+                          Last updated:{' '}
+                          {new Date(
+                            managerNotes[selectedTechnician].updated_at as string
+                          ).toLocaleString()}
                         </span>
                       )}
                     </div>
-                    <p style={{ marginTop: 8, marginBottom: 0, color: '#486581' }}>
-                      Reflection history, weekly AI recap, private manager notes, and burnout watch
-                    </p>
+
+                    {managerNoteMessage && (
+                      <p style={{ margin: '8px 0 0 0', color: '#243b53' }}>{managerNoteMessage}</p>
+                    )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setManagerScreen('directory')}
-                    style={styles.backButton}
-                  >
-                    Back to Directory
-                  </button>
-                </div>
-
-                {selectedTechnicianSignal && (
-                  <div style={styles.wowCard}>
+                  <div style={styles.weeklyCard}>
                     <div style={styles.overviewHeader}>
-                      <h3 style={{ margin: 0 }}>Burnout Signal Snapshot</h3>
-                      <span style={styles.wowBadge}>Wow Layer</span>
-                    </div>
-
-                    <div style={styles.overviewSection}>
-                      <strong>{selectedTechnicianSignal.technicianName}</strong>
-                      <p style={styles.overviewText}>{selectedTechnicianSignal.summary}</p>
+                      <h3 style={{ margin: 0 }}>Weekly Technician Recap</h3>
+                      <span style={styles.weeklyBadge}>Last 7 Days</span>
                     </div>
 
                     <div style={styles.statGrid}>
                       <div style={styles.statBox}>
-                        <div style={styles.statNumber}>{selectedTechnicianSignal.weeklyReflectionCount}</div>
-                        <div style={styles.statLabel}>Weekly Logs</div>
+                        <div style={styles.statNumber}>{selectedTechnicianWeeklyRecap.total}</div>
+                        <div style={styles.statLabel}>Weekly Reflections</div>
                       </div>
+
                       <div style={styles.statBox}>
-                        <div style={styles.statNumber}>{selectedTechnicianSignal.pressureMentions}</div>
-                        <div style={styles.statLabel}>Pressure Markers</div>
+                        <div style={styles.statNumber}>{selectedTechnicianReflections.length}</div>
+                        <div style={styles.statLabel}>Total Reflection History</div>
                       </div>
-                      <div style={styles.statBox}>
-                        <div style={styles.statNumber}>{selectedTechnicianSignal.supportMentions}</div>
-                        <div style={styles.statLabel}>Support Signals</div>
-                      </div>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Weekly Job Mix</strong>
+                      <p style={styles.overviewText}>
+                        {selectedTechnicianWeeklyRecap.topJobTypes.length > 0
+                          ? selectedTechnicianWeeklyRecap.topJobTypes
+                              .map(([job, count]) => `${job} (${count})`)
+                              .join(', ')
+                          : 'No weekly job trends yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Repeated Weekly Challenges</strong>
+                      <p style={styles.overviewText}>
+                        {selectedTechnicianWeeklyRecap.topChallenges.length > 0
+                          ? selectedTechnicianWeeklyRecap.topChallenges
+                              .map(([theme]) => theme)
+                              .join(', ')
+                          : 'No repeated weekly challenge themes detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>Repeated Weekly Wins</strong>
+                      <p style={styles.overviewText}>
+                        {selectedTechnicianWeeklyRecap.topWins.length > 0
+                          ? selectedTechnicianWeeklyRecap.topWins.map(([theme]) => theme).join(', ')
+                          : 'No repeated weekly wins detected yet.'}
+                      </p>
+                    </div>
+
+                    <div style={styles.overviewSection}>
+                      <strong>AI Summary</strong>
+                      <p style={styles.overviewText}>{selectedTechnicianWeeklyRecap.summary}</p>
                     </div>
 
                     <div style={styles.actionBox}>
-                      <strong>Recommended Manager Move</strong>
-                      <p style={{ margin: '8px 0 0 0' }}>{selectedTechnicianSignal.managerAction}</p>
+                      <strong>Manager Focus</strong>
+                      <p style={{ margin: '8px 0 0 0' }}>
+                        {selectedTechnicianWeeklyRecap.managerFocus}
+                      </p>
                     </div>
                   </div>
-                )}
 
-                <div style={styles.noteCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Private Manager Notes</h3>
-                    <span style={styles.overviewBadge}>Internal Only</span>
-                  </div>
-
-                  <textarea
-                    value={managerNoteText}
-                    onChange={(e) => setManagerNoteText(e.target.value)}
-                    placeholder="Add a private manager note for this technician..."
-                    style={styles.noteTextarea}
-                  />
-
-                  <div style={styles.noteActions}>
-                    <button
-                      type="button"
-                      onClick={saveManagerNote}
-                      style={styles.saveNoteButton}
-                      disabled={savingManagerNote || !selectedTechnician}
-                    >
-                      {savingManagerNote ? 'Saving...' : 'Save Manager Note'}
-                    </button>
-
-                    {selectedTechnician && managerNotes[selectedTechnician]?.updated_at && (
-                      <span style={styles.noteMeta}>
-                        Last updated:{' '}
-                        {new Date(
-                          managerNotes[selectedTechnician].updated_at as string
-                        ).toLocaleString()}
+                  <div style={styles.overviewCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>Reflection History</h3>
+                      <span style={styles.overviewBadge}>
+                        {selectedTechnicianReflections.length} Total
                       </span>
+                    </div>
+
+                    {selectedTechnicianReflections.length === 0 && (
+                      <p style={styles.overviewText}>No reflections found for this technician yet.</p>
                     )}
                   </div>
 
-                  {managerNoteMessage && (
-                    <p style={{ margin: '8px 0 0 0', color: '#243b53' }}>{managerNoteMessage}</p>
-                  )}
+                  {selectedTechnicianReflections.map((r, index) => (
+                    <div key={`${r.technician_name}-${r.created_at}-${index}`} style={styles.historyCard}>
+                      <div style={styles.historyCardTop}>
+                        <h3 style={{ margin: 0 }}>{r.technician_name}</h3>
+                        <span style={styles.historyBadge}>{r.job_type}</span>
+                      </div>
+
+                      <p><strong>Challenge:</strong> {r.challenge}</p>
+                      <p><strong>What Went Well:</strong> {r.what_went_well || 'No win entered.'}</p>
+                      <p><strong>Help Needed:</strong> {r.help_needed || 'None provided'}</p>
+
+                      <div style={styles.aiBox}>
+                        <strong>Technician AI Response:</strong>
+                        <p>{r.ai_response || 'No AI response saved.'}</p>
+                      </div>
+
+                      <div style={styles.managerInsightBox}>
+                        <strong>Manager Insight:</strong>
+                        <p style={{ whiteSpace: 'pre-wrap' }}>
+                          {r.manager_insight || 'No manager insight saved.'}
+                        </p>
+                      </div>
+
+                      <small>{new Date(r.created_at).toLocaleString()}</small>
+                    </div>
+                  ))}
                 </div>
-
-                <div style={styles.weeklyCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Weekly Technician Recap</h3>
-                    <span style={styles.weeklyBadge}>Last 7 Days</span>
-                  </div>
-
-                  <div style={styles.statGrid}>
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{selectedTechnicianWeeklyRecap.total}</div>
-                      <div style={styles.statLabel}>Weekly Reflections</div>
-                    </div>
-
-                    <div style={styles.statBox}>
-                      <div style={styles.statNumber}>{selectedTechnicianReflections.length}</div>
-                      <div style={styles.statLabel}>Total Reflection History</div>
-                    </div>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Weekly Job Mix</strong>
-                    <p style={styles.overviewText}>
-                      {selectedTechnicianWeeklyRecap.topJobTypes.length > 0
-                        ? selectedTechnicianWeeklyRecap.topJobTypes
-                            .map(([job, count]) => `${job} (${count})`)
-                            .join(', ')
-                        : 'No weekly job trends yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Repeated Weekly Challenges</strong>
-                    <p style={styles.overviewText}>
-                      {selectedTechnicianWeeklyRecap.topChallenges.length > 0
-                        ? selectedTechnicianWeeklyRecap.topChallenges
-                            .map(([theme]) => theme)
-                            .join(', ')
-                        : 'No repeated weekly challenge themes detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>Repeated Weekly Wins</strong>
-                    <p style={styles.overviewText}>
-                      {selectedTechnicianWeeklyRecap.topWins.length > 0
-                        ? selectedTechnicianWeeklyRecap.topWins.map(([theme]) => theme).join(', ')
-                        : 'No repeated weekly wins detected yet.'}
-                    </p>
-                  </div>
-
-                  <div style={styles.overviewSection}>
-                    <strong>AI Summary</strong>
-                    <p style={styles.overviewText}>{selectedTechnicianWeeklyRecap.summary}</p>
-                  </div>
-
-                  <div style={styles.actionBox}>
-                    <strong>Manager Focus</strong>
-                    <p style={{ margin: '8px 0 0 0' }}>{selectedTechnicianWeeklyRecap.managerFocus}</p>
-                  </div>
-                </div>
-
-                <div style={styles.overviewCard}>
-                  <div style={styles.overviewHeader}>
-                    <h3 style={{ margin: 0 }}>Reflection History</h3>
-                    <span style={styles.overviewBadge}>
-                      {selectedTechnicianReflections.length} Total
-                    </span>
-                  </div>
-
-                  {selectedTechnicianReflections.length === 0 && (
-                    <p style={styles.overviewText}>No reflections found for this technician yet.</p>
-                  )}
-                </div>
-
-                {selectedTechnicianReflections.map((r, index) => (
-                  <div key={`${r.technician_name}-${r.created_at}-${index}`} style={styles.card}>
-                    <h3>{r.technician_name}</h3>
-                    <p><strong>Job:</strong> {r.job_type}</p>
-                    <p><strong>Challenge:</strong> {r.challenge}</p>
-                    <p><strong>What Went Well:</strong> {r.what_went_well || 'No win entered.'}</p>
-                    <p><strong>Help Needed:</strong> {r.help_needed || 'None provided'}</p>
-
-                    <div style={styles.aiBox}>
-                      <strong>Technician AI Response:</strong>
-                      <p>{r.ai_response || 'No AI response saved.'}</p>
-                    </div>
-
-                    <div style={styles.managerInsightBox}>
-                      <strong>Manager Insight:</strong>
-                      <p>{r.manager_insight || 'No manager insight saved.'}</p>
-                    </div>
-
-                    <small>{new Date(r.created_at).toLocaleString()}</small>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </main>
   )
@@ -2215,89 +2533,240 @@ export default function Home() {
 
 const styles: any = {
   page: {
-    background: '#f4f7fb',
     minHeight: '100vh',
-    padding: '40px',
-    fontFamily: 'Arial',
+    background:
+      'linear-gradient(180deg, #0f172a 0%, #10243f 18%, #eaf1f8 18%, #eef4fa 100%)',
+    padding: '32px 18px 48px',
+    fontFamily: 'Inter, Arial, Helvetica, sans-serif',
+  },
+  shell: {
+    maxWidth: '1200px',
+    margin: '0 auto',
+  },
+  topHero: {
+    background:
+      'linear-gradient(135deg, rgba(11,110,79,0.95) 0%, rgba(16,42,67,0.98) 70%)',
+    color: '#fff',
+    borderRadius: '24px',
+    padding: '28px',
+    marginBottom: '22px',
+    display: 'grid',
+    gridTemplateColumns: '1.4fr 0.8fr',
+    gap: '20px',
+    boxShadow: '0 22px 60px rgba(15, 23, 42, 0.28)',
+  },
+  kicker: {
+    fontSize: '12px',
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    opacity: 0.8,
+    marginBottom: '10px',
+    fontWeight: 700,
+  },
+  heroTitle: {
+    fontSize: '42px',
+    lineHeight: 1,
+    margin: '0 0 12px 0',
+    fontWeight: 800,
+  },
+  heroSubtitle: {
+    margin: 0,
+    maxWidth: '720px',
+    color: 'rgba(255,255,255,0.9)',
+    lineHeight: 1.6,
+    fontSize: '16px',
+  },
+  heroStatRow: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '12px',
+    alignSelf: 'end',
+  },
+  heroStatCard: {
+    background: 'rgba(255,255,255,0.1)',
+    border: '1px solid rgba(255,255,255,0.12)',
+    borderRadius: '18px',
+    padding: '18px',
+    backdropFilter: 'blur(6px)',
+  },
+  heroStatNumber: {
+    fontSize: '28px',
+    fontWeight: 800,
+    marginBottom: '6px',
+  },
+  heroStatLabel: {
+    fontSize: '13px',
+    color: 'rgba(255,255,255,0.82)',
   },
   container: {
-    maxWidth: '1050px',
-    margin: '0 auto',
-    background: '#fff',
-    padding: '30px',
-    borderRadius: '12px',
+    background: 'rgba(255,255,255,0.96)',
+    borderRadius: '24px',
+    padding: '28px',
+    boxShadow: '0 18px 50px rgba(15, 23, 42, 0.08)',
+    border: '1px solid rgba(216, 230, 245, 0.7)',
   },
   header: {
     display: 'flex',
     justifyContent: 'space-between',
-    marginBottom: '20px',
-    gap: '12px',
+    alignItems: 'flex-start',
+    marginBottom: '24px',
+    gap: '16px',
     flexWrap: 'wrap',
+  },
+  sectionEyebrow: {
+    color: '#0b6e4f',
+    fontSize: '12px',
+    fontWeight: 800,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    marginBottom: '8px',
   },
   title: {
     margin: 0,
+    color: '#102a43',
+    fontSize: '28px',
+    lineHeight: 1.2,
+  },
+  toggleWrap: {
+    display: 'flex',
+    alignItems: 'center',
   },
   toggle: {
     display: 'flex',
     gap: '10px',
+    padding: '6px',
+    background: '#eaf1f8',
+    borderRadius: '14px',
   },
   btn: {
-    padding: '10px',
-    background: '#ccc',
+    padding: '12px 18px',
+    background: 'transparent',
+    color: '#486581',
     border: 'none',
     cursor: 'pointer',
-    borderRadius: '8px',
+    borderRadius: '10px',
+    fontWeight: 700,
   },
   activeBtn: {
-    padding: '10px',
-    background: '#0b6e4f',
+    padding: '12px 18px',
+    background: 'linear-gradient(135deg, #0b6e4f 0%, #12805e 100%)',
     color: '#fff',
     border: 'none',
     cursor: 'pointer',
-    borderRadius: '8px',
-  },
-  managerNav: {
-    display: 'flex',
-    gap: '10px',
-    flexWrap: 'wrap',
-    marginBottom: '18px',
-  },
-  managerNavBtn: {
-    padding: '10px 12px',
-    background: '#d9e2ec',
-    color: '#102a43',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
+    borderRadius: '10px',
     fontWeight: 700,
+    boxShadow: '0 8px 20px rgba(11,110,79,0.25)',
   },
-  activeManagerNavBtn: {
-    padding: '10px 12px',
+  techLayout: {
+    display: 'grid',
+    gridTemplateColumns: '1.35fr 0.8fr',
+    gap: '22px',
+  },
+  techLeft: {
+    display: 'grid',
+    gap: '18px',
+  },
+  techRight: {
+    display: 'grid',
+    gap: '18px',
+    alignContent: 'start',
+  },
+  wowCard: {
+    background: 'linear-gradient(180deg, #f8fcff 0%, #edf6ff 100%)',
+    border: '1px solid #d7e8f8',
+    borderRadius: '20px',
+    padding: '22px',
+  },
+  wowBadge: {
+    display: 'inline-block',
     background: '#102a43',
     color: '#fff',
-    border: 'none',
-    borderRadius: '8px',
-    cursor: 'pointer',
-    fontWeight: 700,
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 800,
+    marginBottom: '12px',
+  },
+  wowTitle: {
+    margin: '0 0 8px 0',
+    fontSize: '24px',
+    color: '#102a43',
+  },
+  wowText: {
+    margin: '0 0 18px 0',
+    color: '#486581',
+    lineHeight: 1.6,
+  },
+  wowGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px',
+  },
+  miniInfoCard: {
+    background: '#fff',
+    border: '1px solid #dbe7f3',
+    borderRadius: '14px',
+    padding: '14px',
+  },
+  miniInfoText: {
+    margin: '8px 0 0 0',
+    color: '#486581',
+    fontSize: '14px',
+    lineHeight: 1.5,
+  },
+  formCard: {
+    background: '#ffffff',
+    border: '1px solid #dde7f2',
+    borderRadius: '20px',
+    padding: '22px',
+    boxShadow: '0 10px 30px rgba(15, 23, 42, 0.05)',
+  },
+  formHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '12px',
+    marginBottom: '18px',
+  },
+  formHeaderBadge: {
+    background: '#e6f4ea',
+    color: '#1e4620',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 800,
   },
   form: {
     display: 'grid',
-    gap: '12px',
+    gap: '14px',
+  },
+  label: {
+    fontSize: '13px',
+    color: '#243b53',
+    fontWeight: 700,
   },
   input: {
-    padding: '10px',
-    borderRadius: '8px',
-    border: '1px solid #ccc',
+    padding: '14px 14px',
+    borderRadius: '12px',
+    border: '1px solid #cbd8e6',
     width: '100%',
     boxSizing: 'border-box',
+    fontSize: '15px',
+    background: '#fcfdff',
+    color: '#102a43',
   },
   textarea: {
-    padding: '10px',
-    minHeight: '90px',
-    borderRadius: '8px',
-    border: '1px solid #ccc',
+    padding: '14px',
+    minHeight: '110px',
+    borderRadius: '12px',
+    border: '1px solid #cbd8e6',
     width: '100%',
     boxSizing: 'border-box',
+    fontSize: '15px',
+    background: '#fcfdff',
+    color: '#102a43',
+    resize: 'vertical',
   },
   fieldWrap: {
     display: 'grid',
@@ -2308,15 +2777,16 @@ const styles: any = {
     background: '#102a43',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     width: 'fit-content',
+    fontWeight: 700,
   },
   guidedBox: {
-    background: '#eef6ff',
+    background: 'linear-gradient(180deg, #eef6ff 0%, #f8fbff 100%)',
     border: '1px solid #c9ddf5',
-    padding: '16px',
-    borderRadius: '10px',
+    padding: '18px',
+    borderRadius: '16px',
     display: 'grid',
     gap: '12px',
   },
@@ -2350,24 +2820,25 @@ const styles: any = {
     background: '#0b6e4f',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 700,
+    boxShadow: '0 8px 18px rgba(11,110,79,0.2)',
   },
   cancelButton: {
     padding: '12px 14px',
     background: '#b42318',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 700,
   },
   promptBox: {
     background: '#fff',
     border: '1px solid #d9e2ec',
-    borderRadius: '8px',
-    padding: '12px',
+    borderRadius: '10px',
+    padding: '14px',
   },
   promptSubtext: {
     margin: '8px 0 0 0',
@@ -2379,15 +2850,225 @@ const styles: any = {
     border: '1px solid #f0d58c',
     color: '#6b5300',
     padding: '12px',
-    borderRadius: '8px',
+    borderRadius: '10px',
   },
   submit: {
-    padding: '12px',
-    background: '#0b6e4f',
+    padding: '14px 18px',
+    background: 'linear-gradient(135deg, #0b6e4f 0%, #12805e 100%)',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '12px',
     cursor: 'pointer',
+    fontWeight: 800,
+    fontSize: '15px',
+    boxShadow: '0 10px 20px rgba(11,110,79,0.22)',
+  },
+  successBox: {
+    background: '#eafaf0',
+    border: '1px solid #bde3c7',
+    color: '#1e4620',
+    padding: '12px 14px',
+    borderRadius: '12px',
+    fontWeight: 700,
+  },
+  warningBox: {
+    background: '#fff5f5',
+    border: '1px solid #f0c9c9',
+    color: '#7a1f1f',
+    padding: '12px 14px',
+    borderRadius: '12px',
+    fontWeight: 700,
+  },
+  aiResponseFeature: {
+    background: 'linear-gradient(180deg, #f7f1ff 0%, #ede3ff 100%)',
+    border: '1px solid #d6c2ff',
+    borderRadius: '18px',
+    padding: '18px',
+  },
+  aiResponseHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  aiLabel: {
+    fontSize: '12px',
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: '#6b46c1',
+  },
+  aiBadge: {
+    background: '#6b46c1',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 700,
+  },
+  aiResponseText: {
+    margin: 0,
+    color: '#2d1b69',
+    lineHeight: 1.7,
+    fontSize: '15px',
+  },
+  frameworkBox: {
+    marginTop: '16px',
+    background: '#ffffff',
+    border: '1px solid #d9c9ff',
+    borderRadius: '16px',
+    padding: '16px',
+  },
+  frameworkHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    gap: '12px',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    marginBottom: '14px',
+  },
+  frameworkLabel: {
+    fontSize: '12px',
+    fontWeight: 800,
+    textTransform: 'uppercase',
+    letterSpacing: '0.08em',
+    color: '#5b3db3',
+  },
+  frameworkGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+    gap: '12px',
+  },
+  frameworkItem: {
+    background: '#f8f5ff',
+    border: '1px solid #e2d8ff',
+    borderRadius: '12px',
+    padding: '12px',
+  },
+  frameworkText: {
+    margin: '8px 0 0 0',
+    color: '#2d1b69',
+    lineHeight: 1.5,
+    fontSize: '14px',
+  },
+  riskLow: {
+    background: '#eafaf0',
+    color: '#1e4620',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 800,
+  },
+  riskMedium: {
+    background: '#fff4e5',
+    color: '#8a5a00',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 800,
+  },
+  riskHigh: {
+    background: '#fff1f1',
+    color: '#a61b1b',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 800,
+  },
+  burnoutBox: {
+    marginTop: '14px',
+    background: '#fff4e5',
+    border: '1px solid #f3c98b',
+    color: '#7a4b00',
+    padding: '14px',
+    borderRadius: '12px',
+  },
+  previewCard: {
+    background: '#ffffff',
+    border: '1px solid #dde7f2',
+    borderRadius: '20px',
+    padding: '20px',
+    boxShadow: '0 10px 28px rgba(15, 23, 42, 0.05)',
+  },
+  previewHeader: {
+    marginBottom: '14px',
+  },
+  previewList: {
+    display: 'grid',
+    gap: '16px',
+  },
+  previewItem: {
+    display: 'grid',
+    gridTemplateColumns: '14px 1fr',
+    gap: '12px',
+    alignItems: 'start',
+  },
+  previewDot: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '999px',
+    background: '#0b6e4f',
+    marginTop: '6px',
+  },
+  previewItemText: {
+    margin: '6px 0 0 0',
+    color: '#486581',
+    lineHeight: 1.6,
+  },
+  quoteCard: {
+    background: 'linear-gradient(135deg, #102a43 0%, #163857 100%)',
+    color: '#fff',
+    borderRadius: '20px',
+    padding: '22px',
+  },
+  quoteBadge: {
+    display: 'inline-block',
+    background: 'rgba(255,255,255,0.12)',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 700,
+    marginBottom: '12px',
+  },
+  quoteText: {
+    margin: 0,
+    fontSize: '18px',
+    lineHeight: 1.7,
+    color: 'rgba(255,255,255,0.95)',
+  },
+  managerIntroCard: {
+    background: 'linear-gradient(180deg, #f8fbff 0%, #eef5fb 100%)',
+    border: '1px solid #d8e6f5',
+    padding: '20px',
+    borderRadius: '18px',
+    marginBottom: '18px',
+  },
+  managerNav: {
+    display: 'flex',
+    gap: '10px',
+    flexWrap: 'wrap',
+    marginBottom: '18px',
+  },
+  managerNavBtn: {
+    padding: '11px 14px',
+    background: '#d9e2ec',
+    color: '#102a43',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontWeight: 700,
+  },
+  activeManagerNavBtn: {
+    padding: '11px 14px',
+    background: '#102a43',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontWeight: 700,
+    boxShadow: '0 10px 20px rgba(16,42,67,0.16)',
   },
   directoryGrid: {
     display: 'grid',
@@ -2397,10 +3078,11 @@ const styles: any = {
   technicianCard: {
     textAlign: 'left',
     border: '1px solid #d9e2ec',
-    borderRadius: '12px',
+    borderRadius: '16px',
     background: '#fff',
-    padding: '16px',
+    padding: '18px',
     cursor: 'pointer',
+    boxShadow: '0 8px 22px rgba(15, 23, 42, 0.04)',
   },
   techCardHeader: {
     display: 'flex',
@@ -2418,9 +3100,6 @@ const styles: any = {
     fontSize: '12px',
     fontWeight: 700,
   },
-  techSignalWrap: {
-    marginBottom: '10px',
-  },
   techCardText: {
     margin: '8px 0',
     color: '#243b53',
@@ -2430,7 +3109,7 @@ const styles: any = {
     background: '#f8fbff',
     border: '1px solid #d8e6f5',
     padding: '18px',
-    borderRadius: '12px',
+    borderRadius: '16px',
     marginBottom: '20px',
     display: 'flex',
     justifyContent: 'space-between',
@@ -2438,18 +3117,12 @@ const styles: any = {
     flexWrap: 'wrap',
     alignItems: 'center',
   },
-  profileTitleRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    flexWrap: 'wrap',
-  },
   backButton: {
     padding: '10px 12px',
     background: '#102a43',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 700,
   },
@@ -2457,14 +3130,14 @@ const styles: any = {
     background: '#fffdf5',
     border: '1px solid #ead9a7',
     padding: '20px',
-    borderRadius: '12px',
+    borderRadius: '16px',
     marginBottom: '20px',
   },
   noteTextarea: {
     width: '100%',
     minHeight: '120px',
     padding: '12px',
-    borderRadius: '8px',
+    borderRadius: '12px',
     border: '1px solid #ccc',
     boxSizing: 'border-box',
     resize: 'vertical',
@@ -2482,7 +3155,7 @@ const styles: any = {
     background: '#8b5e00',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     fontWeight: 700,
   },
@@ -2490,25 +3163,44 @@ const styles: any = {
     color: '#486581',
     fontSize: '13px',
   },
-  card: {
-    border: '1px solid #ddd',
-    padding: '16px',
-    marginBottom: '12px',
-    borderRadius: '8px',
+  historyCard: {
+    border: '1px solid #d9e2ec',
+    padding: '18px',
+    marginBottom: '14px',
+    borderRadius: '16px',
     background: '#fff',
+    boxShadow: '0 8px 24px rgba(15, 23, 42, 0.04)',
+  },
+  historyCardTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: '12px',
+    flexWrap: 'wrap',
+    marginBottom: '12px',
+  },
+  historyBadge: {
+    background: '#eef6ff',
+    color: '#102a43',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 700,
   },
   aiBox: {
-    background: '#eef',
-    padding: '10px',
+    background: '#f5f0ff',
+    border: '1px solid #ddd0ff',
+    padding: '12px',
     marginTop: '10px',
-    borderRadius: '6px',
+    borderRadius: '10px',
+    color: '#35206b',
   },
   managerInsightBox: {
     background: '#eef9f1',
     border: '1px solid #bfdcca',
-    padding: '10px',
+    padding: '12px',
     marginTop: '10px',
-    borderRadius: '6px',
+    borderRadius: '10px',
     color: '#1e4620',
   },
   errorBox: {
@@ -2516,28 +3208,21 @@ const styles: any = {
     border: '1px solid #f3b9b9',
     color: '#7a1f1f',
     padding: '14px',
-    borderRadius: '8px',
+    borderRadius: '12px',
     marginBottom: '12px',
   },
   overviewCard: {
     background: '#f8fbff',
     border: '1px solid #d8e6f5',
     padding: '20px',
-    borderRadius: '12px',
+    borderRadius: '16px',
     marginBottom: '20px',
   },
   weeklyCard: {
     background: '#fff8ef',
     border: '1px solid #f1d1a8',
     padding: '20px',
-    borderRadius: '12px',
-    marginBottom: '20px',
-  },
-  wowCard: {
-    background: '#fff4f4',
-    border: '1px solid #f3c2c2',
-    padding: '20px',
-    borderRadius: '12px',
+    borderRadius: '16px',
     marginBottom: '20px',
   },
   overviewHeader: {
@@ -2564,77 +3249,6 @@ const styles: any = {
     fontSize: '12px',
     fontWeight: 700,
   },
-  wowBadge: {
-    background: '#b42318',
-    color: '#fff',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-  },
-  signalBadgeHigh: {
-    background: '#b42318',
-    color: '#fff',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-    display: 'inline-block',
-  },
-  signalBadgeModerate: {
-    background: '#b54708',
-    color: '#fff',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-    display: 'inline-block',
-  },
-  signalBadgeLow: {
-    background: '#0b6e4f',
-    color: '#fff',
-    padding: '6px 10px',
-    borderRadius: '999px',
-    fontSize: '12px',
-    fontWeight: 700,
-    display: 'inline-block',
-  },
-  signalList: {
-    display: 'grid',
-    gap: '12px',
-  },
-  signalRow: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    gap: '12px',
-    flexWrap: 'wrap',
-    textAlign: 'left',
-    border: '1px solid #d9e2ec',
-    borderRadius: '10px',
-    padding: '14px',
-    background: '#fff',
-    cursor: 'pointer',
-  },
-  signalRowHeader: {
-    display: 'flex',
-    gap: '10px',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    marginBottom: '8px',
-  },
-  signalText: {
-    margin: 0,
-    color: '#243b53',
-    lineHeight: 1.5,
-    maxWidth: '700px',
-  },
-  signalMeta: {
-    color: '#486581',
-    fontSize: '13px',
-    display: 'grid',
-    gap: '6px',
-    minWidth: '120px',
-  },
   statGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
@@ -2644,12 +3258,12 @@ const styles: any = {
   statBox: {
     background: '#fff',
     border: '1px solid #d9e2ec',
-    borderRadius: '10px',
+    borderRadius: '12px',
     padding: '16px',
   },
   statNumber: {
-    fontSize: '28px',
-    fontWeight: 700,
+    fontSize: '30px',
+    fontWeight: 800,
     color: '#102a43',
   },
   statLabel: {
@@ -2663,13 +3277,13 @@ const styles: any = {
   overviewText: {
     margin: '6px 0 0 0',
     color: '#243b53',
-    lineHeight: 1.5,
+    lineHeight: 1.6,
   },
   actionBox: {
     background: '#e6f4ea',
     border: '1px solid #bfdcca',
     padding: '14px',
-    borderRadius: '10px',
+    borderRadius: '12px',
     marginTop: '8px',
     color: '#1e4620',
   },
