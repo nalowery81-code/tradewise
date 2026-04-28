@@ -409,7 +409,7 @@ export default function Home() {
     setGuidedRecording(false)
     setGuidedStep(null)
     setGuidedPrompt('')
-    startRecognitionForField(field, false)
+    startRecognitionForField(field)
   }
 
   const startFullReflectionRecording = () => {
@@ -427,7 +427,7 @@ export default function Home() {
 
     speakPrompt(firstPrompt, () => {
       if (guidedModeRef.current) {
-        startRecognitionForField('technicianName', false)
+        startRecognitionForField('technicianName')
       }
     })
   }
@@ -450,7 +450,7 @@ export default function Home() {
 
     speakPrompt(nextPrompt, () => {
       if (guidedModeRef.current) {
-        startRecognitionForField('jobType', false)
+        startRecognitionForField('jobType')
       }
     })
     return
@@ -463,7 +463,7 @@ export default function Home() {
 
     speakPrompt(nextPrompt, () => {
       if (guidedModeRef.current) {
-        startRecognitionForField('reflection', false)
+        startRecognitionForField('reflection')
       }
     })
     return
