@@ -960,11 +960,14 @@ Suggested Next Step: ${interpretation.nextStep}`
   setTeamSummaryResult(null)
 
   try {
-    const { data: reflectionsData } = await supabase
+    const { data: reflectionsData, error: reflectionsError } = await supabase
   .from('Reflections')
   .select('*')
   .order('created_at', { ascending: false })
   .limit(25)
+
+console.log('SUPABASE REFLECTIONS:', reflectionsData)
+console.log('SUPABASE REFLECTIONS ERROR:', reflectionsError)
     
   const res = await fetch('/api/team-summary', {
       method: 'POST',
