@@ -32,6 +32,7 @@ Your job:
 7. Write a short coaching message for the manager.
 
 Rules:
+<<<<<<< HEAD
 - Sound grounded, human, practical, and contractor-friendly.
 - Do not sound corporate, robotic, or overly polished.
 - Do not shame technicians or managers.
@@ -83,6 +84,42 @@ ${managerReflection}
               ],
             },
           },
+=======
+- Sound like an experienced contractor or field leader
+- Be practical, direct, observant, and human
+- No corporate jargon
+- No HR tone
+- No therapy tone
+- Focus on workload, prep, communication, scheduling, callbacks, strain, support, and repeat patterns
+
+Rules for human_read:
+- This is the star of the report
+- Write 4-6 sentences
+- Sound like a real contractor reading between the lines
+- Focus on what the week likely felt like for the technicians
+- Reference real-life tradeoffs like long days, customer pressure, missed family time, fatigue, and carrying too much without saying much
+- It should feel grounded and human, not analytical
+
+Rules for who_should_i_talk_to_tomorrow:
+- Return 0 to 3 people
+- Only include someone if the reflections truly suggest they need a next-day check-in
+- risk must be exactly Low, Medium, or High
+- reason should be plainspoken and specific
+- If no one clearly stands out, return an empty array
+
+Important:
+- Say clearly when an issue feels more like a systems problem than a people problem
+- full_report should be 2 short paragraphs max
+- Make the output useful for a real manager who wants to act tomorrow morning
+`
+
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4.1-mini',
+      messages: [
+        {
+          role: 'user',
+          content: prompt,
+>>>>>>> 0639ce7 (Update OpenAI model to gpt-4.1-mini)
         },
       })
 
