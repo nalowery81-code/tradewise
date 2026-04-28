@@ -65,18 +65,22 @@ export default function Home() {
   )
   const [selectedTechnician, setSelectedTechnician] = useState<string | null>(null)
   const [technicianName, setTechnicianName] = useState('')
+  const [showNameDropdown, setShowNameDropdown] = useState(false)
   const [jobType, setJobType] = useState('')
   const [reflection, setReflection] = useState('')
   const [managerReflection, setManagerReflection] = useState('')
   const [teamSummaryLoading, setTeamSummaryLoading] = useState(false)
   const [teamSummaryError, setTeamSummaryError] = useState('')
-  const [teamSummaryResult, setTeamSummaryResult] = useState<any>(null)  
+  const [teamSummaryResult, setTeamSummaryResult] = useState<any>(null)
   const [message, setMessage] = useState('')
   const [aiResponse, setAiResponse] = useState('')
   const [burnoutSignal, setBurnoutSignal] = useState('')
   const [understandingSnapshot, setUnderstandingSnapshot] =
     useState<InterpretationResult | null>(null)
   const [loading, setLoading] = useState(false)
+  const [techHistory, setTechHistory] = useState<Reflection[]>([])
+  const [techAiSummary, setTechAiSummary] = useState<string>('')
+  const [techSummaryLoading, setTechSummaryLoading] = useState(false)
 
   const [reflections, setReflections] = useState<Reflection[]>([])
   const [loadingReflections, setLoadingReflections] = useState(false)
@@ -306,33 +310,33 @@ export default function Home() {
     if (field === 'technicianName') setTechnicianName(value.trim())
     if (field === 'jobType') setJobType(normalizeJobType(value))
     if (field === 'reflection') setReflection(value.trim())
-  
+
   }
 
   const appendFieldValue = (field: VoiceField, value: string) => {
-  const cleanValue = value.trim()
-  if (!cleanValue) return
+    const cleanValue = value.trim()
+    if (!cleanValue) return
 
-  if (field === 'technicianName') {
-    setTechnicianName(cleanValue)
-    return
-  }
+    if (field === 'technicianName') {
+      setTechnicianName(cleanValue)
+      return
+    }
 
-  if (field === 'jobType') {
-    setJobType(normalizeJobType(cleanValue))
-    return
-  }
+    if (field === 'jobType') {
+      setJobType(normalizeJobType(cleanValue))
+      return
+    }
 
-  if (field === 'reflection') {
-    setReflection((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
+    if (field === 'reflection') {
+      setReflection((prev) => (prev ? `${prev} ${cleanValue}` : cleanValue))
+    }
   }
-}
 
   const stopRecognition = () => {
     if (recognitionRef.current) {
       try {
         recognitionRef.current.stop()
-      } catch {}
+      } catch { }
     }
   }
 
@@ -346,63 +350,63 @@ export default function Home() {
   }
 
   const startRecognitionForField = (field: VoiceField) => {
-  const SpeechRecognition =
-    typeof window !== 'undefined' &&
-    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    const SpeechRecognition =
+      typeof window !== 'undefined' &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
 
-  if (!SpeechRecognition) {
-    alert('Speech-to-text is not supported in this browser. Try Chrome.')
-    return
-  }
-
-  stopRecognition()
-
-  const recognition = new SpeechRecognition()
-  recognitionRef.current = recognition
-
-  recognition.lang = 'en-US'
-  recognition.interimResults = false
-  recognition.continuous = field === 'reflection'
-  recognition.maxAlternatives = 1
-
-  setIsListening(true)
-  setActiveField(field)
-
-  recognition.onresult = (event: any) => {
-    const lastResult = event.results[event.results.length - 1]
-    if (!lastResult?.isFinal) return
-
-    const cleanTranscript = lastResult[0].transcript.trim()
-    if (!cleanTranscript) return
-
-    console.log('FINAL TRANSCRIPT:', field, cleanTranscript)
-
-    setFieldValue(field, cleanTranscript)
-  }
-
-  recognition.onerror = () => {
-    setIsListening(false)
-    setActiveField(null)
-  }
-
-  recognition.onend = () => {
-    setIsListening(false)
-    setActiveField(null)
-
-    if (guidedModeRef.current && field === 'technicianName') {
-      moveToNextGuidedStep('technicianName')
+    if (!SpeechRecognition) {
+      alert('Speech-to-text is not supported in this browser. Try Chrome.')
+      return
     }
 
-    if (guidedModeRef.current && field === 'jobType') {
-      moveToNextGuidedStep('jobType')
+    stopRecognition()
+
+    const recognition = new SpeechRecognition()
+    recognitionRef.current = recognition
+
+    recognition.lang = 'en-US'
+    recognition.interimResults = false
+    recognition.continuous = field === 'reflection'
+    recognition.maxAlternatives = 1
+
+    setIsListening(true)
+    setActiveField(field)
+
+    recognition.onresult = (event: any) => {
+      const lastResult = event.results[event.results.length - 1]
+      if (!lastResult?.isFinal) return
+
+      const cleanTranscript = lastResult[0].transcript.trim()
+      if (!cleanTranscript) return
+
+      console.log('FINAL TRANSCRIPT:', field, cleanTranscript)
+
+      setFieldValue(field, cleanTranscript)
     }
 
-    // Do NOT auto-advance after reflection.
-    // User will stop manually.
-  }
+    recognition.onerror = () => {
+      setIsListening(false)
+      setActiveField(null)
+    }
 
-  recognition.start()
-}
+    recognition.onend = () => {
+      setIsListening(false)
+      setActiveField(null)
+
+      if (guidedModeRef.current && field === 'technicianName') {
+        moveToNextGuidedStep('technicianName')
+      }
+
+      if (guidedModeRef.current && field === 'jobType') {
+        moveToNextGuidedStep('jobType')
+      }
+
+      // Do NOT auto-advance after reflection.
+      // User will stop manually.
+    }
+
+    recognition.start()
+  }
 
   const startListening = (field: VoiceField) => {
     guidedModeRef.current = false
@@ -441,40 +445,40 @@ export default function Home() {
   }
 
   const moveToNextGuidedStep = (completedField: VoiceField) => {
-  if (!guidedModeRef.current) return
+    if (!guidedModeRef.current) return
 
-  if (completedField === 'technicianName') {
-    const nextPrompt = 'What type of job was this?'
-    setGuidedStep('jobType')
-    setGuidedPrompt(nextPrompt)
+    if (completedField === 'technicianName') {
+      const nextPrompt = 'What type of job was this?'
+      setGuidedStep('jobType')
+      setGuidedPrompt(nextPrompt)
 
-    speakPrompt(nextPrompt, () => {
-      if (guidedModeRef.current) {
-        startRecognitionForField('jobType')
-      }
-    })
-    return
+      speakPrompt(nextPrompt, () => {
+        if (guidedModeRef.current) {
+          startRecognitionForField('jobType')
+        }
+      })
+      return
+    }
+
+    if (completedField === 'jobType') {
+      const nextPrompt = 'Tell me about the job. What happened today?'
+      setGuidedStep('reflection')
+      setGuidedPrompt(nextPrompt)
+
+      speakPrompt(nextPrompt, () => {
+        if (guidedModeRef.current) {
+          startRecognitionForField('reflection')
+        }
+      })
+      return
+    }
+
+    if (completedField === 'reflection') {
+      speakPrompt('Got it. Reflection recorded.', () => {
+        resetGuidedRecording()
+      })
+    }
   }
-
-  if (completedField === 'jobType') {
-    const nextPrompt = 'Tell me about the job. What happened today?'
-    setGuidedStep('reflection')
-    setGuidedPrompt(nextPrompt)
-
-    speakPrompt(nextPrompt, () => {
-      if (guidedModeRef.current) {
-        startRecognitionForField('reflection')
-      }
-    })
-    return
-  }
-
-  if (completedField === 'reflection') {
-    speakPrompt('Got it. Reflection recorded.', () => {
-      resetGuidedRecording()
-    })
-  }
-}
   const buildBurnoutSignal = (
     challengeValue: string,
     helpNeededValue: string,
@@ -867,6 +871,56 @@ Suggested Next Step: ${interpretation.nextStep}`
     return `Insight: This ${jobTypeValue || 'job'} may need follow-up due to signals around ${concernText}. Why it matters: when multiple strain indicators appear together, they can point to preventable frustration, inconsistency, or burnout if ignored. Suggested manager action: have a direct but supportive check-in and review what system, prep, or coaching changes could help. ${actionText}`
   }
 
+  const fetchAndSummarizeTechHistory = async (canonicalName: string) => {
+    setTechSummaryLoading(true)
+
+    const { data, error } = await supabase
+      .from('Reflections')
+      .select('job_type, challenge, ai_response, created_at')
+      .eq('technician_name', canonicalName)
+      .order('created_at', { ascending: false })
+      .limit(20)
+
+    if (error || !data) {
+      setTechSummaryLoading(false)
+      return
+    }
+
+    setTechHistory(data as Reflection[])
+
+    if (data.length === 0) {
+      setTechSummaryLoading(false)
+      return
+    }
+
+    const summaryPrompt = `You are a supportive coach for field technicians in the trades industry.
+
+Here are the most recent reflections from this technician:
+
+${data.map((r, i) => `Reflection ${i + 1} (${r.job_type}, ${new Date(r.created_at).toLocaleDateString()}): ${r.challenge}`).join('\n')}
+
+Write a short, warm, personal summary (3-4 sentences) for the technician themselves — not the manager. Acknowledge what they've been dealing with across these jobs, name any pattern you notice, and end with one encouraging sentence. Use "you" language. Keep it human and grounded, not corporate.`
+
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          technicianName: canonicalName,
+          jobType: 'Summary',
+          reflection: summaryPrompt,
+        }),
+      })
+
+      const data2 = await res.json()
+      setTechAiSummary(data2.technician_response || '')
+    } catch {
+      setTechAiSummary('')
+    }
+
+    setTechSummaryLoading(false)
+  }
+
   const fetchManagerNotes = async () => {
     const { data, error } = await supabase
       .from('ManagerNotes')
@@ -877,11 +931,13 @@ Suggested Next Step: ${interpretation.nextStep}`
       return
     }
 
+
+
     const noteMap: Record<string, ManagerNoteRow> = {}
 
-    ;(data || []).forEach((row: ManagerNoteRow) => {
-      noteMap[row.technician_name] = row
-    })
+      ; (data || []).forEach((row: ManagerNoteRow) => {
+        noteMap[row.technician_name] = row
+      })
 
     setManagerNotes(noteMap)
   }
@@ -957,193 +1013,194 @@ Suggested Next Step: ${interpretation.nextStep}`
   const handleGenerateTeamSummary = async () => {
     console.log('BUTTON CLICKED: TEAM SUMMARY STARTED')
 
-  setTeamSummaryLoading(true)
-  setTeamSummaryError('')
-  setTeamSummaryResult(null)
+    setTeamSummaryLoading(true)
+    setTeamSummaryError('')
+    setTeamSummaryResult(null)
 
-  try {
-    const { data: reflectionsData, error: reflectionsError } = await supabase
-  .from('Reflections')
-  .select('*')
-  .order('created_at', { ascending: false })
-  .limit(25)
+    try {
+      const { data: reflectionsData, error: reflectionsError } = await supabase
+        .from('Reflections')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(25)
 
-console.log('SUPABASE REFLECTIONS:', reflectionsData)
-console.log('SUPABASE REFLECTIONS ERROR:', reflectionsError)
-    
-  const res = await fetch('/api/team-summary', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        managerReflection:
-          managerReflection.trim() ||
-          'Give me a contractor-style read on what my team is dealing with and where I should focus next.',
-        reflections: reflectionsData || [],
-        weeklySummary: weeklyRecap.summary,
-        overallSummary: aiOverview.summary,
-      }),
-    })
+      console.log('SUPABASE REFLECTIONS:', reflectionsData)
+      console.log('SUPABASE REFLECTIONS ERROR:', reflectionsError)
 
-    const rawText = await res.text()
+      const res = await fetch('/api/team-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          managerReflection:
+            managerReflection.trim() ||
+            'Give me a contractor-style read on what my team is dealing with and where I should focus next.',
+          reflections: reflectionsData || [],
+          weeklySummary: weeklyRecap.summary,
+          overallSummary: aiOverview.summary,
+        }),
+      })
 
-    console.log('TEAM SUMMARY STATUS:', res.status)
-    console.log('TEAM SUMMARY RAW:', rawText)
+      const rawText = await res.text()
 
-    if (!res.ok) {
-      setTeamSummaryError(`Team summary route error: ${rawText}`)
-      setTeamSummaryLoading(false)
+      console.log('TEAM SUMMARY STATUS:', res.status)
+      console.log('TEAM SUMMARY RAW:', rawText)
+
+      if (!res.ok) {
+        setTeamSummaryError(`Team summary route error: ${rawText}`)
+        setTeamSummaryLoading(false)
+        return
+      }
+
+      const data = JSON.parse(rawText)
+
+      console.log('TEAM SUMMARY RESPONSE:', data)
+
+
+      setTeamSummaryResult({
+        report_title: data.report_title || 'Full Team AI Report',
+        human_read: data.human_read || data.team_summary || 'No human read returned.',
+        team_status: data.team_status || data.emotional_read || 'No team status returned.',
+        who_should_i_talk_to_tomorrow: data.who_should_i_talk_to_tomorrow || [],
+        what_the_team_is_carrying:
+          data.what_the_team_is_carrying || data.top_friction_themes || [],
+        who_may_need_support:
+          data.who_may_need_support || data.likely_root_causes || [],
+        system_issues_to_watch:
+          data.system_issues_to_watch || data.positive_signals || [],
+        manager_moves: data.manager_moves || data.manager_actions || [],
+        full_report: data.full_report || data.coaching_message || 'No full report returned.',
+      })
+
+    } catch (err) {
+      console.error('TEAM SUMMARY ERROR:', err)
+      setTeamSummaryError('Failed to generate team summary.')
+    }
+
+    setTeamSummaryLoading(false)
+  }
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
+    setAiResponse('')
+    setBurnoutSignal('')
+    setUnderstandingSnapshot(null)
+
+    if (!technicianName || !jobType || !reflection) {
+      setMessage('Please fill out name, job type, and reflection.')
+      setLoading(false)
       return
     }
 
-    const data = JSON.parse(rawText)
+    let resolvedTechnician: { technicianId: string; canonicalName: string }
 
-    console.log('TEAM SUMMARY RESPONSE:', data)
+    try {
+      resolvedTechnician = await resolveTechnicianIdentity(technicianName)
+    } catch (err: any) {
+      setMessage(`Technician identity error: ${err.message || 'Unable to resolve technician.'}`)
+      setLoading(false)
+      return
+    }
 
-    
-    setTeamSummaryResult({
-      report_title: data.report_title || 'Full Team AI Report',
-      human_read: data.human_read || data.team_summary || 'No human read returned.',
-      team_status: data.team_status || data.emotional_read || 'No team status returned.',
-      who_should_i_talk_to_tomorrow: data.who_should_i_talk_to_tomorrow || [],
-      what_the_team_is_carrying:
-        data.what_the_team_is_carrying || data.top_friction_themes || [],
-      who_may_need_support:
-        data.who_may_need_support || data.likely_root_causes || [],
-      system_issues_to_watch:
-        data.system_issues_to_watch || data.positive_signals || [],
-      manager_moves: data.manager_moves || data.manager_actions || [],
-      full_report: data.full_report || data.coaching_message || 'No full report returned.',
-    })
+    // ✅ CALL OPENAI
+    let generatedResponse = ''
+    let generatedManagerInsight = ''
 
- 
+    try {
+      const res = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          technicianName,
+          jobType,
+          reflection,
+        }),
+      })
 
-  } catch (err) {
-    console.error('TEAM SUMMARY ERROR:', err)
-    setTeamSummaryError('Failed to generate team summary.')
-  }
+      const rawText = await res.text()
 
-  setTeamSummaryLoading(false)
-}
-  
+      console.log('API STATUS:', res.status)
+      console.log('API RAW RESPONSE:', rawText)
 
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  setLoading(true)
-  setMessage('')
-  setAiResponse('')
-  setBurnoutSignal('')
-  setUnderstandingSnapshot(null)
+      if (!res.ok) {
+        setMessage(`AI route error: ${rawText}`)
+        setLoading(false)
+        return
+      }
 
-  if (!technicianName || !jobType || !reflection) {
-    setMessage('Please fill out name, job type, and reflection.')
+      let data: any
+
+      try {
+        data = JSON.parse(rawText)
+      } catch {
+        setMessage(`AI route returned invalid JSON: ${rawText}`)
+        setLoading(false)
+        return
+      }
+
+      console.log('AI RESPONSE:', data)
+
+      generatedResponse = data.technician_response
+      generatedManagerInsight = data.manager_insight
+
+      if (!generatedResponse || !generatedManagerInsight) {
+        setMessage(`AI route returned incomplete data: ${rawText}`)
+        setLoading(false)
+        return
+      }
+    } catch (err) {
+      console.error('AI FETCH ERROR:', err)
+      setMessage('AI failed to generate response.')
+      setLoading(false)
+      return
+    }
+
+    // ✅ KEEP YOUR LOGIC (THIS IS GOOD)
+    const interpretation = interpretReflection(jobType, reflection, '', '')
+
+    const generatedBurnoutSignal =
+      interpretation.riskLevel === 'High'
+        ? 'High strain signal detected. A supportive manager check-in is recommended soon.'
+        : interpretation.riskLevel === 'Medium'
+          ? 'Moderate strain signal detected. Watch for repeated pressure and support needs.'
+          : buildBurnoutSignal(reflection, '', '')
+
+    // ✅ SAVE TO SUPABASE
+    const { error } = await supabase.from('Reflections').insert([
+      {
+        technician_id: resolvedTechnician.technicianId,
+        technician_name: resolvedTechnician.canonicalName,
+        job_type: jobType,
+        challenge: reflection,
+        what_went_well: null,
+        help_needed: null,
+        ai_response: generatedResponse,
+        manager_insight: generatedManagerInsight,
+        created_at: new Date().toISOString(),
+      },
+    ])
+
+    if (error) {
+      setMessage(`Submit error: ${error.message}`)
+    } else {
+      setMessage('Reflection submitted.')
+      setAiResponse(generatedResponse)
+      setBurnoutSignal(generatedBurnoutSignal)
+      setUnderstandingSnapshot(interpretation)
+
+      // Refresh personal history card
+      await fetchAndSummarizeTechHistory(resolvedTechnician.canonicalName)
+
+      setTechnicianName('')
+      setJobType('')
+      setReflection('')
+    }
+
     setLoading(false)
-    return
   }
 
-  let resolvedTechnician: { technicianId: string; canonicalName: string }
-
-  try {
-    resolvedTechnician = await resolveTechnicianIdentity(technicianName)
-  } catch (err: any) {
-    setMessage(`Technician identity error: ${err.message || 'Unable to resolve technician.'}`)
-    setLoading(false)
-    return
-  }
-
-  // ✅ CALL OPENAI
-let generatedResponse = ''
-let generatedManagerInsight = ''
-
-try {
-  const res = await fetch('/api/generate', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      technicianName,
-      jobType,
-      reflection,
-    }),
-  })
-
-  const rawText = await res.text()
-
-  console.log('API STATUS:', res.status)
-  console.log('API RAW RESPONSE:', rawText)
-
-  if (!res.ok) {
-    setMessage(`AI route error: ${rawText}`)
-    setLoading(false)
-    return
-  }
-
-  let data: any
-
-  try {
-    data = JSON.parse(rawText)
-  } catch {
-    setMessage(`AI route returned invalid JSON: ${rawText}`)
-    setLoading(false)
-    return
-  }
-
-  console.log('AI RESPONSE:', data)
-
-  generatedResponse = data.technician_response
-  generatedManagerInsight = data.manager_insight
-
-  if (!generatedResponse || !generatedManagerInsight) {
-    setMessage(`AI route returned incomplete data: ${rawText}`)
-    setLoading(false)
-    return
-  }
-} catch (err) {
-  console.error('AI FETCH ERROR:', err)
-  setMessage('AI failed to generate response.')
-  setLoading(false)
-  return
-}
-
-// ✅ KEEP YOUR LOGIC (THIS IS GOOD)
-const interpretation = interpretReflection(jobType, reflection, '', '')
-
-const generatedBurnoutSignal =
-  interpretation.riskLevel === 'High'
-    ? 'High strain signal detected. A supportive manager check-in is recommended soon.'
-    : interpretation.riskLevel === 'Medium'
-    ? 'Moderate strain signal detected. Watch for repeated pressure and support needs.'
-    : buildBurnoutSignal(reflection, '', '')
-
-  // ✅ SAVE TO SUPABASE
-  const { error } = await supabase.from('Reflections').insert([
-    {
-      technician_id: resolvedTechnician.technicianId,
-      technician_name: resolvedTechnician.canonicalName,
-      job_type: jobType,
-      challenge: reflection,
-      what_went_well: null,
-      help_needed: null,
-      ai_response: generatedResponse,
-      manager_insight: generatedManagerInsight,
-      created_at: new Date().toISOString(),
-    },
-  ])
-
-  if (error) {
-    setMessage(`Submit error: ${error.message}`)
-  } else {
-    setMessage('Reflection submitted.')
-    setAiResponse(generatedResponse)
-    setBurnoutSignal(generatedBurnoutSignal)
-    setUnderstandingSnapshot(interpretation)
-
-    setTechnicianName('')
-    setJobType('')
-    setReflection('')
-  }
-
-  setLoading(false)
-}
-  
 
   const aiOverview = useMemo(() => {
     const total = reflections.length
@@ -1378,9 +1435,9 @@ const generatedBurnoutSignal =
           .map(([theme]) => theme)
           .slice(0, 2)
           .join(' and ')}, while reinforcing strengths around ${topWins
-          .map(([theme]) => theme)
-          .slice(0, 2)
-          .join(' and ')}.`
+            .map(([theme]) => theme)
+            .slice(0, 2)
+            .join(' and ')}.`
       } else if (topChallenges.length > 0) {
         managerFocus = `Manager focus for next week: review team support around ${topChallenges
           .map(([theme]) => theme)
@@ -1399,6 +1456,34 @@ const generatedBurnoutSignal =
       managerFocus,
     }
   }, [reflections])
+
+  const techHistoryStats = useMemo(() => {
+    if (techHistory.length === 0) return null
+
+    const jobTypeCounts: Record<string, number> = {}
+    const challengeKeywords = [
+      'pressure', 'delay', 'frustrated', 'rushed', 'communication',
+      'tools', 'parts', 'customer', 'time', 'training', 'support', 'fatigue',
+    ]
+    const challengeCounts: Record<string, number> = {}
+
+    techHistory.forEach((r) => {
+      const job = r.job_type?.trim() || 'Unknown'
+      jobTypeCounts[job] = (jobTypeCounts[job] || 0) + 1
+
+      const text = `${r.challenge}`.toLowerCase()
+      challengeKeywords.forEach((word) => {
+        if (text.includes(word)) {
+          challengeCounts[word] = (challengeCounts[word] || 0) + 1
+        }
+      })
+    })
+
+    const topJobType = Object.entries(jobTypeCounts).sort((a, b) => b[1] - a[1])[0]
+    const topChallenge = Object.entries(challengeCounts).sort((a, b) => b[1] - a[1])[0]
+
+    return { topJobType, topChallenge, total: techHistory.length }
+  }, [techHistory])
 
   const technicianDirectory = useMemo(() => {
     const grouped: Record<
@@ -1581,9 +1666,9 @@ const generatedBurnoutSignal =
           .map(([theme]) => theme)
           .slice(0, 2)
           .join(' and ')} while following up on ${topChallenges
-          .map(([theme]) => theme)
-          .slice(0, 2)
-          .join(' and ')}.`
+            .map(([theme]) => theme)
+            .slice(0, 2)
+            .join(' and ')}.`
       } else if (topChallenges.length > 0) {
         managerFocus = `Manager focus: review recurring themes around ${topChallenges
           .map(([theme]) => theme)
@@ -1641,7 +1726,7 @@ const generatedBurnoutSignal =
     </div>
   )
 
-  return (
+      return (
     <main style={styles.page}>
       <div style={styles.shell}>
         <div style={styles.topHero}>
@@ -1699,97 +1784,179 @@ const generatedBurnoutSignal =
 
           {view === 'tech' && (
             <div style={styles.techLayout}>
+
+              {/* LEFT COLUMN */}
               <div style={styles.techLeft}>
 
-  {/* VOICE SECTION */}
-  <div style={styles.voiceCard}>
-    <h3>Voice Reflection</h3>
+                {/* VOICE SECTION */}
+                <div style={styles.voiceCard}>
+                  <h3>Voice Reflection</h3>
+                  <button
+                    type="button"
+                    onClick={startFullReflectionRecording}
+                    style={styles.primaryButton}
+                  >
+                    🎤 Start Guided Reflection
+                  </button>
+                  {guidedRecording && (
+                    <button
+                      type="button"
+                      onClick={cancelFullReflectionRecording}
+                      style={styles.secondaryButton}
+                    >
+                      Cancel
+                    </button>
+                  )}
+                  {guidedPrompt && (
+                    <p style={{ marginTop: 10 }}>{guidedPrompt}</p>
+                  )}
+                </div>
 
-    <button
-      type="button"
-      onClick={startFullReflectionRecording}
-      style={styles.primaryButton}
-    >
-      🎤 Start Guided Reflection
-    </button>
-
-    {guidedRecording && (
-      <button
-        type="button"
-        onClick={cancelFullReflectionRecording}
-        style={styles.secondaryButton}
-      >
-        Cancel
-      </button>
-    )}
-
-    {guidedPrompt && (
-      <p style={{ marginTop: 10 }}>{guidedPrompt}</p>
-    )}
-  </div>
-
-  {/* FORM */}
-  <form onSubmit={handleSubmit} style={styles.formCard}>
-    <h3>Submit Reflection</h3>
-
-    <input
-      type="text"
-      placeholder="Technician Name"
-      value={technicianName}
-      onChange={(e) => setTechnicianName(e.target.value)}
-      style={styles.input}
-    />
-
-    <select
-      value={jobType}
-      onChange={(e) => setJobType(e.target.value)}
-      style={styles.input}
-    >
-      <option value="">Select Job Type</option>
-      {JOB_TYPE_OPTIONS.map((job) => (
-        <option key={job} value={job}>
-          {job}
-        </option>
-      ))}
-    </select>
-
-    <textarea
-      placeholder="Tell me about the job..."
-      value={reflection}
-      onChange={(e) => setReflection(e.target.value)}
-      style={styles.textarea}
-    />
-
-    <button type="submit" disabled={loading} style={styles.primaryButton}>
-      {loading ? 'Submitting...' : 'Submit Reflection'}
-    </button>
-  </form>
-
-  {/* AI RESPONSE */}
-  {aiResponse && (
-    <div style={styles.responseCard}>
-      <h4>AI Response</h4>
-      <p>{aiResponse}</p>
+                {/* FORM */}
+                <form onSubmit={handleSubmit} style={styles.formCard}>
+                  <h3>Submit Reflection</h3>
+                  <div style={{ position: 'relative' }}>
+  <input
+    type="text"
+    placeholder="Technician Name"
+    value={technicianName}
+    onChange={(e) => {
+      setTechnicianName(e.target.value)
+      setShowNameDropdown(true)
+    }}
+    onFocus={() => setShowNameDropdown(true)}
+    onBlur={() => setTimeout(() => setShowNameDropdown(false), 150)}
+    style={styles.input}
+  />
+  {showNameDropdown && technicians.length > 0 && (
+    <div style={styles.nameDropdown}>
+      {technicians
+        .filter((t) =>
+          technicianName.trim() === '' ||
+          t.canonical_name.toLowerCase().includes(technicianName.toLowerCase())
+        )
+        .slice(0, 6)
+        .map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onMouseDown={() => {
+              setTechnicianName(t.canonical_name)
+              setShowNameDropdown(false)
+            }}
+            style={styles.nameDropdownItem}
+          >
+            {t.canonical_name}
+          </button>
+        ))}
     </div>
   )}
-
-  {/* BURNOUT SIGNAL */}
-  {burnoutSignal && (
-    <div style={styles.burnoutCard}>
-      <strong>{burnoutSignal}</strong>
-    </div>
-  )}
-
 </div>
+                  <select
+                    value={jobType}
+                    onChange={(e) => setJobType(e.target.value)}
+                    style={styles.input}
+                  >
+                    <option value="">Select Job Type</option>
+                    {JOB_TYPE_OPTIONS.map((job) => (
+                      <option key={job} value={job}>
+                        {job}
+                      </option>
+                    ))}
+                  </select>
+                  <textarea
+                    placeholder="Tell me about the job..."
+                    value={reflection}
+                    onChange={(e) => setReflection(e.target.value)}
+                    style={styles.textarea}
+                  />
+                  <button type="submit" disabled={loading} style={styles.primaryButton}>
+                    {loading ? 'Submitting...' : 'Submit Reflection'}
+                  </button>
+                </form>
 
+                {/* AI RESPONSE */}
+                {aiResponse && (
+                  <div style={styles.responseCard}>
+                    <h4>AI Response</h4>
+                    <p>{aiResponse}</p>
+                  </div>
+                )}
 
+                {/* BURNOUT SIGNAL */}
+                {burnoutSignal && (
+                  <div style={styles.burnoutCard}>
+                    <strong>{burnoutSignal}</strong>
+                  </div>
+                )}
 
+                {/* PERSONAL HISTORY CARD */}
+                <div style={styles.techHistoryCard}>
+                  <div style={styles.overviewHeader}>
+                    <h3 style={{ margin: 0 }}>Your Progress</h3>
+                    {techHistoryStats && (
+                      <span style={styles.techHistoryBadge}>
+                        {techHistoryStats.total} Reflection{techHistoryStats.total === 1 ? '' : 's'}
+                      </span>
+                    )}
+                  </div>
+
+                  {!techHistoryStats && !techSummaryLoading && (
+                    <p style={styles.overviewText}>
+                      Submit your first reflection to start tracking your personal patterns and progress.
+                    </p>
+                  )}
+
+                  {techSummaryLoading && (
+                    <p style={styles.overviewText}>Updating your summary...</p>
+                  )}
+
+                  {techHistoryStats && !techSummaryLoading && (
+                    <>
+                      <div style={styles.statGrid}>
+                        <div style={styles.statBox}>
+                          <div style={styles.statNumber}>{techHistoryStats.total}</div>
+                          <div style={styles.statLabel}>Jobs Reflected On</div>
+                        </div>
+                        <div style={styles.statBox}>
+                          <div style={styles.statNumber}>
+                            {techHistoryStats.topJobType?.[0] ?? '—'}
+                          </div>
+                          <div style={styles.statLabel}>Most Common Job Type</div>
+                        </div>
+                      </div>
+
+                      {techHistoryStats.topChallenge && (
+                        <div style={styles.overviewSection}>
+                          <strong>Your Most Recurring Theme</strong>
+                          <p style={styles.overviewText}>
+                            <strong>{techHistoryStats.topChallenge[0]}</strong> has shown up in{' '}
+                            {techHistoryStats.topChallenge[1]} of your reflections.
+                          </p>
+                        </div>
+                      )}
+
+                      {techAiSummary && (
+                        <div style={styles.techHistoryAiSummary}>
+                          <div style={styles.techHistorySummaryLabel}>AI Coach Summary</div>
+                          <p style={{ margin: '8px 0 0 0', lineHeight: 1.7, color: '#2d1b69' }}>
+                            {techAiSummary}
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+              </div>
+              {/* END techLeft */}
+
+              {/* RIGHT COLUMN */}
               <div style={styles.techRight}>
                 <div style={styles.previewCard}>
                   <div style={styles.previewHeader}>
                     <h3 style={{ margin: 0 }}>What this gives a contractor</h3>
                   </div>
-
                   <div style={styles.previewList}>
                     <div style={styles.previewItem}>
                       <div style={styles.previewDot} />
@@ -1800,25 +1967,21 @@ const generatedBurnoutSignal =
                         </p>
                       </div>
                     </div>
-
                     <div style={styles.previewItem}>
                       <div style={styles.previewDot} />
                       <div>
                         <strong>Visible interpretation</strong>
                         <p style={styles.previewItemText}>
-                          TradeWise turns a reflection into situation, emotion, risk, and likely
-                          root cause.
+                          TradeWise turns a reflection into situation, emotion, risk, and likely root cause.
                         </p>
                       </div>
                     </div>
-
                     <div style={styles.previewItem}>
                       <div style={styles.previewDot} />
                       <div>
                         <strong>A human-first signal system</strong>
                         <p style={styles.previewItemText}>
-                          The goal is not just data collection. It is better coaching, healthier
-                          culture, and stronger retention.
+                          The goal is not just data collection. It is better coaching, healthier culture, and stronger retention.
                         </p>
                       </div>
                     </div>
@@ -1828,13 +1991,16 @@ const generatedBurnoutSignal =
                 <div style={styles.quoteCard}>
                   <div style={styles.quoteBadge}>Why it matters</div>
                   <p style={styles.quoteText}>
-                    “When a technician feels understood, feedback stops feeling like punishment and
-                    starts feeling like support.”
+                    "When a technician feels understood, feedback stops feeling like punishment and
+                    starts feeling like support."
                   </p>
                 </div>
               </div>
+              {/* END techRight */}
+
             </div>
           )}
+          {/* END view === 'tech' */}
 
           {view === 'manager' && (
             <div>
@@ -1866,204 +2032,173 @@ const generatedBurnoutSignal =
 
               {!loadingReflections && !managerError && managerScreen === 'dashboard' && (
                 <>
-                <div style={styles.overviewCard}>
-  <div style={styles.overviewHeader}>
-    <h3 style={{ margin: 0 }}>Ask AI About Your Team</h3>
-    <span style={styles.overviewBadge}>Contractor View</span>
-  </div>
+                  <div style={styles.overviewCard}>
+                    <div style={styles.overviewHeader}>
+                      <h3 style={{ margin: 0 }}>Ask AI About Your Team</h3>
+                      <span style={styles.overviewBadge}>Contractor View</span>
+                    </div>
+                    <p style={styles.overviewText}>
+                      Generate a full AI read on what your team appears to be dealing with, where strain may be
+                      building, and what manager moves make the most sense next.
+                    </p>
+                    <textarea
+                      value={managerReflection}
+                      onChange={(e) => setManagerReflection(e.target.value)}
+                      placeholder="Ask something like: Who seems overloaded right now? Where are my systems breaking down? What should I focus on this week?"
+                      style={styles.noteTextarea}
+                    />
+                    <div style={styles.noteActions}>
+                      <button
+                        type="button"
+                        onClick={handleGenerateTeamSummary}
+                        style={styles.saveNoteButton}
+                        disabled={teamSummaryLoading || reflections.length === 0}
+                      >
+                        {teamSummaryLoading ? 'Generating Report...' : 'Generate Full AI Team Report'}
+                      </button>
+                    </div>
 
-  <p style={styles.overviewText}>
-    Generate a full AI read on what your team appears to be dealing with, where strain may be
-    building, and what manager moves make the most sense next.
-  </p>
+                    {teamSummaryError && (
+                      <div style={styles.errorBox}>
+                        <strong>Team report error:</strong>
+                        <p style={{ marginTop: 8 }}>{teamSummaryError}</p>
+                      </div>
+                    )}
 
-  <textarea
-    value={managerReflection}
-    onChange={(e) => setManagerReflection(e.target.value)}
-    placeholder="Ask something like: Who seems overloaded right now? Where are my systems breaking down? What should I focus on this week?"
-    style={styles.noteTextarea}
-  />
+                    {teamSummaryResult && (
+                      <div style={styles.frameworkBox}>
+                        <div style={styles.frameworkHeader}>
+                          <div>
+                            <div style={styles.frameworkLabel}>TradeWise Team Read</div>
+                            <h3 style={{ margin: '6px 0 0 0' }}>
+                              {teamSummaryResult.report_title || 'Full Team AI Report'}
+                            </h3>
+                          </div>
+                          <span style={styles.aiBadge}>Manager Report</span>
+                        </div>
 
-  <div style={styles.noteActions}>
-    <button
-      type="button"
-      onClick={handleGenerateTeamSummary}
-      style={styles.saveNoteButton}
-      disabled={teamSummaryLoading || reflections.length === 0}
-    >
-      {teamSummaryLoading ? 'Generating Report...' : 'Generate Full AI Team Report'}
-    </button>
-  </div>
+                        <div style={styles.humanReadHero}>
+                          <div style={styles.humanReadKicker}>Human Read</div>
+                          <p style={styles.humanReadText}>
+                            {teamSummaryResult.human_read || 'No human read returned.'}
+                          </p>
+                        </div>
 
-  {teamSummaryError && (
-    <div style={styles.errorBox}>
-      <strong>Team report error:</strong>
-      <p style={{ marginTop: 8 }}>{teamSummaryError}</p>
-    </div>
-  )}
+                        <div style={styles.overviewSection}>
+                          <strong>Team Status</strong>
+                          <p style={styles.overviewText}>
+                            {teamSummaryResult.team_status || 'No team status returned.'}
+                          </p>
+                        </div>
 
-  {teamSummaryResult && (
-    <div style={styles.frameworkBox}>
-      <div style={styles.frameworkHeader}>
-        <div>
-          <div style={styles.frameworkLabel}>TradeWise Team Read</div>
-          <h3 style={{ margin: '6px 0 0 0' }}>
-            {teamSummaryResult.report_title || 'Full Team AI Report'}
-          </h3>
-        </div>
-        <span style={styles.aiBadge}>Manager Report</span>
-      </div>
+                        <div style={styles.frameworkItem}>
+                          <div style={styles.frameworkHeader}>
+                            <strong>Who Should I Talk To Tomorrow</strong>
+                            <span style={styles.overviewBadge}>Immediate Follow-Up</span>
+                          </div>
+                          {teamSummaryResult.who_should_i_talk_to_tomorrow?.length > 0 ? (
+                            <div style={styles.tomorrowTalkList}>
+                              {teamSummaryResult.who_should_i_talk_to_tomorrow.map(
+                                (person: { name: string; reason: string; risk: 'Low' | 'Medium' | 'High' }, index: number) => (
+                                  <div key={index} style={styles.tomorrowTalkCard}>
+                                    <div style={styles.frameworkHeader}>
+                                      <strong>{person.name}</strong>
+                                      <span
+                                        style={
+                                          person.risk === 'High'
+                                            ? styles.riskHigh
+                                            : person.risk === 'Medium'
+                                            ? styles.riskMedium
+                                            : styles.riskLow
+                                        }
+                                      >
+                                        {person.risk === 'High'
+                                          ? '🔥 High Risk'
+                                          : person.risk === 'Medium'
+                                          ? '⚠️ Medium Risk'
+                                          : 'Low Risk'}
+                                      </span>
+                                    </div>
+                                    <p style={styles.frameworkText}>{person.reason}</p>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          ) : (
+                            <p style={styles.overviewText}>
+                              No one clearly stands out for a next-day check-in right now.
+                            </p>
+                          )}
+                        </div>
 
-      <div style={styles.humanReadHero}>
-        <div style={styles.humanReadKicker}>Human Read</div>
-        <p style={styles.humanReadText}>
-          {teamSummaryResult.human_read || 'No human read returned.'}
-        </p>
-      </div>
+                        <div style={styles.frameworkGrid}>
+                          <div style={styles.frameworkItem}>
+                            <strong>What the Team Is Carrying</strong>
+                            <div style={styles.previewList}>
+                              {(teamSummaryResult.what_the_team_is_carrying || []).map((item: string, index: number) => (
+                                <p key={index} style={styles.frameworkText}>• {item}</p>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={styles.frameworkItem}>
+                            <strong>Who May Need Support</strong>
+                            <div style={styles.previewList}>
+                              {(teamSummaryResult.who_may_need_support || []).map((item: string, index: number) => (
+                                <p key={index} style={styles.frameworkText}>• {item}</p>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={styles.frameworkItem}>
+                            <strong>System Issues to Watch</strong>
+                            <div style={styles.previewList}>
+                              {(teamSummaryResult.system_issues_to_watch || []).map((item: string, index: number) => (
+                                <p key={index} style={styles.frameworkText}>• {item}</p>
+                              ))}
+                            </div>
+                          </div>
+                          <div style={styles.frameworkItem}>
+                            <strong>Manager Moves</strong>
+                            <div style={styles.previewList}>
+                              {(teamSummaryResult.manager_moves || []).map((item: string, index: number) => (
+                                <p key={index} style={styles.frameworkText}>• {item}</p>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
 
-      <div style={styles.overviewSection}>
-        <strong>Team Status</strong>
-        <p style={styles.overviewText}>
-          {teamSummaryResult.team_status || 'No team status returned.'}
-        </p>
-      </div>
-
-      <div style={styles.frameworkItem}>
-        <div style={styles.frameworkHeader}>
-          <strong>Who Should I Talk To Tomorrow</strong>
-          <span style={styles.overviewBadge}>Immediate Follow-Up</span>
-        </div>
-
-        {teamSummaryResult.who_should_i_talk_to_tomorrow?.length > 0 ? (
-          <div style={styles.tomorrowTalkList}>
-            {teamSummaryResult.who_should_i_talk_to_tomorrow.map(
-              (
-                person: { name: string; reason: string; risk: 'Low' | 'Medium' | 'High' },
-                index: number
-              ) => (
-                <div key={index} style={styles.tomorrowTalkCard}>
-                  <div style={styles.frameworkHeader}>
-                    <strong>{person.name}</strong>
-                    <span
-                      style={
-                        person.risk === 'High'
-                          ? styles.riskHigh
-                          : person.risk === 'Medium'
-                          ? styles.riskMedium
-                          : styles.riskLow
-                      }
-                    >
-                      {person.risk === 'High'
-                        ? '🔥 High Risk'
-                        : person.risk === 'Medium'
-                        ? '⚠️ Medium Risk'
-                        : 'Low Risk'}
-                    </span>
+                        <div style={styles.actionBox}>
+                          <strong>Full Report</strong>
+                          <p style={{ margin: '8px 0 0 0' }}>
+                            {teamSummaryResult.full_report || 'No full report returned.'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <p style={styles.frameworkText}>{person.reason}</p>
-                </div>
-              )
-            )}
-          </div>
-        ) : (
-          <p style={styles.overviewText}>
-            No one clearly stands out for a next-day check-in right now.
-          </p>
-        )}
-      </div>
 
-      <div style={styles.frameworkGrid}>
-        <div style={styles.frameworkItem}>
-          <strong>What the Team Is Carrying</strong>
-          <div style={styles.previewList}>
-            {(teamSummaryResult.what_the_team_is_carrying || []).map(
-              (item: string, index: number) => (
-                <p key={index} style={styles.frameworkText}>
-                  • {item}
-                </p>
-              )
-            )}
-          </div>
-        </div>
-
-        <div style={styles.frameworkItem}>
-          <strong>Who May Need Support</strong>
-          <div style={styles.previewList}>
-            {(teamSummaryResult.who_may_need_support || []).map(
-              (item: string, index: number) => (
-                <p key={index} style={styles.frameworkText}>
-                  • {item}
-                </p>
-              )
-            )}
-          </div>
-        </div>
-
-        <div style={styles.frameworkItem}>
-          <strong>System Issues to Watch</strong>
-          <div style={styles.previewList}>
-            {(teamSummaryResult.system_issues_to_watch || []).map(
-              (item: string, index: number) => (
-                <p key={index} style={styles.frameworkText}>
-                  • {item}
-                </p>
-              )
-            )}
-          </div>
-        </div>
-
-        <div style={styles.frameworkItem}>
-          <strong>Manager Moves</strong>
-          <div style={styles.previewList}>
-            {(teamSummaryResult.manager_moves || []).map(
-              (item: string, index: number) => (
-                <p key={index} style={styles.frameworkText}>
-                  • {item}
-                </p>
-              )
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div style={styles.actionBox}>
-        <strong>Full Report</strong>
-        <p style={{ margin: '8px 0 0 0' }}>
-          {teamSummaryResult.full_report || 'No full report returned.'}
-        </p>
-      </div>
-    </div>
-  )}
-</div>
                   <div style={styles.weeklyCard}>
                     <div style={styles.overviewHeader}>
                       <h3 style={{ margin: 0 }}>Weekly AI Recap</h3>
                       <span style={styles.weeklyBadge}>Last 7 Days</span>
                     </div>
-
                     <div style={styles.statGrid}>
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{weeklyRecap.total}</div>
                         <div style={styles.statLabel}>Weekly Reflections</div>
                       </div>
-
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{weeklyRecap.uniqueTechs}</div>
                         <div style={styles.statLabel}>Weekly Technicians</div>
                       </div>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Weekly Job Mix</strong>
                       <p style={styles.overviewText}>
                         {weeklyRecap.topJobTypes.length > 0
-                          ? weeklyRecap.topJobTypes
-                              .map(([job, count]) => `${job} (${count})`)
-                              .join(', ')
+                          ? weeklyRecap.topJobTypes.map(([job, count]) => `${job} (${count})`).join(', ')
                           : 'No weekly job trends yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Weekly Friction Themes</strong>
                       <p style={styles.overviewText}>
@@ -2072,7 +2207,6 @@ const generatedBurnoutSignal =
                           : 'No repeated weekly challenge themes detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Weekly Positive Signals</strong>
                       <p style={styles.overviewText}>
@@ -2081,12 +2215,10 @@ const generatedBurnoutSignal =
                           : 'No repeated weekly positive signals detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Weekly AI Report</strong>
                       <p style={styles.overviewText}>{weeklyRecap.summary}</p>
                     </div>
-
                     <div style={styles.actionBox}>
                       <strong>Next Week Manager Focus</strong>
                       <p style={{ margin: '8px 0 0 0' }}>{weeklyRecap.managerFocus}</p>
@@ -2098,30 +2230,24 @@ const generatedBurnoutSignal =
                       <h3 style={{ margin: 0 }}>AI Overview</h3>
                       <span style={styles.overviewBadge}>Manager Insight</span>
                     </div>
-
                     <div style={styles.statGrid}>
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{aiOverview.total}</div>
                         <div style={styles.statLabel}>Total Reflections</div>
                       </div>
-
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{aiOverview.uniqueTechs}</div>
                         <div style={styles.statLabel}>Technicians Represented</div>
                       </div>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Top Job Types</strong>
                       <p style={styles.overviewText}>
                         {aiOverview.topJobTypes.length > 0
-                          ? aiOverview.topJobTypes
-                              .map(([job, count]) => `${job} (${count})`)
-                              .join(', ')
+                          ? aiOverview.topJobTypes.map(([job, count]) => `${job} (${count})`).join(', ')
                           : 'No job trends yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Repeated Challenges</strong>
                       <p style={styles.overviewText}>
@@ -2130,7 +2256,6 @@ const generatedBurnoutSignal =
                           : 'No repeated challenge themes detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Positive Signals</strong>
                       <p style={styles.overviewText}>
@@ -2139,12 +2264,10 @@ const generatedBurnoutSignal =
                           : 'No repeated positive patterns detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>AI Summary</strong>
                       <p style={styles.overviewText}>{aiOverview.summary}</p>
                     </div>
-
                     <div style={styles.actionBox}>
                       <strong>Suggested Manager Action</strong>
                       <p style={{ margin: '8px 0 0 0' }}>{aiOverview.managerAction}</p>
@@ -2180,19 +2303,16 @@ const generatedBurnoutSignal =
                           <h3 style={{ margin: 0 }}>{tech.name}</h3>
                           <span style={styles.techCardBadge}>{tech.count} Logs</span>
                         </div>
-
                         <p style={styles.techCardText}>
                           <strong>Most Recent:</strong>{' '}
                           {tech.lastEntry ? new Date(tech.lastEntry).toLocaleString() : 'No entries'}
                         </p>
-
                         <p style={styles.techCardText}>
                           <strong>Top Job Types:</strong>{' '}
                           {tech.topJobTypes.length > 0
                             ? tech.topJobTypes.map(([job, count]) => `${job} (${count})`).join(', ')
                             : 'No trends yet'}
                         </p>
-
                         <p style={styles.techCardText}>
                           <strong>Manager Note:</strong>{' '}
                           {managerNotes[tech.name]?.note?.trim() ? 'Saved' : 'No private note yet'}
@@ -2212,7 +2332,6 @@ const generatedBurnoutSignal =
                         Reflection history, weekly AI recap, and private manager notes
                       </p>
                     </div>
-
                     <button
                       type="button"
                       onClick={() => setManagerScreen('directory')}
@@ -2227,14 +2346,12 @@ const generatedBurnoutSignal =
                       <h3 style={{ margin: 0 }}>Private Manager Notes</h3>
                       <span style={styles.overviewBadge}>Internal Only</span>
                     </div>
-
                     <textarea
                       value={managerNoteText}
                       onChange={(e) => setManagerNoteText(e.target.value)}
                       placeholder="Add a private manager note for this technician..."
                       style={styles.noteTextarea}
                     />
-
                     <div style={styles.noteActions}>
                       <button
                         type="button"
@@ -2244,17 +2361,13 @@ const generatedBurnoutSignal =
                       >
                         {savingManagerNote ? 'Saving...' : 'Save Manager Note'}
                       </button>
-
                       {selectedTechnician && managerNotes[selectedTechnician]?.updated_at && (
                         <span style={styles.noteMeta}>
                           Last updated:{' '}
-                          {new Date(
-                            managerNotes[selectedTechnician].updated_at as string
-                          ).toLocaleString()}
+                          {new Date(managerNotes[selectedTechnician].updated_at as string).toLocaleString()}
                         </span>
                       )}
                     </div>
-
                     {managerNoteMessage && (
                       <p style={{ margin: '8px 0 0 0', color: '#243b53' }}>{managerNoteMessage}</p>
                     )}
@@ -2265,41 +2378,32 @@ const generatedBurnoutSignal =
                       <h3 style={{ margin: 0 }}>Weekly Technician Recap</h3>
                       <span style={styles.weeklyBadge}>Last 7 Days</span>
                     </div>
-
                     <div style={styles.statGrid}>
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{selectedTechnicianWeeklyRecap.total}</div>
                         <div style={styles.statLabel}>Weekly Reflections</div>
                       </div>
-
                       <div style={styles.statBox}>
                         <div style={styles.statNumber}>{selectedTechnicianReflections.length}</div>
                         <div style={styles.statLabel}>Total Reflection History</div>
                       </div>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Weekly Job Mix</strong>
                       <p style={styles.overviewText}>
                         {selectedTechnicianWeeklyRecap.topJobTypes.length > 0
-                          ? selectedTechnicianWeeklyRecap.topJobTypes
-                              .map(([job, count]) => `${job} (${count})`)
-                              .join(', ')
+                          ? selectedTechnicianWeeklyRecap.topJobTypes.map(([job, count]) => `${job} (${count})`).join(', ')
                           : 'No weekly job trends yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Repeated Weekly Challenges</strong>
                       <p style={styles.overviewText}>
                         {selectedTechnicianWeeklyRecap.topChallenges.length > 0
-                          ? selectedTechnicianWeeklyRecap.topChallenges
-                              .map(([theme]) => theme)
-                              .join(', ')
+                          ? selectedTechnicianWeeklyRecap.topChallenges.map(([theme]) => theme).join(', ')
                           : 'No repeated weekly challenge themes detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>Repeated Weekly Wins</strong>
                       <p style={styles.overviewText}>
@@ -2308,17 +2412,13 @@ const generatedBurnoutSignal =
                           : 'No repeated weekly wins detected yet.'}
                       </p>
                     </div>
-
                     <div style={styles.overviewSection}>
                       <strong>AI Summary</strong>
                       <p style={styles.overviewText}>{selectedTechnicianWeeklyRecap.summary}</p>
                     </div>
-
                     <div style={styles.actionBox}>
                       <strong>Manager Focus</strong>
-                      <p style={{ margin: '8px 0 0 0' }}>
-                        {selectedTechnicianWeeklyRecap.managerFocus}
-                      </p>
+                      <p style={{ margin: '8px 0 0 0' }}>{selectedTechnicianWeeklyRecap.managerFocus}</p>
                     </div>
                   </div>
 
@@ -2329,7 +2429,6 @@ const generatedBurnoutSignal =
                         {selectedTechnicianReflections.length} Total
                       </span>
                     </div>
-
                     {selectedTechnicianReflections.length === 0 && (
                       <p style={styles.overviewText}>No reflections found for this technician yet.</p>
                     )}
@@ -2341,35 +2440,35 @@ const generatedBurnoutSignal =
                         <h3 style={{ margin: 0 }}>{r.technician_name}</h3>
                         <span style={styles.historyBadge}>{r.job_type}</span>
                       </div>
-
                       <p><strong>Challenge:</strong> {r.challenge}</p>
                       <p><strong>What Went Well:</strong> {r.what_went_well || 'No win entered.'}</p>
                       <p><strong>Help Needed:</strong> {r.help_needed || 'None provided'}</p>
-
                       <div style={styles.aiBox}>
                         <strong>Technician AI Response:</strong>
                         <p>{r.ai_response || 'No AI response saved.'}</p>
                       </div>
-
                       <div style={styles.managerInsightBox}>
                         <strong>Manager Insight:</strong>
                         <p style={{ whiteSpace: 'pre-wrap' }}>
                           {r.manager_insight || 'No manager insight saved.'}
                         </p>
                       </div>
-
                       <small>{new Date(r.created_at).toLocaleString()}</small>
                     </div>
                   ))}
+
                 </div>
               )}
+
             </div>
           )}
+          {/* END view === 'manager' */}
+
         </div>
       </div>
     </main>
   )
-}
+}         
 
 const styles: any = {
   page: {
@@ -3127,4 +3226,59 @@ const styles: any = {
     marginTop: '8px',
     color: '#1e4620',
   },
+  techHistoryCard: {
+    background: 'linear-gradient(180deg, #f0f9f4 0%, #e8f5ec 100%)',
+    border: '1px solid #bfdcca',
+    borderRadius: '20px',
+    padding: '22px',
+    boxShadow: '0 10px 28px rgba(11, 110, 79, 0.07)',
+  },
+  techHistoryBadge: {
+    background: '#0b6e4f',
+    color: '#fff',
+    padding: '6px 10px',
+    borderRadius: '999px',
+    fontSize: '12px',
+    fontWeight: 700,
+  },
+  techHistoryAiSummary: {
+    marginTop: '16px',
+    background: '#f5f0ff',
+    border: '1px solid #ddd0ff',
+    borderRadius: '12px',
+    padding: '14px',
+  },
+  techHistorySummaryLabel: {
+    fontSize: '12px',
+    fontWeight: 800,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.08em',
+    color: '#6b46c1',
+  },
+  nameDropdown: {
+  position: 'absolute' as const,
+  top: '100%',
+  left: 0,
+  right: 0,
+  background: '#fff',
+  border: '1px solid #cbd8e6',
+  borderRadius: '12px',
+  boxShadow: '0 8px 24px rgba(15,23,42,0.12)',
+  zIndex: 100,
+  overflow: 'hidden',
+  marginTop: '4px',
+},
+nameDropdownItem: {
+  display: 'block',
+  width: '100%',
+  padding: '12px 14px',
+  background: 'transparent',
+  border: 'none',
+  borderBottom: '1px solid #eef2f7',
+  textAlign: 'left' as const,
+  cursor: 'pointer',
+  fontSize: '15px',
+  color: '#102a43',
+  fontWeight: 600,
+},
 }
