@@ -960,14 +960,20 @@ Suggested Next Step: ${interpretation.nextStep}`
   setTeamSummaryResult(null)
 
   try {
-    const res = await fetch('/api/team-summary', {
+    const { data: reflectionsData } = await supabase
+  .from('Reflections')
+  .select('*')
+  .order('created_at', { ascending: false })
+  .limit(25)
+    
+  const res = await fetch('/api/team-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         managerReflection:
           managerReflection.trim() ||
           'Give me a contractor-style read on what my team is dealing with and where I should focus next.',
-        reflections: reflections.slice(0, 25),
+        reflections: reflectionsData || [],
         weeklySummary: weeklyRecap.summary,
         overallSummary: aiOverview.summary,
       }),
