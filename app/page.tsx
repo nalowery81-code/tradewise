@@ -345,63 +345,64 @@ export default function Home() {
     setActiveField(null)
   }
 
-  const startRecognitionForField = (field: VoiceField, append = false) => {
-    const SpeechRecognition =
-      typeof window !== 'undefined' &&
-      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+  const startRecognitionForField = (field: VoiceField) => {
+  const SpeechRecognition =
+    typeof window !== 'undefined' &&
+    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
 
-    if (!SpeechRecognition) {
-      alert('Speech-to-text is not supported in this browser. Try Chrome.')
-      return
-    }
-
-    stopRecognition()
-
-    const recognition = new SpeechRecognition()
-    recognitionRef.current = recognition
-
-    recognition.lang = 'en-US'
-    recognition.interimResults = true
-    recognition.continuous = false
-    recognition.maxAlternatives = 1
-
-    setIsListening(true)
-    setActiveField(field)
-
-    recognition.onresult = (event: any) => {
-      let transcript = ''
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript
-      }
-
-      if (append) {
-        appendFieldValue(field, transcript)
-      } else {
-        setFieldValue(field, transcript)
-      }
-    }
-
-    recognition.onerror = () => {
-      setIsListening(false)
-      setActiveField(null)
-
-      if (guidedModeRef.current) {
-        moveToNextGuidedStep(field)
-      }
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-      setActiveField(null)
-
-      if (guidedModeRef.current) {
-        moveToNextGuidedStep(field)
-      }
-    }
-
-    recognition.start()
+  if (!SpeechRecognition) {
+    alert('Speech-to-text is not supported in this browser. Try Chrome.')
+    return
   }
+
+  stopRecognition()
+
+  const recognition = new SpeechRecognition()
+  recognitionRef.current = recognition
+
+  recognition.lang = 'en-US'
+  recognition.interimResults = false
+  recognition.continuous = field === 'reflection'
+  recognition.maxAlternatives = 1
+
+  setIsListening(true)
+  setActiveField(field)
+
+  recognition.onresult = (event: any) => {
+    const lastResult = event.results[event.results.length - 1]
+    if (!lastResult?.isFinal) return
+
+    const cleanTranscript = lastResult[0].transcript.trim()
+    if (!cleanTranscript) return
+
+    console.log('FINAL TRANSCRIPT:', field, cleanTranscript)
+
+    setFieldValue(field, cleanTranscript)
+  }
+
+  recognition.onerror = () => {
+    setIsListening(false)
+    setActiveField(null)
+  }
+
+  recognition.onend = () => {
+    setIsListening(false)
+    setActiveField(null)
+
+    if (guidedModeRef.current && field === 'technicianName') {
+      moveToNextGuidedStep('technicianName')
+    }
+
+    if (guidedModeRef.current && field === 'jobType') {
+      moveToNextGuidedStep('jobType')
+    }
+
+    // Do NOT auto-advance after reflection.
+    // User will stop manually.
+  }
+
+  recognition.start()
+}
 
   const startListening = (field: VoiceField) => {
     guidedModeRef.current = false
@@ -462,7 +463,7 @@ export default function Home() {
 
     speakPrompt(nextPrompt, () => {
       if (guidedModeRef.current) {
-        startRecognitionForField('reflection', true)
+        startRecognitionForField('reflection', false)
       }
     })
     return

@@ -11,95 +11,130 @@ export async function POST(req: Request) {
 
     const managerReflection = body.managerReflection || ''
     const reflections = body.reflections || []
+    console.log('REFLECTIONS:', reflections)
     const weeklySummary = body.weeklySummary || ''
     const overallSummary = body.overallSummary || ''
 
-    const prompt = `
+    const condensedReflections = reflections
+      .slice(0, 25)
+      .map((r: any, index: number) => {
+        return `${index + 1}. Technician: ${r.technician_name || 'Unknown'}
+Job Type: ${r.job_type || 'Unknown'}
+Reflection: ${r.challenge || 'None shared'}
+Manager Insight: ${r.manager_insight || 'None'}
+Created At: ${r.created_at || 'Unknown'}`
+      })
+      .join('\n\n')
+
+    const response = await client.responses.create({
+      model: 'gpt-4.1-mini',
+      instructions: `
 You are the manager insight layer for TradeWise, a human-first reflection and support system for the trades.
 
-Write like a seasoned plumbing or HVAC field leader.
-Be grounded, human, practical, and contractor-friendly.
-Do not sound corporate, robotic, or overly polished.
-Do not shame technicians or managers.
-Be direct, supportive, and useful.
-
-Return ONLY valid JSON with exactly these keys:
-{
-  "report_title": "string",
-  "human_read": "string",
-  "team_status": "string",
-  "who_should_i_talk_to_tomorrow": [
-    {
-      "name": "string",
-      "reason": "string",
-      "risk": "Low | Medium | High"
-    }
-  ],
-  "what_the_team_is_carrying": ["string"],
-  "who_may_need_support": ["string"],
-  "system_issues_to_watch": ["string"],
-  "manager_moves": ["string"],
-  "full_report": "string"
-}
-
+Rules:
+- Sound grounded, human, practical, and contractor-friendly.
+- Do not sound corporate, robotic, or overly polished.
+- Do not shame technicians or managers.
+- Be direct, supportive, and useful.
+- Return valid JSON only.
+- Never invent technician names.
+- Only use technician names that appear in the provided technician reflections.
+- If no technician names are provided, return an empty array for who_should_i_talk_to_tomorrow.
+- Only include someone in who_should_i_talk_to_tomorrow if their reflection suggests Medium or High concern.
+      `,
+      input: `
 Manager Question:
-${managerReflection || 'Give me a contractor-style read on what my team is dealing with and where I should focus next.'}
+${managerReflection || 'Give me a practical read on what my team is dealing with right now.'}
 
 Weekly Summary:
-${weeklySummary}
+${weeklySummary || 'No weekly summary provided.'}
 
 Overall Summary:
-${overallSummary}
+${overallSummary || 'No overall summary provided.'}
 
-Recent Reflections:
-${JSON.stringify(reflections, null, 2)}
-`
+Actual Recent Technician Reflections:
+${condensedReflections || 'No actual technician reflections were provided.'}
 
-    const completion = await client.chat.completions.create({
-      model: 'gpt-4o-mini',
-      response_format: { type: 'json_object' },
-      messages: [
-        {
-          role: 'system',
-          content: 'You must respond with valid JSON only.',
+Important:
+Base the report only on the actual technician reflections above.
+Do not make up people, names, events, or details.
+If there is not enough data, say that clearly.
+      `,
+      text: {
+        format: {
+          type: 'json_schema',
+          name: 'manager_team_summary',
+          schema: {
+            type: 'object',
+            additionalProperties: false,
+            properties: {
+              report_title: { type: 'string' },
+              human_read: { type: 'string' },
+              team_status: { type: 'string' },
+              who_should_i_talk_to_tomorrow: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  additionalProperties: false,
+                  properties: {
+                    name: { type: 'string' },
+                    reason: { type: 'string' },
+                    risk: { type: 'string' },
+                  },
+                  required: ['name', 'reason', 'risk'],
+                },
+              },
+              what_the_team_is_carrying: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              who_may_need_support: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              system_issues_to_watch: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              manager_moves: {
+                type: 'array',
+                items: { type: 'string' },
+              },
+              full_report: { type: 'string' },
+            },
+            required: [
+              'report_title',
+              'human_read',
+              'team_status',
+              'who_should_i_talk_to_tomorrow',
+              'what_the_team_is_carrying',
+              'who_may_need_support',
+              'system_issues_to_watch',
+              'manager_moves',
+              'full_report',
+            ],
+          },
         },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
+      },
     })
 
-    const raw = completion.choices[0]?.message?.content || ''
+    const output = response.output_text
+    console.log('RAW OPENAI OUTPUT:', output)
 
-
-    console.log('TEAM SUMMARY RAW:', raw)
-
-    if (!raw) {
+    if (!output) {
       return NextResponse.json(
         { error: 'OpenAI returned no manager summary output.' },
         { status: 500 }
       )
     }
 
-    let parsed: any
-
-    try {
-      parsed = JSON.parse(raw)
-    } catch (err) {
-      console.error('JSON PARSE ERROR:', raw)
-      return NextResponse.json(
-        { error: 'Invalid JSON from AI', raw },
-        { status: 500 }
-      )
-    }
-
+    const parsed = JSON.parse(output)
     return NextResponse.json(parsed)
   } catch (err: any) {
     console.error('TEAM SUMMARY ROUTE ERROR:', err)
 
     return NextResponse.json(
-      { error: err.message || 'AI generation failed' },
+      { error: err.message || 'Team summary failed' },
       { status: 500 }
     )
   }
