@@ -955,6 +955,8 @@ Suggested Next Step: ${interpretation.nextStep}`
     setSavingManagerNote(false)
   }
   const handleGenerateTeamSummary = async () => {
+    console.log('BUTTON CLICKED: TEAM SUMMARY STARTED')
+
   setTeamSummaryLoading(true)
   setTeamSummaryError('')
   setTeamSummaryResult(null)
@@ -993,16 +995,11 @@ console.log('SUPABASE REFLECTIONS ERROR:', reflectionsError)
       return
     }
 
-        let data: any
+    const data = JSON.parse(rawText)
 
-    try {
-      data = JSON.parse(rawText)
-    } catch {
-      setTeamSummaryError(`Team summary returned invalid JSON: ${rawText}`)
-      setTeamSummaryLoading(false)
-      return
-    }
+    console.log('TEAM SUMMARY RESPONSE:', data)
 
+    
     setTeamSummaryResult({
       report_title: data.report_title || 'Full Team AI Report',
       human_read: data.human_read || data.team_summary || 'No human read returned.',
@@ -1018,20 +1015,7 @@ console.log('SUPABASE REFLECTIONS ERROR:', reflectionsError)
       full_report: data.full_report || data.coaching_message || 'No full report returned.',
     })
 
-    // ✅ NORMAL PATH
-    setTeamSummaryResult({
-  human_read: data.team_summary,
-  team_status: data.emotional_read,
-
-  what_the_team_is_carrying: data.top_friction_themes || [],
-  who_may_need_support: data.likely_root_causes || [],
-  system_issues_to_watch: data.positive_signals || [],
-  manager_moves: data.manager_actions || [],
-
-  full_report: data.coaching_message,
-
-  who_should_i_talk_to_tomorrow: [], // optional for now
-})
+ 
 
   } catch (err) {
     console.error('TEAM SUMMARY ERROR:', err)
