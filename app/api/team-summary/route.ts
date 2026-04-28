@@ -32,7 +32,6 @@ Your job:
 7. Write a short coaching message for the manager.
 
 Rules:
-<<<<<<< HEAD
 - Sound grounded, human, practical, and contractor-friendly.
 - Do not sound corporate, robotic, or overly polished.
 - Do not shame technicians or managers.
@@ -51,75 +50,53 @@ ${managerReflection}
               type: 'object',
               additionalProperties: false,
               properties: {
-                team_summary: { type: 'string' },
-                emotional_read: { type: 'string' },
-                top_friction_themes: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                positive_signals: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                burnout_risk: { type: 'string' },
-                likely_root_causes: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                manager_actions: {
-                  type: 'array',
-                  items: { type: 'string' },
-                },
-                coaching_message: { type: 'string' },
-              },
-              required: [
-                'team_summary',
-                'emotional_read',
-                'top_friction_themes',
-                'positive_signals',
-                'burnout_risk',
-                'likely_root_causes',
-                'manager_actions',
-                'coaching_message',
-              ],
+  report_title: { type: 'string' },
+  human_read: { type: 'string' },
+  team_status: { type: 'string' },
+  who_should_i_talk_to_tomorrow: {
+    type: 'array',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        name: { type: 'string' },
+        reason: { type: 'string' },
+        risk: { type: 'string' },
+      },
+      required: ['name', 'reason', 'risk'],
+    },
+  },
+  what_the_team_is_carrying: {
+    type: 'array',
+    items: { type: 'string' },
+  },
+  who_may_need_support: {
+    type: 'array',
+    items: { type: 'string' },
+  },
+  system_issues_to_watch: {
+    type: 'array',
+    items: { type: 'string' },
+  },
+  manager_moves: {
+    type: 'array',
+    items: { type: 'string' },
+  },
+  full_report: { type: 'string' },
+},
+required: [
+  'report_title',
+  'human_read',
+  'team_status',
+  'who_should_i_talk_to_tomorrow',
+  'what_the_team_is_carrying',
+  'who_may_need_support',
+  'system_issues_to_watch',
+  'manager_moves',
+  'full_report',
+],
             },
           },
-=======
-- Sound like an experienced contractor or field leader
-- Be practical, direct, observant, and human
-- No corporate jargon
-- No HR tone
-- No therapy tone
-- Focus on workload, prep, communication, scheduling, callbacks, strain, support, and repeat patterns
-
-Rules for human_read:
-- This is the star of the report
-- Write 4-6 sentences
-- Sound like a real contractor reading between the lines
-- Focus on what the week likely felt like for the technicians
-- Reference real-life tradeoffs like long days, customer pressure, missed family time, fatigue, and carrying too much without saying much
-- It should feel grounded and human, not analytical
-
-Rules for who_should_i_talk_to_tomorrow:
-- Return 0 to 3 people
-- Only include someone if the reflections truly suggest they need a next-day check-in
-- risk must be exactly Low, Medium, or High
-- reason should be plainspoken and specific
-- If no one clearly stands out, return an empty array
-
-Important:
-- Say clearly when an issue feels more like a systems problem than a people problem
-- full_report should be 2 short paragraphs max
-- Make the output useful for a real manager who wants to act tomorrow morning
-`
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
-      messages: [
-        {
-          role: 'user',
-          content: prompt,
->>>>>>> 0639ce7 (Update OpenAI model to gpt-4.1-mini)
         },
       })
 
