@@ -11,6 +11,7 @@ export async function POST(req: Request) {
 
     const managerReflection = body.managerReflection || ''
     const reflections = body.reflections || []
+    console.log('REFLECTIONS:', reflections)
     const weeklySummary = body.weeklySummary || ''
     const overallSummary = body.overallSummary || ''
 
@@ -118,6 +119,7 @@ If there is not enough data, say that clearly.
     })
 
     const output = response.output_text
+    console.log('RAW OPENAI OUTPUT:', output)
 
     if (!output) {
       return NextResponse.json(
