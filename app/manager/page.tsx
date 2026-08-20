@@ -40,14 +40,14 @@ export default function ManagerPage() {
         style={{
           maxWidth: 760,
           margin: '0 auto',
-          padding: '90px 20px 150px',
+          padding: 'clamp(40px, 8vw, 90px) 16px 150px', 
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 34 }}>
           <h1
             style={{
               margin: 0,
-              fontSize: 30,
+              fontSize: 'clamp(24px, 5vw, 30px)',
               fontWeight: 700,
             }}
           >
@@ -68,7 +68,7 @@ export default function ManagerPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
             gap: 12,
             marginBottom: 28,
           }}
