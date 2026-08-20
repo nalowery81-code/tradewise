@@ -45,36 +45,57 @@ export default function ManagerPage() {
     display: sidebarOpen ? 'block' : 'none',
   }}
 >
+ <div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+    padding: '0 8px',
+  }}
+>
   <div
     style={{
       fontWeight: 700,
       fontSize: 18,
-      marginBottom: 22,
-      padding: '0 8px',
     }}
   >
     Tradewise Manager
   </div>
 
-  <div style={{ display: 'grid', gap: 6 }}>
-    {sidebarItems.map((item) => (
-      <button
-        key={item}
-        type="button"
-        style={{
-          border: 'none',
-          background: 'transparent',
-          textAlign: 'left',
-          padding: '11px 10px',
-          borderRadius: 10,
-          cursor: 'pointer',
-          fontSize: 15,
-        }}
-      >
-        {item}
-      </button>
-    ))}
-  </div>
+  <button
+    type="button"
+    onClick={() => setSidebarOpen(false)}
+    style={{
+      border: 'none',
+      background: 'transparent',
+      fontSize: 22,
+      cursor: 'pointer',
+    }}
+  >
+    ×
+  </button>
+</div> 
+        
+<div style={{ display: 'grid', gap: 6 }}>
+  {sidebarItems.map((item) => (
+    <button
+      key={item}
+      type="button"
+      style={{
+        border: 'none',
+        background: 'transparent',
+        textAlign: 'left',
+        padding: '11px 10px',
+        borderRadius: 10,
+        cursor: 'pointer',
+        fontSize: 15,
+      }}
+    >
+      {item}
+    </button>
+  ))}
+</div>        
 </aside>
       <header
         style={{
