@@ -7,6 +7,7 @@ export default function ManagerPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   
 useEffect(() => {
   const checkScreen = () => {
