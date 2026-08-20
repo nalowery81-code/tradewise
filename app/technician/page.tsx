@@ -96,14 +96,19 @@ export default function TechnicianPage() {
       {/* Main content */}
       <section style={styles.content}>
         <div style={styles.hero}>
-          <div style={styles.badge}>AI FIELD ASSISTANT</div>
+  <div style={styles.brandBlock}>
+    <div style={styles.brandName}>Tradewise</div>
+    <div style={styles.brandTagline}>
+      Your AI partner in the trades
+    </div>
+  </div>
 
-          <h1 style={styles.greeting}>Hey, Nate.</h1>
+  <h1 style={styles.greeting}>Hey, Nate.</h1>
 
-          <p style={styles.subGreeting}>
-            I&apos;m here when you need me.
-          </p>
-        </div>
+  <p style={styles.subGreeting}>
+    What are we working on?
+  </p>
+</div>
       </section>
 
       {/* Composer area */}
@@ -366,14 +371,25 @@ const styles: Record<string, React.CSSProperties> = {
     textAlign: 'center',
   },
 
-  badge: {
-    display: 'inline-block',
-    fontSize: 11,
-    fontWeight: 700,
-    letterSpacing: '0.12em',
-    color: '#64748b',
-    marginBottom: 20,
-  },
+  brandBlock: {
+  marginBottom: 42,
+},
+
+brandName: {
+  fontSize: 'clamp(42px, 9vw, 68px)',
+  lineHeight: 1,
+  fontWeight: 800,
+  letterSpacing: '-0.055em',
+  color: '#123047',
+},
+
+brandTagline: {
+  marginTop: 10,
+  fontSize: 'clamp(14px, 3vw, 17px)',
+  fontWeight: 500,
+  color: '#527080',
+  letterSpacing: '0.01em',
+},
 
   greeting: {
     fontSize: 'clamp(34px, 7vw, 54px)',
