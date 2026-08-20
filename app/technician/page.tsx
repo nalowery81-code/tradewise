@@ -7,7 +7,9 @@ export default function TechnicianPage() {
   const [attachOpen, setAttachOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
-
+  const [messages, setMessages] = useState<
+  { role: 'user' | 'assistant'; text: string }[]
+  >([])
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -22,14 +24,23 @@ export default function TechnicianPage() {
     setAttachOpen(false)
   }
 
-  const handleSend = async () => {
+const handleSend = async () => {
   const text = message.trim()
   if (!text) return
+
+  setMessages((prev) => [
+    ...prev,
+    { role: 'user', text },
+  ])
+
+  setMessage('')
 
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
         message: text,
         image: null,
@@ -39,15 +50,33 @@ export default function TechnicianPage() {
     const data = await res.json()
 
     if (!res.ok) {
-      alert(data.error || 'Tradewise could not respond.')
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          text: data.error || 'I had trouble responding. Try that again.',
+        },
+      ])
       return
     }
 
-    alert(data.reply)
-    setMessage('')
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        text: data.reply,
+      },
+    ])
   } catch (error) {
     console.error('Tradewise chat error:', error)
-    alert('Tradewise could not connect.')
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: 'assistant',
+        text: 'I could not connect. Try sending that again.',
+      },
+    ])
   }
 }
 
@@ -115,6 +144,7 @@ export default function TechnicianPage() {
       {/* Main content */}
       <section style={styles.content}>
         <div style={styles.hero}>
+
   <div style={styles.brandBlock}>
     <div style={styles.brandName}>Tradewise</div>
     <div style={styles.brandTagline}>
@@ -128,6 +158,28 @@ export default function TechnicianPage() {
     What are we working on?
   </p>
 </div>
+    <div style={styles.chatArea}>
+  {messages.map((item, index) => (
+    <div
+      key={index}
+      style={{
+        ...styles.messageRow,
+        justifyContent:
+          item.role === 'user' ? 'flex-end' : 'flex-start',
+      }}
+    >
+      <div
+        style={
+          item.role === 'user'
+            ? styles.userBubble
+            : styles.assistantBubble
+        }
+      >
+        {item.text}
+      </div>
+    </div>
+  ))}
+</div>    
       </section>
 
       {/* Composer area */}
@@ -377,11 +429,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   content: {
-    flex: 1,
-    display: 'flex',
-    justifyContent: 'center',
-    padding: '0 22px 150px',
-  },
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  padding: '0 22px 150px',
+},
 
   hero: {
     width: '100%',
@@ -424,7 +477,38 @@ brandTagline: {
     color: '#64748b',
     fontWeight: 400,
   },
+chatArea: {
+  width: '100%',
+  maxWidth: 760,
+  margin: '32px auto 0',
+  paddingBottom: 24,
+},
 
+messageRow: {
+  width: '100%',
+  display: 'flex',
+  marginBottom: 18,
+},
+
+userBubble: {
+  maxWidth: '78%',
+  background: '#e7edf2',
+  color: '#172033',
+  padding: '12px 16px',
+  borderRadius: 18,
+  fontSize: 16,
+  lineHeight: 1.5,
+  whiteSpace: 'pre-wrap',
+},
+
+assistantBubble: {
+  maxWidth: '88%',
+  color: '#172033',
+  padding: '4px 2px',
+  fontSize: 16,
+  lineHeight: 1.6,
+  whiteSpace: 'pre-wrap',
+},
   composerArea: {
     position: 'fixed',
     left: 0,
