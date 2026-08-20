@@ -4,6 +4,16 @@ import { useState } from 'react'
 
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const sidebarItems = [
+    'New chat',
+    'Search',
+    'History',
+    'To-Do',
+    'Technicians',
+    'Manager Notes',
+  ]
 
   const starters = [
     'Weekly Summary',
@@ -21,6 +31,51 @@ export default function ManagerPage() {
         color: '#1f2937',
       }}
     >
+      <aside
+  style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 250,
+    background: '#ffffff',
+    borderRight: '1px solid #e5e7eb',
+    padding: '18px 14px',
+    zIndex: 20,
+    display: sidebarOpen ? 'block' : 'none',
+  }}
+>
+  <div
+    style={{
+      fontWeight: 700,
+      fontSize: 18,
+      marginBottom: 22,
+      padding: '0 8px',
+    }}
+  >
+    Tradewise Manager
+  </div>
+
+  <div style={{ display: 'grid', gap: 6 }}>
+    {sidebarItems.map((item) => (
+      <button
+        key={item}
+        type="button"
+        style={{
+          border: 'none',
+          background: 'transparent',
+          textAlign: 'left',
+          padding: '11px 10px',
+          borderRadius: 10,
+          cursor: 'pointer',
+          fontSize: 15,
+        }}
+      >
+        {item}
+      </button>
+    ))}
+  </div>
+</aside>
       <header
         style={{
           height: 64,
@@ -33,7 +88,20 @@ export default function ManagerPage() {
           fontSize: 20,
         }}
       >
-        Tradewise
+       <button
+  type="button"
+  onClick={() => setSidebarOpen(!sidebarOpen)}
+  style={{
+    marginRight: 12,
+    border: 'none',
+    background: 'transparent',
+    fontSize: 22,
+    cursor: 'pointer',
+  }}
+>
+  ☰
+</button> 
+         Tradewise
       </header>
 
       <section
