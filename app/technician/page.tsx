@@ -36,7 +36,7 @@ export default function TechnicianPage() {
   }
   const handleNewConversation = () => {
   setMessages([])
-  setMessages('')
+  setMessage('')
   setSelectedImage(null)
   setSelectedImageFile(null)
   setAttachOpen(false)
