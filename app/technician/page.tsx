@@ -9,8 +9,12 @@ export default function TechnicianPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [messages, setMessages] = useState<
-  { role: 'user' | 'assistant'; text: string }[]
-  >([])
+  {
+    role: 'user' | 'assistant'
+    text: string
+    image?: string
+  }[]
+>([])
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -78,9 +82,13 @@ const handleSend = async () => {
     : null
 
   setMessages((prev) => [
-    ...prev,
-  { role: 'user', text: text || '📷 Photo' },
-  ])
+  ...prev,
+  {
+    role: 'user',
+    text: text || '',
+    image: selectedImage || undefined,
+  },
+])
 setSelectedImage(null)
 setSelectedImageFile(null)
   setMessage('')
@@ -221,15 +229,29 @@ setSelectedImageFile(null)
           item.role === 'user' ? 'flex-end' : 'flex-start',
       }}
     >
-      <div
-        style={
-          item.role === 'user'
-            ? styles.userBubble
-            : styles.assistantBubble
-        }
-      >
-        {item.text}
-      </div>
+    <div
+  style={
+    item.role === 'user'
+      ? styles.userBubble
+      : styles.assistantBubble
+  }
+>
+  {item.image && (
+    <img
+      src={item.image}
+      alt="Uploaded equipment"
+      style={{
+        display: 'block',
+        maxWidth: '100%',
+        maxHeight: 320,
+        borderRadius: 12,
+        marginBottom: item.text ? 8 : 0,
+      }}
+    />
+  )}
+
+  {item.text && <div>{item.text}</div>}
+</div> 
     </div>
   ))}
 </div>    
