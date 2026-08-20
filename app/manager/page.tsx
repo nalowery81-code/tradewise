@@ -4,7 +4,7 @@ import { useState } from 'react'
 
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(true)
   const handleNewChat = () => {
   setMessage('')
   setSidebarOpen(false)
