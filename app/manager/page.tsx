@@ -6,7 +6,8 @@ export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
-
+  const [historyOpen, setHistoryOpen] = useState(false)
+  
 useEffect(() => {
   const checkScreen = () => {
     const desktop = window.innerWidth >= 768
@@ -31,7 +32,16 @@ useEffect(() => {
     'Technicians',
     'Manager Notes',
   ]
-
+  const historyCategories = [
+  'Weekly Team Review',
+  'Technician Development',
+  'Training & Coaching',
+  'Recurring Job Issues',
+  'Team Performance Trends',
+  'Customer Experience',
+  'Safety & Risk',
+  'Operations Follow-Up',
+]
   const starters = [
     'Weekly Summary',
     'Technician Summary',
@@ -95,14 +105,16 @@ useEffect(() => {
 </div> 
         
 <div style={{ display: 'grid', gap: 6 }}>
-  {sidebarItems.map((item) => (
+ {sidebarItems.map((item) => (
+  <div key={item}>
     <button
-      key={item}
       type="button"
       onClick={() => {
         if (item === 'New chat') handleNewChat()
+        if (item === 'History') setHistoryOpen(!historyOpen)
       }}
       style={{
+        width: '100%',
         border: 'none',
         background: 'transparent',
         textAlign: 'left',
@@ -114,7 +126,37 @@ useEffect(() => {
     >
       {item}
     </button>
-  ))}
+
+    {item === 'History' && historyOpen && (
+      <div
+        style={{
+          display: 'grid',
+          gap: 4,
+          margin: '4px 0 8px 12px',
+        }}
+      >
+        {historyCategories.map((category) => (
+          <button
+            key={category}
+            type="button"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              textAlign: 'left',
+              padding: '8px 10px',
+              borderRadius: 8,
+              cursor: 'pointer',
+              fontSize: 13,
+              color: '#6b7280',
+            }}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
+    )}
+  </div>
+))}
 </div>        
 </aside>
       <header
