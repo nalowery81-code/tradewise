@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function TechnicianPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -15,10 +15,16 @@ export default function TechnicianPage() {
     image?: string
   }[]
 >([])
+
+  const bottomRef = useRef<HTMLDivElement>(null)
+  
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-
+  useEffect(() => {
+  bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+  
   const handleImage = (file?: File) => {
     if (!file) return
 
@@ -29,8 +35,8 @@ export default function TechnicianPage() {
     setAttachOpen(false)
   }
   const handleNewConversation = () => {
-  setMessages([])
-  setMessage('')
+  sets([])
+  set('')
   setSelectedImage(null)
   setSelectedImageFile(null)
   setAttachOpen(false)
@@ -262,6 +268,7 @@ setSelectedImageFile(null)
 </div> 
     </div>
   ))}
+<div ref={bottomRef} />     
 </div>    
       </section>
 
