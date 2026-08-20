@@ -196,7 +196,14 @@ useEffect(() => {
           transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
         }}
       >
-        <div style={{ textAlign: 'center', marginBottom: 34 }}>
+        {selectedHistoryCategory ? (
+          <div>
+            <h1>{selectedHistoryCategory}</h1>
+            <p>No saved conversations yet.</p>
+          </div>
+        ) : (
+          <>
+                  <div style={{ textAlign: 'center', marginBottom: 34 }}>
           <h1
             style={{
               margin: 0,
@@ -244,9 +251,11 @@ useEffect(() => {
             >
               {starter}
             </button>
-          ))}
-        </div>
-      </section>
+          ))}         
+            </div>
+          </>
+        )}
+      </section>  
 
       <div
         style={{
