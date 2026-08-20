@@ -41,10 +41,11 @@ const handleSend = async () => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        message: text,
-        image: null,
-      }),
+    body: JSON.stringify({
+  message: text,
+  image: null,
+  history: messages.slice(-12),
+}),
     })
 
     const data = await res.json()
