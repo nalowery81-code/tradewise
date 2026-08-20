@@ -1,10 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+
+useEffect(() => {
+  const checkScreen = () => {
+    const desktop = window.innerWidth >= 768
+    setIsDesktop(desktop)
+    setSidebarOpen(desktop)
+  }
+
+  checkScreen()
+  window.addEventListener('resize', checkScreen)
+
+  return () => window.removeEventListener('resize', checkScreen)
+}, [])
   const handleNewChat = () => {
   setMessage('')
   setSidebarOpen(false)
@@ -111,6 +125,7 @@ export default function ManagerPage() {
           display: 'flex',
           alignItems: 'center',
           padding: '0 20px',
+          marginLeft: isDesktop && sidebarOpen ? 278 : 0,
           fontWeight: 700,
           fontSize: 20,
         }}
@@ -136,6 +151,7 @@ export default function ManagerPage() {
           maxWidth: 760,
           margin: '0 auto',
           padding: 'clamp(40px, 8vw, 90px) 16px 150px', 
+          transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
         }}
       >
         <div style={{ textAlign: 'center', marginBottom: 34 }}>
@@ -196,6 +212,7 @@ export default function ManagerPage() {
           left: 0,
           right: 0,
           bottom: 0,
+          paddingLeft: isDesktop && sidebarOpen ? 278 : 0,
           background: '#f7f7f8',
           padding: '14px 20px 22px',
         }}
