@@ -5,7 +5,10 @@ import { useState } from 'react'
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [sidebarOpen, setSidebarOpen] = useState(false)
-
+  const handleNewChat = () => {
+  setMessage('')
+  setSidebarOpen(false)
+  }
   const sidebarItems = [
     'New chat',
     'Search',
@@ -82,6 +85,9 @@ export default function ManagerPage() {
     <button
       key={item}
       type="button"
+      onClick={() => {
+        if (item === 'New chat') handleNewChat()
+      }}
       style={{
         border: 'none',
         background: 'transparent',
