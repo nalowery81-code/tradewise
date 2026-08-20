@@ -22,15 +22,34 @@ export default function TechnicianPage() {
     setAttachOpen(false)
   }
 
-  const handleSend = () => {
-    if (!message.trim() && !selectedImage) return
+  const handleSend = async () => {
+  const text = message.trim()
+  if (!text) return
 
-    // Backend connection comes next.
-    console.log('Tradewise message:', message)
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        image: null,
+      }),
+    })
 
+    const data = await res.json()
+
+    if (!res.ok) {
+      alert(data.error || 'Tradewise could not respond.')
+      return
+    }
+
+    alert(data.reply)
     setMessage('')
-    setSelectedImage(null)
+  } catch (error) {
+    console.error('Tradewise chat error:', error)
+    alert('Tradewise could not connect.')
   }
+}
 
   return (
     <main style={styles.page}>
