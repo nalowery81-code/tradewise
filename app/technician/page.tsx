@@ -7,6 +7,7 @@ export default function TechnicianPage() {
   const [attachOpen, setAttachOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [messages, setMessages] = useState<
   { role: 'user' | 'assistant'; text: string }[]
   >([])
@@ -19,20 +20,69 @@ export default function TechnicianPage() {
 
     if (file.type.startsWith('image/')) {
       setSelectedImage(URL.createObjectURL(file))
-    }
-
+      setSelectedImageFile(file)
+  }
     setAttachOpen(false)
   }
+const prepareImageForSend = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
 
+    reader.onload = () => {
+      const img = new Image()
+
+      img.onload = () => {
+        const maxSize = 1800
+        let width = img.width
+        let height = img.height
+
+        if (width > height && width > maxSize) {
+          height = Math.round((height * maxSize) / width)
+          width = maxSize
+        } else if (height > maxSize) {
+          width = Math.round((width * maxSize) / height)
+          height = maxSize
+        }
+
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+
+        const ctx = canvas.getContext('2d')
+
+        if (!ctx) {
+          reject(new Error('Could not prepare image'))
+          return
+        }
+
+        ctx.drawImage(img, 0, 0, width, height)
+
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+
+      img.onerror = () => reject(new Error('Could not read image'))
+      img.src = reader.result as string
+    }
+
+    reader.onerror = () => reject(new Error('Could not read file'))
+    reader.readAsDataURL(file)
+  })
+}
 const handleSend = async () => {
   const text = message.trim()
-  if (!text) return
+
+  if (!text && !selectedImageFile) return
+
+  const imageData = selectedImageFile
+    ? await prepareImageForSend(selectedImageFile)
+    : null
 
   setMessages((prev) => [
     ...prev,
-    { role: 'user', text },
+  { role: 'user', text: text || '📷 Photo' },
   ])
-
+setSelectedImage(null)
+setSelectedImageFile(null)
   setMessage('')
 
   try {
@@ -43,7 +93,7 @@ const handleSend = async () => {
       },
     body: JSON.stringify({
   message: text,
-  image: null,
+  image: imageData,
   history: messages.slice(-12),
 }),
     })
