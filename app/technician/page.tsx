@@ -143,6 +143,7 @@ const handleSend = async () => {
 
       {/* Main content */}
       <section style={styles.content}>
+      {messages.length === 0 && ( 
         <div style={styles.hero}>
 
   <div style={styles.brandBlock}>
@@ -158,6 +159,7 @@ const handleSend = async () => {
     What are we working on?
   </p>
 </div>
+    )}  
     <div style={styles.chatArea}>
   {messages.map((item, index) => (
     <div
