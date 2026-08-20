@@ -28,6 +28,14 @@ export default function TechnicianPage() {
   }
     setAttachOpen(false)
   }
+  const handleNewConversation = () => {
+  setMessages([])
+  setMessage('')
+  setSelectedImage(null)
+  setSelectedImageFile(null)
+  setAttachOpen(false)
+  setDrawerOpen(false)
+}
 const prepareImageForSend = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -169,7 +177,7 @@ setSelectedImageFile(null)
           </button>
         </div>
 
-        <button type="button" style={styles.newConversation}>
+        <button type="button" style={styles.newConversation} onClick={handleNewConversation}>
           ＋ New conversation
         </button>
 
