@@ -6,8 +6,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { message, image } = await req.json()
-
+   const { message, image, history = [] } = await req.json()
     if (!message?.trim() && !image) {
       return Response.json(
         { error: 'A message or image is required.' },
@@ -32,7 +31,19 @@ export async function POST(req: Request) {
         },
       })
     }
-
+const conversationHistory: any[] = Array.isArray(history)
+  ? history
+      .filter(
+        (item: any) =>
+          item &&
+          (item.role === 'user' || item.role === 'assistant') &&
+          typeof item.text === 'string'
+      )
+      .map((item: any) => ({
+        role: item.role,
+        content: item.text,
+      }))
+  : []
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
 
@@ -85,7 +96,7 @@ If the technician sends a clear data-plate image:
 Your goal is to make Tradewise effortless and effective in the field.
           `.trim(),
         },
-
+...conversationHistory,
         {
           role: 'user',
           content: userContent,
