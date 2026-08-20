@@ -140,6 +140,7 @@ useEffect(() => {
           <button
             key={category}
             type="button"
+            onClick={() => setSelectedHistoryCategory(category)}
             style={{
               border: 'none',
               background: 'transparent',
