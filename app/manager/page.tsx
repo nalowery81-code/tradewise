@@ -288,6 +288,38 @@ useEffect(() => {
         color: '#9ca3af',
       }}
     >
+     <div
+  style={{
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  }}
+>
+  <span
+    style={{
+      fontSize: 12,
+      color: '#4b5563',
+      background: '#f3f4f6',
+      borderRadius: 999,
+      padding: '5px 9px',
+    }}
+  >
+    Technician: Mike R.
+  </span>
+
+  <span
+    style={{
+      fontSize: 12,
+      color: '#4b5563',
+      background: '#f3f4f6',
+      borderRadius: 999,
+      padding: '5px 9px',
+    }}
+  >
+    Communication
+  </span>
+</div> 
       August 21, 2026
     </div>
   </button>
