@@ -199,10 +199,65 @@ useEffect(() => {
         }}
       >
         {selectedHistoryCategory ? (
-          <div>
-            <h1>{selectedHistoryCategory}</h1>
-            <p>No saved conversations yet.</p>
-          </div>
+        <div
+  style={{
+    maxWidth: 760,
+    margin: '0 auto',
+    width: '100%',
+  }}
+>
+  <h1
+    style={{
+      margin: 0,
+      fontSize: 'clamp(28px, 4vw, 38px)',
+      fontWeight: 700,
+    }}
+  >
+    {selectedHistoryCategory}
+  </h1>
+
+  <p
+    style={{
+      marginTop: 10,
+      color: '#6b7280',
+      fontSize: 15,
+      lineHeight: 1.6,
+    }}
+  >
+    Conversations and insights related to this area will appear here.
+  </p>
+
+  <div
+    style={{
+      marginTop: 32,
+      border: '1px solid #e5e7eb',
+      borderRadius: 16,
+      padding: '32px 24px',
+      background: '#ffffff',
+      textAlign: 'center',
+    }}
+  >
+    <div
+      style={{
+        fontSize: 17,
+        fontWeight: 600,
+        marginBottom: 8,
+      }}
+    >
+      No saved conversations yet
+    </div>
+
+    <div
+      style={{
+        fontSize: 14,
+        color: '#6b7280',
+        lineHeight: 1.5,
+      }}
+    >
+      Future manager conversations organized into this category will appear here.
+    </div>
+  </div>
+</div> 
         ) : (
           <>
                   <div style={{ textAlign: 'center', marginBottom: 34 }}>
