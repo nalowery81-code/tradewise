@@ -243,23 +243,32 @@ useEffect(() => {
   </p>
 
   <div
+  style={{
+    marginTop: 32,
+    display: 'grid',
+    gap: 12,
+  }}
+>
+  <button
+    type="button"
     style={{
-      marginTop: 32,
+      width: '100%',
+      textAlign: 'left',
       border: '1px solid #e5e7eb',
       borderRadius: 16,
-      padding: '32px 24px',
+      padding: '18px 20px',
       background: '#ffffff',
-      textAlign: 'center',
+      cursor: 'pointer',
     }}
   >
     <div
       style={{
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: 600,
-        marginBottom: 8,
+        marginBottom: 6,
       }}
     >
-      No saved conversations yet
+      Example saved conversation
     </div>
 
     <div
@@ -269,9 +278,20 @@ useEffect(() => {
         lineHeight: 1.5,
       }}
     >
-      Future manager conversations organized into this category will appear here.
+      A short preview of the manager conversation would appear here.
     </div>
-  </div>
+
+    <div
+      style={{
+        marginTop: 12,
+        fontSize: 12,
+        color: '#9ca3af',
+      }}
+    >
+      August 21, 2026
+    </div>
+  </button>
+</div>
 </div> 
         ) : (
           <>
