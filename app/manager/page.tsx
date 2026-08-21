@@ -206,6 +206,21 @@ useEffect(() => {
     width: '100%',
   }}
 >
+  <button
+  type="button"
+  onClick={() => setSelectedHistoryCategory(null)}
+  style={{
+    border: 'none',
+    background: 'transparent',
+    padding: 0,
+    marginBottom: 18,
+    cursor: 'pointer',
+    fontSize: 14,
+    color: '#6b7280',
+  }}
+>
+  ← Back
+</button>        
   <h1
     style={{
       margin: 0,
