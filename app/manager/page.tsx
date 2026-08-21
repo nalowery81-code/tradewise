@@ -29,7 +29,7 @@ useEffect(() => {
     'New chat',
     'Search',
     'History',
-    'To-Do',
+    'Follow-up',
     'Technicians',
     'Manager Notes',
   ]
@@ -319,6 +319,17 @@ useEffect(() => {
   >
     Communication
   </span>
+     <span
+    style={{
+      fontSize: 12,
+      color: '#4b5563',
+      background: '#f3f4f6',
+      borderRadius: 999,
+      padding: '5px 9px',
+    }}
+  >
+    Follow-Up
+  </span>    
 </div> 
       August 21, 2026
     </div>
