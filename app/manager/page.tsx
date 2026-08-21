@@ -268,7 +268,7 @@ useEffect(() => {
         marginBottom: 6,
       }}
     >
-      Example saved conversation
+     Coaching follow-up: customer communication
     </div>
 
     <div
@@ -278,7 +278,7 @@ useEffect(() => {
         lineHeight: 1.5,
       }}
     >
-      A short preview of the manager conversation would appear here.
+      Discussed a recurring communication issue and identified a coaching opportunity for the team.
     </div>
 
     <div
