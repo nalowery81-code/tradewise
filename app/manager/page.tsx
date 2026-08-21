@@ -8,6 +8,7 @@ export default function ManagerPage() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   
 useEffect(() => {
   const checkScreen = () => {
@@ -199,6 +200,52 @@ useEffect(() => {
         }}
       >
         {selectedHistoryCategory ? (
+          selectedConversation ? (
+         <div
+  style={{
+    maxWidth: 760,
+    margin: '0 auto',
+    width: '100%',
+  }}
+>
+  <button
+    type="button"
+    onClick={() => setSelectedConversation(null)}
+    style={{
+      border: 'none',
+      background: 'transparent',
+      padding: 0,
+      marginBottom: 18,
+      cursor: 'pointer',
+      fontSize: 14,
+      color: '#6b7280',
+    }}
+  >
+    ← Back to History
+  </button>
+
+  <h1
+    style={{
+      margin: 0,
+      fontSize: 'clamp(28px, 4vw, 38px)',
+      fontWeight: 700,
+    }}
+  >
+    Coaching follow-up: customer communication
+  </h1>
+
+  <p
+    style={{
+      marginTop: 12,
+      color: '#6b7280',
+      fontSize: 15,
+      lineHeight: 1.6,
+    }}
+  >
+    Saved manager conversation details will appear here.
+  </p>
+</div>
+) : (   
         <div
   style={{
     maxWidth: 760,
@@ -251,6 +298,7 @@ useEffect(() => {
 >
   <button
     type="button"
+    onClick={() => setSelectedConversation('coaching-follow-up')}
     style={{
       width: '100%',
       textAlign: 'left',
@@ -336,6 +384,7 @@ useEffect(() => {
   </button>
 </div>
 </div> 
+            )
         ) : (
           <>
                   <div style={{ textAlign: 'center', marginBottom: 34 }}>
