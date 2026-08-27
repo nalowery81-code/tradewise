@@ -14,6 +14,27 @@ export async function POST(req: Request) {
         { status: 400 }
       )
     }
+    
+    let activeConversationId = conversationId
+
+if (!activeConversationId) {
+  const { data: conversation, error: conversationError } =
+    await supabaseServer
+      .from('Conversations')
+      .insert({
+        title: message?.trim()?.slice(0, 80) || 'New conversation',
+        status: 'active',
+      })
+      .select('id')
+      .single()
+
+  if (conversationError) {
+    console.error('CONVERSATION CREATE ERROR:', conversationError)
+    throw conversationError
+  }
+
+  activeConversationId = conversation.id
+}
 
     const userContent: any[] = []
 
