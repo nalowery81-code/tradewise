@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-   const { message, image, history = [] } = await req.json()
+   const { message, image, history = [], conversationId } = await req.json()
     if (!message?.trim() && !image) {
       return Response.json(
         { error: 'A message or image is required.' },
