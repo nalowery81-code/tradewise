@@ -43,6 +43,7 @@ export default function TechnicianPage() {
   setSelectedImageFile(null)
   setAttachOpen(false)
   setDrawerOpen(false)
+  setConversationId(null)
 }
 const prepareImageForSend = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
