@@ -10,13 +10,14 @@ export default function TechnicianPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [messages, setMessages] = useState<
-  const [conversationId, setConversationId] = useState<string | null>(null)
   {
     role: 'user' | 'assistant'
     text: string
     image?: string
   }[]
 >([])
+
+const [conversationId, setConversationId] = useState<string | null>(null)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   
