@@ -36,6 +36,19 @@ if (!activeConversationId) {
   activeConversationId = conversation.id
 }
 
+  const { error: userMessageError } = await supabaseServer
+  .from('Messages')
+  .insert({
+    conversation_id: activeConversationId,
+    role: 'user',
+    content: message?.trim() || '',
+    image_url: image || null,
+  })
+
+if (userMessageError) {
+  console.error('USER MESSAGE SAVE ERROR:', userMessageError)
+  throw userMessageError
+}  
     const userContent: any[] = []
 
     userContent.push({
@@ -136,7 +149,24 @@ Your goal is to make Tradewise effortless and effective in the field.
       completion.choices[0]?.message?.content ||
       'I could not generate a response.'
 
-    return Response.json({ reply })
+    const { error: assistantMessageError } = await supabaseServer
+  .from('Messages')
+  .insert({
+    conversation_id: activeConversationId,
+    role: 'assistant',
+    content: reply,
+    image_url: null,
+  })
+
+if (assistantMessageError) {
+  console.error('ASSISTANT MESSAGE SAVE ERROR:', assistantMessageError)
+  throw assistantMessageError
+}
+
+   return Response.json({
+  reply,
+  conversationId: activeConversationId,
+}) 
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
 
