@@ -311,7 +311,9 @@ try {
 
         <div style={styles.drawerSection}>
           <div style={styles.sectionTitle}>Recent conversations</div>
-         {recentConversations.length === 0 ? (
+         {recentConversationsLoading ? (
+  <div style={styles.emptyText}>Loading conversations...</div>
+) : recentConversations.length === 0 ? (
   <div style={styles.emptyText}>No recent conversations yet.</div>
 ) : (
  recentConversations.map((conversation) => (
