@@ -59,6 +59,25 @@ const [technicianId, setTechnicianId] = useState<string | null>(null)
 useEffect(() => {
   loadRecentConversations()
 }, [])
+
+ useEffect(() => {
+  const loadTechnicianIdentity = async () => {
+    const { data, error } = await supabase
+      .from('TechnicianAliases')
+      .select('technician_id')
+      .eq('alias', 'Nate')
+      .single()
+
+    if (error) {
+      console.error('TECHNICIAN IDENTITY LOAD ERROR:', error)
+      return
+    }
+
+    setTechnicianId(data.technician_id)
+  }
+
+  loadTechnicianIdentity()
+}, []) 
   
   const handleImage = (file?: File) => {
     if (!file) return
