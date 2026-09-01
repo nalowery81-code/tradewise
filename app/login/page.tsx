@@ -1,12 +1,24 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
+useEffect(() => {
+  const redirectIfLoggedIn = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
 
+    if (session) {
+      router.replace('/technician')
+    }
+  }
+
+  redirectIfLoggedIn()
+}, [router])
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
