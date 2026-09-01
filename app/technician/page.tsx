@@ -21,6 +21,8 @@ const [conversationId, setConversationId] = useState<string | null>(null)
   
 const [technicianId, setTechnicianId] = useState<string | null>(null) 
 
+const [technicianName, setTechnicianName] = useState('')
+
 const [recentConversations, setRecentConversations] = useState<
   {
     id: string
@@ -62,23 +64,29 @@ useEffect(() => {
 
 useEffect(() => {
   const loadTechnicianIdentity = async () => {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error('AUTH USER LOAD ERROR:', userError)
+      return
+    }
+
     const { data, error } = await supabase
       .from('Technicians')
       .select('id, canonical_name')
-      .order('canonical_name', { ascending: true })
+      .eq('auth_user_id', user.id)
+      .single()
 
     if (error) {
       console.error('TECHNICIAN IDENTITY LOAD ERROR:', error)
       return
     }
 
-    const nate = (data || []).find(
-      (technician) => technician.canonical_name === 'Nathan Lowery'
-    )
-
-    if (nate) {
-      setTechnicianId(nate.id)
-    }
+    setTechnicianId(data.id)
+    setTechnicianName(data.canonical_name)
   }
 
   loadTechnicianIdentity()
@@ -330,7 +338,9 @@ setSelectedImageFile(null)
     </div>
   </div>
 
-<h1 style={styles.greeting}>Hey, Nate.</h1>
+<h1 style={styles.greeting}>
+  {technicianName ? `Hey, ${technicianName}.` : 'Hey.'}
+</h1>
 
 <p style={styles.subGreeting}>
   What are we working on?
