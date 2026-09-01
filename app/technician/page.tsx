@@ -42,9 +42,13 @@ const [recentConversations, setRecentConversations] = useState<
   bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const loadRecentConversations = async () => {
+  const loadRecentConversations = async (id?: string) => {
   try {
-    const res = await fetch('/api/conversations')
+    
+  const res = await fetch(
+  `/api/conversations?technicianId=${id || technicianId || ''}`
+)
+    
     const data = await res.json()
 
     if (!res.ok) {
@@ -87,6 +91,7 @@ useEffect(() => {
 
     setTechnicianId(data.id)
     setTechnicianName(data.canonical_name)
+    loadRecentConversations(data.id)
   }
 
   loadTechnicianIdentity()
