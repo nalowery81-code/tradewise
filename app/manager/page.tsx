@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
@@ -9,7 +10,40 @@ export default function ManagerPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
-  
+
+  useEffect(() => {
+  const checkManagerAccess = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+
+    if (!session) {
+      window.location.replace('/login')
+      return
+    }
+
+    const roleResponse = await fetch('/api/auth/role', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+
+    if (!roleResponse.ok) {
+      await supabase.auth.signOut()
+      window.location.replace('/login')
+      return
+    }
+
+    const { role } = await roleResponse.json()
+
+    if (role !== 'manager') {
+      window.location.replace('/technician')
+      return
+    }
+  }
+
+  checkManagerAccess()
+}, [])  
 useEffect(() => {
   const checkScreen = () => {
     const desktop = window.innerWidth >= 768
