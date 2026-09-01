@@ -7,7 +7,43 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-   const { message, image, history = [], conversationId, technicianId } = await req.json()
+const { message, image, history = [], conversationId } = await req.json() 
+const authHeader = req.headers.get('authorization')
+
+if (!authHeader?.startsWith('Bearer ')) {
+  return Response.json(
+    { error: 'Unauthorized' },
+    { status: 401 }
+  )
+}
+
+const accessToken = authHeader.replace('Bearer ', '')
+
+const {
+  data: { user },
+  error: userError,
+} = await supabaseServer.auth.getUser(accessToken)
+
+if (userError || !user) {
+  return Response.json(
+    { error: 'Unauthorized' },
+    { status: 401 }
+  )
+}
+
+const { data: technician, error: technicianError } =
+  await supabaseServer
+    .from('Technicians')
+    .select('id')
+    .eq('auth_user_id', user.id)
+    .single()
+
+if (technicianError || !technician) {
+  return Response.json(
+    { error: 'Technician not found' },
+    { status: 404 }
+  )
+}    
     if (!message?.trim() && !image) {
       return Response.json(
         { error: 'A message or image is required.' },
@@ -24,7 +60,7 @@ if (!activeConversationId) {
     .insert({
   title: message?.trim()?.slice(0, 80) || 'New conversation',
   status: 'active',
-  technician_id: technicianId || null,
+  technician_id: technician.id,
 })  
       .select('id')
       .single()
