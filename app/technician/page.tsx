@@ -337,6 +337,17 @@ try {
           <div style={styles.sectionTitle}>Projects</div>
           <div style={styles.emptyText}>Projects will appear here.</div>
         </div>
+        
+        <button
+  type="button"
+  style={styles.newConversation}
+  onClick={async () => {
+    await supabase.auth.signOut()
+    window.location.replace('/login')
+  }}
+>
+  Sign out
+</button>
       </aside>
 
       {/* Header */}
