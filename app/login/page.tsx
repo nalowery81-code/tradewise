@@ -65,40 +65,8 @@ export default function LoginPage() {
       </main>
     )
   }
-      return (
-    }
 
-    setCheckingSession(false)
-  }
-
-  redirectIfLoggedIn()
-}, [router])
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [checkingSession, setCheckingSession] = useState(true)
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    setLoading(true)
-    setError('')
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
-
-    router.push('/technician')
-  }
-
-  
+  return (
     <main
       style={{
         minHeight: '100vh',
