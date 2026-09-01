@@ -19,7 +19,14 @@ export default function TechnicianPage() {
 
 const [conversationId, setConversationId] = useState<string | null>(null)
   
-const [technicianId, setTechnicianId] = useState<string | null>(null)  
+const [technicianId, setTechnicianId] = useState<string | null>(null) 
+
+const [technicians, setTechnicians] = useState<
+  {
+    id: string
+    canonical_name: string
+  }[]
+>([])  
 
   const [recentConversations, setRecentConversations] = useState<
   {
@@ -60,20 +67,27 @@ useEffect(() => {
   loadRecentConversations()
 }, [])
 
- useEffect(() => {
+useEffect(() => {
   const loadTechnicianIdentity = async () => {
     const { data, error } = await supabase
-      .from('TechnicianAliases')
-      .select('technician_id')
-      .eq('alias', 'Nate')
-      .single()
+      .from('Technicians')
+      .select('id, canonical_name')
+      .order('canonical_name', { ascending: true })
 
     if (error) {
       console.error('TECHNICIAN IDENTITY LOAD ERROR:', error)
       return
     }
 
-    setTechnicianId(data.technician_id)
+    setTechnicians(data || [])
+
+    const nate = (data || []).find(
+      (technician) => technician.canonical_name === 'Nathan Lowery'
+    )
+
+    if (nate) {
+      setTechnicianId(nate.id)
+    }
   }
 
   loadTechnicianIdentity()
@@ -325,11 +339,30 @@ setSelectedImageFile(null)
     </div>
   </div>
 
-  <h1 style={styles.greeting}>Hey, Nate.</h1>
+<h1 style={styles.greeting}>Hey.</h1>
 
-  <p style={styles.subGreeting}>
-    What are we working on?
-  </p>
+<select
+  value={technicianId || ''}
+  onChange={(e) => setTechnicianId(e.target.value)}
+  style={{
+    marginTop: 12,
+    padding: '10px 12px',
+    borderRadius: 10,
+    fontSize: 16,
+  }}
+>
+  <option value="">Select technician</option>
+
+  {technicians.map((technician) => (
+    <option key={technician.id} value={technician.id}>
+      {technician.canonical_name}
+    </option>
+  ))}
+</select>
+
+<p style={styles.subGreeting}>
+  What are we working on?
+</p>
 </div>
     )}  
     <div style={styles.chatArea}>
