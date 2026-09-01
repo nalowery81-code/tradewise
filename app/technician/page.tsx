@@ -45,8 +45,17 @@ const [recentConversations, setRecentConversations] = useState<
   const loadRecentConversations = async (id?: string) => {
   try {
     
-  const res = await fetch(
-  `/api/conversations?technicianId=${id || technicianId || ''}`
+ const {
+  data: { session },
+} = await supabase.auth.getSession()
+
+const res = await fetch(
+  `/api/conversations?technicianId=${id || technicianId || ''}`,
+  {
+    headers: {
+      Authorization: `Bearer ${session?.access_token || ''}`,
+    },
+  }
 )
     
     const data = await res.json()
