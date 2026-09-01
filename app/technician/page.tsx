@@ -121,6 +121,7 @@ setSelectedImageFile(null)
   message: text,
   image: imageData,
   history: messages.slice(-12),
+  conversationId,    
 }),
     })
 
@@ -136,7 +137,9 @@ setSelectedImageFile(null)
       ])
       return
     }
-
+    
+    setConversationId(data.conversationId)
+    
     setMessages((prev) => [
       ...prev,
       {
