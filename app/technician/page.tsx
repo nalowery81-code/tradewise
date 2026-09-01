@@ -38,23 +38,23 @@ const [conversationId, setConversationId] = useState<string | null>(null)
   bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  useEffect(() => {
   const loadRecentConversations = async () => {
-    try {
-      const res = await fetch('/api/conversations')
-      const data = await res.json()
+  try {
+    const res = await fetch('/api/conversations')
+    const data = await res.json()
 
-      if (!res.ok) {
-        console.error('RECENT CONVERSATIONS LOAD ERROR:', data.error)
-        return
-      }
-
-      setRecentConversations(data.conversations || [])
-    } catch (error) {
-      console.error('RECENT CONVERSATIONS LOAD ERROR:', error)
+    if (!res.ok) {
+      console.error('RECENT CONVERSATIONS LOAD ERROR:', data.error)
+      return
     }
-  }
 
+    setRecentConversations(data.conversations || [])
+  } catch (error) {
+    console.error('RECENT CONVERSATIONS LOAD ERROR:', error)
+  }
+}
+
+useEffect(() => {
   loadRecentConversations()
 }, [])
   
@@ -186,6 +186,7 @@ setSelectedImageFile(null)
     }
     
     setConversationId(data.conversationId)
+    loadRecentConversations()
     
     setMessages((prev) => [
       ...prev,
