@@ -1,9 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-
-export default function TechnicianPage() {
-
+import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 
 export default function TechnicianPage() {
