@@ -14,7 +14,22 @@ useEffect(() => {
 
     if (session) {
       router.replace('/technician')
-      return
+   if (checkingSession) {
+  return (
+    <main
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 24,
+      }}
+    >
+      <div>Loading...</div>
+    </main>
+  )
+}   
+      return (
     }
 
     setCheckingSession(false)
@@ -47,7 +62,7 @@ useEffect(() => {
     router.push('/technician')
   }
 
-  return (
+  
     <main
       style={{
         minHeight: '100vh',
