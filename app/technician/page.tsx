@@ -23,7 +23,7 @@ const [conversationId, setConversationId] = useState<string | null>(null)
 const [technicianId, setTechnicianId] = useState<string | null>(null) 
 
 const [technicianName, setTechnicianName] = useState('')
-
+const [recentConversationsLoading, setRecentConversationsLoading] = useState(true)
 const [recentConversations, setRecentConversations] = useState<
   {
     id: string
@@ -67,9 +67,12 @@ const res = await fetch(
     }
 
     setRecentConversations(data.conversations || [])
+    
   } catch (error) {
-    console.error('RECENT CONVERSATIONS LOAD ERROR:', error)
-  }
+  console.error('RECENT CONVERSATIONS LOAD ERROR:', error)
+} finally {
+  setRecentConversationsLoading(false)
+}
 }
 
 useEffect(() => {
