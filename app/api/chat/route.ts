@@ -7,7 +7,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-   const { message, image, history = [], conversationId } = await req.json()
+   const { message, image, history = [], conversationId, technicianId } = await req.json()
     if (!message?.trim() && !image) {
       return Response.json(
         { error: 'A message or image is required.' },
@@ -21,10 +21,11 @@ if (!activeConversationId) {
   const { data: conversation, error: conversationError } =
     await supabaseServer
       .from('Conversations')
-      .insert({
-        title: message?.trim()?.slice(0, 80) || 'New conversation',
-        status: 'active',
-      })
+    .insert({
+  title: message?.trim()?.slice(0, 80) || 'New conversation',
+  status: 'active',
+  technician_id: technicianId || null,
+})  
       .select('id')
       .single()
 
