@@ -5,7 +5,59 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const authHeader = request.headers.get('authorization')
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return Response.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const accessToken = authHeader.replace('Bearer ', '')
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseServer.auth.getUser(accessToken)
+
+    if (userError || !user) {
+      return Response.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    const { data: technician, error: technicianError } =
+      await supabaseServer
+        .from('Technicians')
+        .select('id')
+        .eq('auth_user_id', user.id)
+        .single()
+
+    if (technicianError || !technician) {
+      return Response.json(
+        { error: 'Technician not found' },
+        { status: 404 }
+      )
+    }
+
     const { id } = await params
+
+    const { data: conversation, error: conversationError } =
+      await supabaseServer
+        .from('Conversations')
+        .select('id')
+        .eq('id', id)
+        .eq('technician_id', technician.id)
+        .single()
+
+    if (conversationError || !conversation) {
+      return Response.json(
+        { error: 'Conversation not found' },
+        { status: 404 }
+      )
+    }
 
     const { data, error } = await supabaseServer
       .from('Messages')
