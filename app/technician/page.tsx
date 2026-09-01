@@ -126,7 +126,16 @@ useEffect(() => {
 }
  const loadConversation = async (id: string) => {
   try {
-    const res = await fetch(`/api/conversations/${id}`)
+
+const {
+  data: { session },
+} = await supabase.auth.getSession()
+
+const res = await fetch(`/api/conversations/${id}`, {
+  headers: {
+    Authorization: `Bearer ${session?.access_token || ''}`,
+  },
+})  
     const data = await res.json()
 
     if (!res.ok) {
