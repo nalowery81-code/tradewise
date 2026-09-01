@@ -215,20 +215,24 @@ setSelectedImage(null)
 setSelectedImageFile(null)
   setMessage('')
 
-  try {
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+try {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession()
+
+  const res = await fetch('/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session?.access_token || ''}`,
+    },
     body: JSON.stringify({
-  message: text,
-  image: imageData,
-  history: messages.slice(-12),
-  conversationId,
-  technicianId,    
-}),
-    })
+      message: text,
+      image: imageData,
+      history: messages.slice(-12),
+      conversationId,
+    }),
+  }) 
 
     const data = await res.json()
 
