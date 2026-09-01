@@ -1,9 +1,13 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+
+export default function TechnicianPage() {
+
 import { supabase } from '../lib/supabase'
 
 export default function TechnicianPage() {
+  const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [attachOpen, setAttachOpen] = useState(false)
   const [message, setMessage] = useState('')
@@ -83,9 +87,10 @@ useEffect(() => {
     } = await supabase.auth.getUser()
 
     if (userError || !user) {
-      console.error('AUTH USER LOAD ERROR:', userError)
-      return
-    }
+  console.error('AUTH USER LOAD ERROR:', userError)
+  router.replace('/login')
+  return
+  }
 
     const { data, error } = await supabase
       .from('Technicians')
