@@ -6,29 +6,65 @@ import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
   const router = useRouter()
-useEffect(() => {
-  const redirectIfLoggedIn = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
 
-    if (session) {
-      router.replace('/technician')
-   if (checkingSession) {
-  return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <div>Loading...</div>
-    </main>
-  )
-}   
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [checkingSession, setCheckingSession] = useState(true)
+
+  useEffect(() => {
+    const redirectIfLoggedIn = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (session) {
+        router.replace('/technician')
+        return
+      }
+
+      setCheckingSession(false)
+    }
+
+    redirectIfLoggedIn()
+  }, [router])
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    setLoading(true)
+    setError('')
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+      return
+    }
+
+    router.push('/technician')
+  }
+
+  if (checkingSession) {
+    return (
+      <main
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+        }}
+      >
+        <div>Loading...</div>
+      </main>
+    )
+  }
       return (
     }
 
