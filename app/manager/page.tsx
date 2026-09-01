@@ -22,6 +22,11 @@ export default function ManagerPage() {
       return
     }
 
+    const handleSignOut = async () => {
+    await supabase.auth.signOut()
+    window.location.replace('/login')
+    }
+    
     const roleResponse = await fetch('/api/auth/role', {
       headers: {
         Authorization: `Bearer ${session.access_token}`,
@@ -224,7 +229,13 @@ useEffect(() => {
 </button> 
          Tradewise
       </header>
-
+<button
+  type="button"
+  onClick={handleSignOut}
+>
+  Sign out
+</button>
+      
       <section
         style={{
           maxWidth: 760,
