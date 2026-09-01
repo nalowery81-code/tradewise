@@ -18,6 +18,8 @@ export default function TechnicianPage() {
 >([])
 
 const [conversationId, setConversationId] = useState<string | null>(null)
+  
+const [technicianId, setTechnicianId] = useState<string | null>(null)  
 
   const [recentConversations, setRecentConversations] = useState<
   {
@@ -168,7 +170,8 @@ setSelectedImageFile(null)
   message: text,
   image: imageData,
   history: messages.slice(-12),
-  conversationId,    
+  conversationId,
+  technicianId,    
 }),
     })
 
