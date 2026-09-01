@@ -14,7 +14,10 @@ useEffect(() => {
 
     if (session) {
       router.replace('/technician')
+      return
     }
+
+    setCheckingSession(false)
   }
 
   redirectIfLoggedIn()
@@ -23,7 +26,7 @@ useEffect(() => {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-
+  const [checkingSession, setCheckingSession] = useState(true)
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
 
