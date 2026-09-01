@@ -19,6 +19,16 @@ export default function TechnicianPage() {
 
 const [conversationId, setConversationId] = useState<string | null>(null)
 
+  const [recentConversations, setRecentConversations] = useState<
+  {
+    id: string
+    title: string
+    created_at: string
+    updated_at: string
+    status: string
+  }[]
+>([])
+
   const bottomRef = useRef<HTMLDivElement>(null)
   
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -27,6 +37,26 @@ const [conversationId, setConversationId] = useState<string | null>(null)
   useEffect(() => {
   bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => {
+  const loadRecentConversations = async () => {
+    try {
+      const res = await fetch('/api/conversations')
+      const data = await res.json()
+
+      if (!res.ok) {
+        console.error('RECENT CONVERSATIONS LOAD ERROR:', data.error)
+        return
+      }
+
+      setRecentConversations(data.conversations || [])
+    } catch (error) {
+      console.error('RECENT CONVERSATIONS LOAD ERROR:', error)
+    }
+  }
+
+  loadRecentConversations()
+}, [])
   
   const handleImage = (file?: File) => {
     if (!file) return
@@ -196,7 +226,15 @@ setSelectedImageFile(null)
 
         <div style={styles.drawerSection}>
           <div style={styles.sectionTitle}>Recent conversations</div>
-          <div style={styles.emptyText}>No recent conversations yet.</div>
+         {recentConversations.length === 0 ? (
+  <div style={styles.emptyText}>No recent conversations yet.</div>
+) : (
+  recentConversations.map((conversation) => (
+    <div key={conversation.id} style={styles.emptyText}>
+      {conversation.title}
+    </div>
+  ))
+)}
         </div>
 
         <div style={styles.drawerSection}>
