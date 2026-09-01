@@ -76,6 +76,23 @@ const [conversationId, setConversationId] = useState<string | null>(null)
   setDrawerOpen(false)
   setConversationId(null)
 }
+ const loadConversation = async (id: string) => {
+  try {
+    const res = await fetch(`/api/conversations/${id}`)
+    const data = await res.json()
+
+    if (!res.ok) {
+      console.error('CONVERSATION LOAD ERROR:', data.error)
+      return
+    }
+
+    setConversationId(id)
+    setMessages(data.messages || [])
+    setDrawerOpen(false)
+  } catch (error) {
+    console.error('CONVERSATION LOAD ERROR:', error)
+  }
+} 
 const prepareImageForSend = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
