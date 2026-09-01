@@ -246,11 +246,25 @@ setSelectedImageFile(null)
          {recentConversations.length === 0 ? (
   <div style={styles.emptyText}>No recent conversations yet.</div>
 ) : (
-  recentConversations.map((conversation) => (
-    <div key={conversation.id} style={styles.emptyText}>
-      {conversation.title}
-    </div>
-  ))
+ recentConversations.map((conversation) => (
+  <button
+    key={conversation.id}
+    type="button"
+    onClick={() => loadConversation(conversation.id)}
+    style={{
+      ...styles.emptyText,
+      display: 'block',
+      width: '100%',
+      textAlign: 'left',
+      background: 'none',
+      border: 'none',
+      padding: '6px 0',
+      cursor: 'pointer',
+    }}
+  >
+    {conversation.title}
+  </button>
+))
 )}
         </div>
 
