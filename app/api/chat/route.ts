@@ -52,6 +52,23 @@ if (technicianError || !technician) {
     }
     
     let activeConversationId = conversationId
+    
+  if (activeConversationId) {
+  const { data: existingConversation, error: conversationError } =
+    await supabaseServer
+      .from('Conversations')
+      .select('id')
+      .eq('id', activeConversationId)
+      .eq('technician_id', technician.id)
+      .single()
+
+  if (conversationError || !existingConversation) {
+    return Response.json(
+      { error: 'Conversation not found' },
+      { status: 404 }
+    )
+  }
+}    
 
 if (!activeConversationId) {
   const { data: conversation, error: conversationError } =
