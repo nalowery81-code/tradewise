@@ -36,18 +36,40 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+   const {
+  data: { session },
+  error,
+} = await supabase.auth.signInWithPassword({
+  email,
+  password,
+})
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-      return
-    }
+if (error) {
+  setError(error.message)
+  setLoading(false)
+  return
+}
 
-    router.push('/technician')
+const roleResponse = await fetch('/api/auth/role', {
+  headers: {
+    Authorization: `Bearer ${session?.access_token || ''}`,
+  },
+})
+
+if (!roleResponse.ok) {
+  setError('Could not determine your Tradewise role.')
+  setLoading(false)
+  return
+}
+
+const { role } = await roleResponse.json()
+
+if (role === 'manager') {
+  router.push('/manager')
+  return
+}
+
+router.push('/technician')
   }
 
   if (checkingSession) {
