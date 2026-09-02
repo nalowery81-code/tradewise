@@ -5,6 +5,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
+const MANUFACTURER_VECTOR_STORE_ID =
+  'vs_6a98660446588191b62260aac59bbc6e'
+
 export async function POST(req: Request) {
   try {
     const { message, image, history = [], conversationId } = await req.json()
@@ -149,6 +152,10 @@ export async function POST(req: Request) {
 
       tools: [
         {
+          type: 'file_search',
+          vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID],
+        },
+        {
           type: 'web_search',
         },
       ],
@@ -197,6 +204,12 @@ MANUFACTURER DOCUMENTATION:
 
 When the manufacturer and model are known, understand what type of equipment the model actually is.
 
+A manufacturer-document library is available through file search. For Vesta VRP/VRS water heaters, including the VRP-199 / VRP PLUS-199, search the manufacturer-document library FIRST when the technician asks about specifications, gas pressure, venting, piping, wiring, installation, DIP switches, program settings, calibration, components, operating sequence, or other information that may be in the manual.
+
+When the answer is supported by the manufacturer manual, answer from that manual and clearly identify it as manufacturer-manual information. Do not replace a manual-supported answer with generic web information.
+
+If the manufacturer-document library does not contain the needed information, use web search when manufacturer-specific information would improve the answer.
+
 When the technician asks about:
 - error codes
 - fault codes
@@ -208,14 +221,13 @@ When the technician asks about:
 - manufacturer instructions
 - manuals or documentation
 
-use web search when manufacturer-specific information would improve the answer.
+prefer sources in this order:
 
-Prefer sources in this order:
-
-1. The equipment manufacturer's official website.
-2. Official manufacturer installation, service, operation, or technical manuals.
-3. Official manufacturer technical bulletins or support documents.
-4. Reputable distributor or industry sources only when an official manufacturer source cannot be found.
+1. Manufacturer documents available through file search.
+2. The equipment manufacturer's official website.
+3. Official manufacturer installation, service, operation, or technical manuals found on the web.
+4. Official manufacturer technical bulletins or support documents.
+5. Reputable distributor or industry sources only when an official manufacturer source cannot be found.
 
 Never invent an error code, specification, procedure, or manufacturer instruction.
 
@@ -239,7 +251,7 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       ],
     })
 
-  const reply =
+    const reply =
       response.output_text ||
       'I could not generate a response.'
 
@@ -289,7 +301,7 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       reply,
       conversationId: activeConversationId,
       sources,
-    }) 
+    })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
 
