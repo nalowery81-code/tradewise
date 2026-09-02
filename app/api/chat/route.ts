@@ -239,9 +239,37 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       ],
     })
 
-    const reply =
+  const reply =
       response.output_text ||
       'I could not generate a response.'
+
+    const sources: {
+      title: string
+      url: string
+    }[] = []
+
+    for (const outputItem of response.output) {
+      if (outputItem.type !== 'message') continue
+
+      for (const contentItem of outputItem.content) {
+        if (contentItem.type !== 'output_text') continue
+
+        for (const annotation of contentItem.annotations || []) {
+          if (annotation.type !== 'url_citation') continue
+
+          const alreadyAdded = sources.some(
+            (source) => source.url === annotation.url
+          )
+
+          if (!alreadyAdded) {
+            sources.push({
+              title: annotation.title || annotation.url,
+              url: annotation.url,
+            })
+          }
+        }
+      }
+    }
 
     const { error: assistantMessageError } = await supabaseServer
       .from('Messages')
@@ -260,7 +288,8 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
     return Response.json({
       reply,
       conversationId: activeConversationId,
-    })
+      sources,
+    }) 
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
 
