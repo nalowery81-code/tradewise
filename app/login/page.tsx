@@ -19,11 +19,25 @@ export default function LoginPage() {
         data: { session },
       } = await supabase.auth.getSession()
 
-      if (session) {
-        router.replace('/technician')
-        return
-      }
+     if (session) {
+  const roleResponse = await fetch('/api/auth/role', {
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  })
 
+  if (roleResponse.ok) {
+    const { role } = await roleResponse.json()
+
+    if (role === 'manager') {
+      router.replace('/manager')
+      return
+    }
+  }
+
+  router.replace('/technician')
+  return
+} 
       setCheckingSession(false)
     }
 
