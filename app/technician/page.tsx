@@ -15,8 +15,12 @@ export default function TechnicianPage() {
     role: 'user' | 'assistant'
     text: string
     image?: string
+    sources?: {
+      title: string
+      url: string
+    }[]
   }[]
->([])
+>([])  
 
 const [conversationId, setConversationId] = useState<string | null>(null)
   
@@ -255,13 +259,14 @@ try {
     setConversationId(data.conversationId)
     loadRecentConversations()
     
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: 'assistant',
-        text: data.reply,
-      },
-    ])
+   setMessages((prev) => [
+  ...prev,
+  {
+    role: 'assistant',
+    text: data.reply,
+    sources: data.sources || [],
+  },
+])
   } catch (error) {
     console.error('Tradewise chat error:', error)
 
@@ -425,6 +430,33 @@ try {
   )}
 
   {item.text && <div>{item.text}</div>}
+
+{item.sources && item.sources.length > 0 && (
+  <div
+    style={{
+      marginTop: 10,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 6,
+    }}
+  >
+    {item.sources.map((source, sourceIndex) => (
+      <a
+        key={sourceIndex}
+        href={source.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          textDecoration: 'underline',
+          fontSize: 14,
+          fontWeight: 600,
+        }}
+      >
+        {source.title || 'Open manufacturer documentation'}
+      </a>
+    ))}
+  </div>
+)}
 </div> 
     </div>
   ))}
