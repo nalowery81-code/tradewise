@@ -30,12 +30,16 @@ export async function GET(request: Request) {
 
     const { data: profile, error: profileError } = await supabaseServer
       .from('UserProfiles')
-      .select('role, company_id')
+      .select('role, company_id, is_active')
       .eq('auth_user_id', user.id)
       .single()
 
     if (profileError || !profile) {
       return jsonNoStore({ error: 'User profile not found' }, { status: 404 })
+    }
+
+    if (profile.is_active === false) {
+      return jsonNoStore({ error: 'Account inactive' }, { status: 403 })
     }
 
     return jsonNoStore({
