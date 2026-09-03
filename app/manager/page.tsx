@@ -15,6 +15,21 @@ type TechnicianDirectoryItem = {
   latestReflectionAt: string | null
 }
 
+type TechnicianReflection = {
+  job_type: string | null
+  challenge: string | null
+  what_went_well: string | null
+  help_needed: string | null
+  manager_insight: string | null
+  created_at: string
+}
+
+type TechnicianProfile = {
+  technician: { id: string; name: string }
+  reflections: TechnicianReflection[]
+  managerNote: { note: string | null; updated_at: string | null } | null
+}
+
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ManagerMessage[]>([])
@@ -25,10 +40,15 @@ export default function ManagerPage() {
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
-  const [managerView, setManagerView] = useState<'chat' | 'technicians'>('chat')
+  const [managerView, setManagerView] = useState<'chat' | 'technicians' | 'technician-profile'>('chat')
   const [technicians, setTechnicians] = useState<TechnicianDirectoryItem[]>([])
   const [techniciansLoading, setTechniciansLoading] = useState(false)
   const [techniciansError, setTechniciansError] = useState('')
+  const [technicianProfile, setTechnicianProfile] = useState<TechnicianProfile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const [profileError, setProfileError] = useState('')
+  const [profileSummary, setProfileSummary] = useState('')
+  const [profileSummaryLoading, setProfileSummaryLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -44,9 +64,7 @@ export default function ManagerPage() {
 
       try {
         const roleResponse = await fetch('/api/auth/role', {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
+          headers: { Authorization: `Bearer ${session.access_token}` },
         })
 
         if (!roleResponse.ok) {
@@ -89,24 +107,26 @@ export default function ManagerPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
+  const getSession = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession()
+    return session
+  }
+
   const loadTechnicians = async () => {
     setTechniciansLoading(true)
     setTechniciansError('')
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
+      const session = await getSession()
       if (!session) {
         window.location.replace('/login')
         return
       }
 
       const response = await fetch('/api/manager/technicians', {
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await response.json()
 
@@ -126,16 +146,72 @@ export default function ManagerPage() {
 
   const openTechnicians = () => {
     setManagerView('technicians')
+    setTechnicianProfile(null)
+    setProfileSummary('')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     void loadTechnicians()
     if (!isDesktop) setSidebarOpen(false)
   }
 
+  const loadTechnicianProfile = async (technician: TechnicianDirectoryItem) => {
+    setManagerView('technician-profile')
+    setProfileLoading(true)
+    setProfileError('')
+    setProfileSummary('')
+    setProfileSummaryLoading(true)
+    setTechnicianProfile(null)
+
+    try {
+      const session = await getSession()
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const [profileResponse, summaryResponse] = await Promise.all([
+        fetch(`/api/manager/technicians/${technician.id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        }),
+        fetch('/api/manager/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            message: `Give me a concise manager summary of ${technician.name}. Focus on recent issues, strengths, support needs, and what I should follow up on. Do not use markdown symbols like # or **.`,
+          }),
+        }),
+      ])
+
+      const profileData = await profileResponse.json()
+      const summaryData = await summaryResponse.json()
+
+      if (!profileResponse.ok) {
+        setProfileError(profileData.error || 'Could not load technician profile.')
+      } else {
+        setTechnicianProfile(profileData)
+      }
+
+      if (summaryResponse.ok) {
+        setProfileSummary(summaryData.reply || '')
+      }
+    } catch (error) {
+      console.error('MANAGER TECHNICIAN PROFILE ERROR:', error)
+      setProfileError('Could not load technician profile.')
+    } finally {
+      setProfileLoading(false)
+      setProfileSummaryLoading(false)
+    }
+  }
+
   const handleNewChat = () => {
     setMessage('')
     setMessages([])
     setManagerView('chat')
+    setTechnicianProfile(null)
+    setProfileSummary('')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     if (!isDesktop) setSidebarOpen(false)
@@ -158,10 +234,7 @@ export default function ManagerPage() {
     setSending(true)
 
     try {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
+      const session = await getSession()
       if (!session) {
         window.location.replace('/login')
         return
@@ -178,34 +251,33 @@ export default function ManagerPage() {
 
       const data = await response.json()
 
-      if (!response.ok) {
-        setMessages((current) => [
-          ...current,
-          {
-            role: 'assistant',
-            text: data.error || 'I had trouble reading the team data. Try that again.',
-          },
-        ])
-        return
-      }
-
-      setMessages((current) => [...current, { role: 'assistant', text: data.reply }])
-    } catch (error) {
-      console.error('MANAGER CHAT ERROR:', error)
       setMessages((current) => [
         ...current,
         {
           role: 'assistant',
-          text: 'I could not connect to the manager assistant. Try that again.',
+          text: response.ok
+            ? data.reply
+            : data.error || 'I had trouble reading the team data. Try that again.',
         },
+      ])
+    } catch (error) {
+      console.error('MANAGER CHAT ERROR:', error)
+      setMessages((current) => [
+        ...current,
+        { role: 'assistant', text: 'I could not connect to the manager assistant. Try that again.' },
       ])
     } finally {
       setSending(false)
     }
   }
 
-  const sidebarItems = ['New chat', 'Search', 'History', 'Follow-up', 'Technicians', 'Manager Notes']
+  const askAboutProfile = () => {
+    if (!technicianProfile) return
+    const question = message.trim() || `What should I know about ${technicianProfile.technician.name} right now?`
+    void handleSend(`${question}\n\nFocus specifically on ${technicianProfile.technician.name}.`)
+  }
 
+  const sidebarItems = ['New chat', 'Search', 'History', 'Follow-up', 'Technicians', 'Manager Notes']
   const historyCategories = [
     'Weekly Team Review',
     'Technician Development',
@@ -216,7 +288,6 @@ export default function ManagerPage() {
     'Safety & Risk',
     'Operations Follow-Up',
   ]
-
   const starters = [
     'Give me a weekly summary of what the team is dealing with.',
     'Who on the team may need a follow-up?',
@@ -238,9 +309,7 @@ export default function ManagerPage() {
         <div style={sidebarHeaderStyle}>
           <div style={{ fontWeight: 700, fontSize: 18 }}>Tradewise Manager</div>
           {!isDesktop && (
-            <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>
-              ×
-            </button>
+            <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>×</button>
           )}
         </div>
 
@@ -256,8 +325,8 @@ export default function ManagerPage() {
                 }}
                 style={{
                   ...sidebarButtonStyle,
-                  background: item === 'Technicians' && managerView === 'technicians' ? '#eef2f5' : 'transparent',
-                  fontWeight: item === 'Technicians' && managerView === 'technicians' ? 700 : 400,
+                  background: item === 'Technicians' && managerView !== 'chat' ? '#eef2f5' : 'transparent',
+                  fontWeight: item === 'Technicians' && managerView !== 'chat' ? 700 : 400,
                 }}
               >
                 {item}
@@ -286,20 +355,11 @@ export default function ManagerPage() {
           ))}
         </div>
 
-        <button type="button" onClick={handleSignOut} style={signOutStyle}>
-          Sign out
-        </button>
+        <button type="button" onClick={handleSignOut} style={signOutStyle}>Sign out</button>
       </aside>
 
-      <header
-        style={{
-          ...headerStyle,
-          marginLeft: isDesktop && sidebarOpen ? 278 : 0,
-        }}
-      >
-        <button type="button" onClick={() => setSidebarOpen((current) => !current)} style={menuButtonStyle}>
-          ☰
-        </button>
+      <header style={{ ...headerStyle, marginLeft: isDesktop && sidebarOpen ? 278 : 0 }}>
+        <button type="button" onClick={() => setSidebarOpen((current) => !current)} style={menuButtonStyle}>☰</button>
         Tradewise
       </header>
 
@@ -314,13 +374,9 @@ export default function ManagerPage() {
         {managerView === 'technicians' ? (
           <div>
             <div style={{ marginBottom: 28 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                Team
-              </div>
-              <h1 style={{ margin: '8px 0 0', fontSize: 'clamp(28px, 5vw, 38px)' }}>Technicians</h1>
-              <p style={{ marginTop: 10, color: '#6b7280', lineHeight: 1.6 }}>
-                Open a technician to review their history, notes, and coaching context as we build out the profile view.
-              </p>
+              <div style={eyebrowStyle}>Team</div>
+              <h1 style={pageTitleStyle}>Technicians</h1>
+              <p style={subtleTextStyle}>Open a technician to review their recent history, manager context, and coaching needs.</p>
             </div>
 
             {techniciansLoading ? (
@@ -332,19 +388,12 @@ export default function ManagerPage() {
             ) : (
               <div style={{ display: 'grid', gap: 12 }}>
                 {technicians.map((technician) => (
-                  <button
-                    key={technician.id}
-                    type="button"
-                    onClick={() => void handleSend(`Give me a concise summary of ${technician.name}, including recent issues, strengths, support needs, and anything I should follow up on.`)}
-                    style={technicianCardStyle}
-                  >
+                  <button key={technician.id} type="button" onClick={() => void loadTechnicianProfile(technician)} style={technicianCardStyle}>
                     <div>
                       <div style={{ fontSize: 17, fontWeight: 700, color: '#172033' }}>{technician.name}</div>
                       <div style={{ marginTop: 6, fontSize: 14, color: '#64748b' }}>
                         {technician.reflectionCount} reflection{technician.reflectionCount === 1 ? '' : 's'}
-                        {technician.latestReflectionAt
-                          ? ` · Latest ${new Date(technician.latestReflectionAt).toLocaleDateString()}`
-                          : ''}
+                        {technician.latestReflectionAt ? ` · Latest ${new Date(technician.latestReflectionAt).toLocaleDateString()}` : ''}
                       </div>
                     </div>
                     <div style={{ fontSize: 20, color: '#94a3b8' }}>›</div>
@@ -353,44 +402,100 @@ export default function ManagerPage() {
               </div>
             )}
           </div>
+        ) : managerView === 'technician-profile' ? (
+          <div>
+            <button type="button" onClick={openTechnicians} style={backButtonStyle}>← Back to Technicians</button>
+
+            {profileLoading && !technicianProfile ? (
+              <div style={statusCardStyle}>Loading technician profile...</div>
+            ) : profileError ? (
+              <div style={statusCardStyle}>{profileError}</div>
+            ) : technicianProfile ? (
+              <>
+                <div style={{ marginBottom: 28 }}>
+                  <div style={eyebrowStyle}>Technician profile</div>
+                  <h1 style={pageTitleStyle}>{technicianProfile.technician.name}</h1>
+                  <p style={subtleTextStyle}>
+                    {technicianProfile.reflections.length} recent reflection{technicianProfile.reflections.length === 1 ? '' : 's'} loaded
+                  </p>
+                </div>
+
+                <section style={profileSectionStyle}>
+                  <h2 style={sectionTitleStyle}>Manager read</h2>
+                  {profileSummaryLoading ? (
+                    <div style={{ color: '#64748b' }}>Reading recent team data...</div>
+                  ) : profileSummary ? (
+                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{profileSummary}</div>
+                  ) : (
+                    <div style={{ color: '#64748b' }}>No summary available yet.</div>
+                  )}
+                </section>
+
+                <section style={profileSectionStyle}>
+                  <h2 style={sectionTitleStyle}>Manager note</h2>
+                  {technicianProfile.managerNote?.note ? (
+                    <>
+                      <div style={{ lineHeight: 1.6 }}>{technicianProfile.managerNote.note}</div>
+                      {technicianProfile.managerNote.updated_at && (
+                        <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
+                          Updated {new Date(technicianProfile.managerNote.updated_at).toLocaleDateString()}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ color: '#64748b' }}>No manager note saved yet.</div>
+                  )}
+                </section>
+
+                <section style={{ marginTop: 26 }}>
+                  <h2 style={sectionTitleStyle}>Recent reflections</h2>
+                  {technicianProfile.reflections.length === 0 ? (
+                    <div style={statusCardStyle}>No reflections found for this technician.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {technicianProfile.reflections.map((reflection, index) => (
+                        <div key={`${reflection.created_at}-${index}`} style={reflectionCardStyle}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'baseline' }}>
+                            <div style={{ fontWeight: 700 }}>{reflection.job_type || 'Job reflection'}</div>
+                            <div style={{ fontSize: 12, color: '#94a3b8' }}>{new Date(reflection.created_at).toLocaleDateString()}</div>
+                          </div>
+                          <div style={{ marginTop: 10, lineHeight: 1.55 }}>{reflection.challenge || 'No challenge recorded.'}</div>
+                          {reflection.manager_insight && (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f5', color: '#475569', lineHeight: 1.55 }}>
+                              {reflection.manager_insight}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+              </>
+            ) : null}
+          </div>
         ) : selectedHistoryCategory ? (
           selectedConversation ? (
             <div>
-              <button type="button" onClick={() => setSelectedConversation(null)} style={backButtonStyle}>
-                ← Back to History
-              </button>
+              <button type="button" onClick={() => setSelectedConversation(null)} style={backButtonStyle}>← Back to History</button>
               <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>Coaching follow-up: customer communication</h1>
-              <p style={{ marginTop: 12, color: '#6b7280', lineHeight: 1.6 }}>
-                Saved manager conversations will appear here as we build manager history.
-              </p>
+              <p style={subtleTextStyle}>Saved manager conversations will appear here as we build manager history.</p>
             </div>
           ) : (
             <div>
-              <button type="button" onClick={() => setSelectedHistoryCategory(null)} style={backButtonStyle}>
-                ← Back
-              </button>
+              <button type="button" onClick={() => setSelectedHistoryCategory(null)} style={backButtonStyle}>← Back</button>
               <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>{selectedHistoryCategory}</h1>
-              <p style={{ marginTop: 10, color: '#6b7280', lineHeight: 1.6 }}>
-                Conversations and insights related to this area will appear here.
-              </p>
+              <p style={subtleTextStyle}>Conversations and insights related to this area will appear here.</p>
             </div>
           )
         ) : messages.length === 0 ? (
           <>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
-              <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>
-                What would you like to know about your team?
-              </h1>
-              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>
-                Ask Tradewise about technicians, trends, training, or team performance.
-              </p>
+              <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>What would you like to know about your team?</h1>
+              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask Tradewise about technicians, trends, training, or team performance.</p>
             </div>
-
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
               {starters.map((starter) => (
-                <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>
-                  {starter}
-                </button>
+                <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>{starter}</button>
               ))}
             </div>
           </>
@@ -401,7 +506,6 @@ export default function ManagerPage() {
                 <div style={item.role === 'user' ? userBubbleStyle : assistantBubbleStyle}>{item.text}</div>
               </div>
             ))}
-
             {sending && <div style={readingStyle}>Reading the team data...</div>}
             <div ref={bottomRef} />
           </div>
@@ -423,19 +527,24 @@ export default function ManagerPage() {
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            placeholder="Ask Tradewise about your team..."
+            placeholder={managerView === 'technician-profile' && technicianProfile ? `Ask Tradewise about ${technicianProfile.technician.name}...` : 'Ask Tradewise about your team...'}
             rows={1}
             disabled={sending}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
-                void handleSend()
+                if (managerView === 'technician-profile') askAboutProfile()
+                else void handleSend()
               }
             }}
             style={inputStyle}
           />
-
-          <button type="button" onClick={() => void handleSend()} disabled={sending || !message.trim()} style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}>
+          <button
+            type="button"
+            onClick={() => managerView === 'technician-profile' ? askAboutProfile() : void handleSend()}
+            disabled={sending || !message.trim()}
+            style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}
+          >
             ↑
           </button>
         </div>
@@ -444,62 +553,12 @@ export default function ManagerPage() {
   )
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: '100vh',
-  background: '#f7f7f8',
-  fontFamily: 'Arial, Helvetica, sans-serif',
-  color: '#1f2937',
-}
-
-const loadingPageStyle: React.CSSProperties = {
-  ...pageStyle,
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-}
-
-const sidebarStyle: React.CSSProperties = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  bottom: 0,
-  width: 250,
-  background: '#ffffff',
-  borderRight: '1px solid #e5e7eb',
-  padding: '18px 14px',
-  zIndex: 20,
-  flexDirection: 'column',
-}
-
-const sidebarHeaderStyle: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  marginBottom: 22,
-  padding: '0 8px',
-}
-
-const sidebarButtonStyle: React.CSSProperties = {
-  width: '100%',
-  border: 'none',
-  textAlign: 'left',
-  padding: '11px 10px',
-  borderRadius: 10,
-  cursor: 'pointer',
-  fontSize: 15,
-}
-
-const historyButtonStyle: React.CSSProperties = {
-  border: 'none',
-  background: 'transparent',
-  textAlign: 'left',
-  padding: '8px 10px',
-  borderRadius: 8,
-  cursor: 'pointer',
-  fontSize: 13,
-  color: '#6b7280',
-}
-
+const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f7f7f8', fontFamily: 'Arial, Helvetica, sans-serif', color: '#1f2937' }
+const loadingPageStyle: React.CSSProperties = { ...pageStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }
+const sidebarStyle: React.CSSProperties = { position: 'fixed', top: 0, left: 0, bottom: 0, width: 250, background: '#ffffff', borderRight: '1px solid #e5e7eb', padding: '18px 14px', zIndex: 20, flexDirection: 'column' }
+const sidebarHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, padding: '0 8px' }
+const sidebarButtonStyle: React.CSSProperties = { width: '100%', border: 'none', textAlign: 'left', padding: '11px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 15 }
+const historyButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', textAlign: 'left', padding: '8px 10px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: '#6b7280' }
 const iconButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer' }
 const signOutStyle: React.CSSProperties = { width: '100%', border: '1px solid #e5e7eb', background: '#ffffff', textAlign: 'left', padding: '11px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 15, marginTop: 16 }
 const headerStyle: React.CSSProperties = { height: 64, borderBottom: '1px solid #e5e7eb', background: '#ffffff', display: 'flex', alignItems: 'center', padding: '0 20px', fontWeight: 700, fontSize: 20 }
@@ -514,3 +573,9 @@ const inputStyle: React.CSSProperties = { flex: 1, border: 'none', outline: 'non
 const sendButtonStyle: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#111827', color: '#ffffff', cursor: 'pointer', fontSize: 18 }
 const statusCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', color: '#64748b' }
 const technicianCardStyle: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', background: '#ffffff', cursor: 'pointer', boxShadow: '0 3px 12px rgba(15,23,42,0.035)' }
+const eyebrowStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const pageTitleStyle: React.CSSProperties = { margin: '8px 0 0', fontSize: 'clamp(28px, 5vw, 38px)' }
+const subtleTextStyle: React.CSSProperties = { marginTop: 10, color: '#6b7280', lineHeight: 1.6 }
+const profileSectionStyle: React.CSSProperties = { marginTop: 18, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '20px 22px', boxShadow: '0 3px 14px rgba(15,23,42,0.03)' }
+const sectionTitleStyle: React.CSSProperties = { margin: '0 0 14px', fontSize: 18, fontWeight: 700, color: '#172033' }
+const reflectionCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', boxShadow: '0 3px 12px rgba(15,23,42,0.03)' }
