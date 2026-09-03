@@ -38,38 +38,62 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Could not load technicians.' }, { status: 500 })
     }
 
-    const { data: reflections, error: reflectionError } = await supabaseServer
-      .from('Reflections')
-      .select('technician_id, technician_name, created_at')
-      .order('created_at', { ascending: false })
+    const [{ data: reflections, error: reflectionError }, { data: conversations, error: conversationError }] = await Promise.all([
+      supabaseServer
+        .from('Reflections')
+        .select('technician_id, technician_name, created_at')
+        .order('created_at', { ascending: false }),
+      supabaseServer
+        .from('Conversations')
+        .select('technician_id, created_at, updated_at')
+        .order('created_at', { ascending: false }),
+    ])
 
     if (reflectionError) {
       console.error('MANAGER TECHNICIAN REFLECTION LOAD ERROR:', reflectionError)
       return Response.json({ error: 'Could not load technician activity.' }, { status: 500 })
     }
 
-    const activity = new Map<string, { count: number; latest: string | null }>()
+    if (conversationError) {
+      console.error('MANAGER TECHNICIAN CONVERSATION LOAD ERROR:', conversationError)
+      return Response.json({ error: 'Could not load technician activity.' }, { status: 500 })
+    }
+
+    const reflectionActivity = new Map<string, { count: number; latest: string | null }>()
+    const conversationActivity = new Map<string, { count: number; latest: string | null }>()
 
     for (const reflection of reflections || []) {
       const key = reflection.technician_id || reflection.technician_name
       if (!key) continue
 
-      const current = activity.get(key) || { count: 0, latest: null }
+      const current = reflectionActivity.get(key) || { count: 0, latest: null }
       current.count += 1
       if (!current.latest) current.latest = reflection.created_at || null
-      activity.set(key, current)
+      reflectionActivity.set(key, current)
+    }
+
+    for (const conversation of conversations || []) {
+      if (!conversation.technician_id) continue
+
+      const current = conversationActivity.get(conversation.technician_id) || { count: 0, latest: null }
+      current.count += 1
+      if (!current.latest) current.latest = conversation.updated_at || conversation.created_at || null
+      conversationActivity.set(conversation.technician_id, current)
     }
 
     const directory = (technicians || []).map((technician) => {
-      const byId = activity.get(technician.id)
-      const byName = activity.get(technician.canonical_name)
-      const summary = byId || byName || { count: 0, latest: null }
+      const reflectionById = reflectionActivity.get(technician.id)
+      const reflectionByName = reflectionActivity.get(technician.canonical_name)
+      const reflectionSummary = reflectionById || reflectionByName || { count: 0, latest: null }
+      const conversationSummary = conversationActivity.get(technician.id) || { count: 0, latest: null }
 
       return {
         id: technician.id,
         name: technician.canonical_name,
-        reflectionCount: summary.count,
-        latestReflectionAt: summary.latest,
+        reflectionCount: reflectionSummary.count,
+        latestReflectionAt: reflectionSummary.latest,
+        conversationCount: conversationSummary.count,
+        latestConversationAt: conversationSummary.latest,
       }
     })
 
