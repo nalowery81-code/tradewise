@@ -156,10 +156,10 @@ export async function POST(req: Request) {
       tools: [
         {
           type: 'file_search',
-         vector_store_ids: [
-  MANUFACTURER_VECTOR_STORE_ID,
-  INDIANA_CODE_VECTOR_STORE_ID,
-],
+          vector_store_ids: [
+            MANUFACTURER_VECTOR_STORE_ID,
+            INDIANA_CODE_VECTOR_STORE_ID,
+          ],
         },
         {
           type: 'web_search',
@@ -185,7 +185,42 @@ HOW YOU SHOULD COMMUNICATE:
 - Respond naturally to exactly what the technician just told you.
 - Guide troubleshooting one step at a time.
 - Never invent measurements, symptoms, model numbers, serial numbers, conditions, test results, error codes, specifications, or manufacturer procedures.
-- If you are unsure what you can see in an image, say so.  RESPONSE STYLE:  Simple and effective is the objective.  For simple questions, answer simply. Do not add sections or extra formatting when a short conversational answer is enough.  When an answer needs multiple technical ideas, code requirements, manufacturer requirements, or a field conclusion, make it easy to scan:  - Break the answer into short sections with clear bold headings. - Use whitespace between sections. - Keep paragraphs short. - Put the most useful field information first. - Use bullets only when they make the answer easier to understand. - Bold important limits, measurements, warnings, or conclusions when helpful. - Translate technical requirements into practical field language without changing their meaning. - Avoid walls of text.  For answers involving both code and manufacturer documentation, prefer this structure when applicable:  **Indiana Code** [short verified code requirement]  **Manufacturer** [short verified manufacturer requirement]  **What this means** [plain-language field conclusion based only on the verified sources]  Do not force this structure when one section is not relevant.  After answering, when another piece of information would help diagnose the problem, verify compliance, or determine the technician's next step, end with ONE short, useful question.  The final question should move the job forward. Make it specific and easy to answer. When useful, give a few likely choices instead of asking a broad open-ended question.  EQUIPMENT IDENTIFICATION:
+- If you are unsure what you can see in an image, say so.
+
+RESPONSE STYLE:
+
+Simple and effective is the objective.
+
+For simple questions, answer simply. Do not add sections or extra formatting when a short conversational answer is enough.
+
+When an answer needs multiple technical ideas, code requirements, manufacturer requirements, or a field conclusion, make it easy to scan:
+
+- Break the answer into short sections with clear headings.
+- Put each heading on its own line.
+- Put a blank line before and after each section.
+- Keep paragraphs short.
+- Put the most useful field information first.
+- Use bullets only when they make the answer easier to understand.
+- Use plain text headings instead of Markdown bold markers such as **Heading**.
+- Translate technical requirements into practical field language without changing their meaning.
+- Avoid walls of text.
+
+For answers involving both code and manufacturer documentation, prefer this structure when applicable:
+
+Indiana Code
+[short verified code requirement]
+
+Manufacturer
+[short verified manufacturer requirement]
+
+What this means
+[plain-language field conclusion based only on the verified sources]
+
+Do not force this structure when one section is not relevant.
+
+After answering, when another piece of information would help diagnose the problem, verify compliance, or determine the technician's next step, end with ONE short, useful question.
+
+The final question should move the job forward. Make it specific and easy to answer. When useful, give a few likely choices instead of asking a broad open-ended question.
 
 EQUIPMENT IDENTIFICATION:
 
@@ -233,6 +268,7 @@ Be precise about the source of each Indiana code requirement:
 - Do not call an unchanged 2006 IPC section an Indiana amendment merely because Indiana adopted the IPC.
 - Do not summarize a mixed list of amended and unamended requirements by saying "these are Indiana amendments." Label amended provisions and adopted base-code provisions separately.
 - When several requirements are listed together, only attribute a requirement to 675 IAC 16-1.4 if the retrieved amendment document actually changes that specific requirement.
+
 If the verified Indiana code library does not support the answer, say that clearly rather than filling the gap from general knowledge or web search.
 
 Keep manufacturer requirements and Indiana code requirements distinct. Do not describe a manufacturer instruction as a code requirement or a code requirement as a manufacturer instruction.
@@ -240,7 +276,9 @@ Keep manufacturer requirements and Indiana code requirements distinct. Do not de
 When both apply, structure the answer clearly as:
 Indiana Code: [verified code requirement]
 Manufacturer: [verified manufacturer requirement]
-Conclusion: [only what those verified sources support]  For code or manufacturer conflicts, do not add legal, permitting, approval, inspection, or AHJ advice unless the retrieved authoritative sources specifically support that advice. Do not invent a requirement for written approval, a permit condition, an inspector decision, or an enforcement procedure.
+Conclusion: [only what those verified sources support]
+
+For code or manufacturer conflicts, do not add legal, permitting, approval, inspection, or AHJ advice unless the retrieved authoritative sources specifically support that advice. Do not invent a requirement for written approval, a permit condition, an inspector decision, or an enforcement procedure.
 
 Do not assume that manufacturer instructions always override code. Only describe an interaction between manufacturer instructions and Indiana code when the retrieved authoritative code supports that interaction.
 
@@ -295,20 +333,20 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       ],
     })
 
-  const rawReply =
-  response.output_text ||
-  'I could not generate a response.'
+    const rawReply =
+      response.output_text ||
+      'I could not generate a response.'
 
-const reply = rawReply
-  .replace(/]+/g, '')
-  .replace(/\s{2,}/g, ' ')
-  .trim()
+    const reply = rawReply
+      .replace(/filecite[^]+/g, '')
+      .replace(/[ \t]{2,}/g, ' ')
+      .trim()
 
     const sources: {
-  title: string
-  url?: string
-  type: 'web' | 'file'
-}[] = []
+      title: string
+      url?: string
+      type: 'web' | 'file'
+    }[] = []
 
     for (const outputItem of response.output) {
       if (outputItem.type !== 'message') continue
@@ -316,44 +354,44 @@ const reply = rawReply
       for (const contentItem of outputItem.content) {
         if (contentItem.type !== 'output_text') continue
 
-    for (const annotation of contentItem.annotations || []) {
-  if (annotation.type === 'url_citation') {
-    const alreadyAdded = sources.some(
-      (source) =>
-        source.type === 'web' &&
-        source.url === annotation.url
-    )
+        for (const annotation of contentItem.annotations || []) {
+          if (annotation.type === 'url_citation') {
+            const alreadyAdded = sources.some(
+              (source) =>
+                source.type === 'web' &&
+                source.url === annotation.url
+            )
 
-    if (!alreadyAdded) {
-      sources.push({
-        title: annotation.title || annotation.url,
-        url: annotation.url,
-        type: 'web',
-      })
-    }
-  }
+            if (!alreadyAdded) {
+              sources.push({
+                title: annotation.title || annotation.url,
+                url: annotation.url,
+                type: 'web',
+              })
+            }
+          }
 
-  if (annotation.type === 'file_citation') {
-    const title =
-      annotation.filename || 'Verified document'
+          if (annotation.type === 'file_citation') {
+            const title =
+              annotation.filename || 'Verified document'
 
-    const alreadyAdded = sources.some(
-      (source) =>
-        source.type === 'file' &&
-        source.title === title
-    )
+            const alreadyAdded = sources.some(
+              (source) =>
+                source.type === 'file' &&
+                source.title === title
+            )
 
-    if (!alreadyAdded) {
-      sources.push({
-        title,
-        type: 'file',
-      })
-    }
-  }
-}    
+            if (!alreadyAdded) {
+              sources.push({
+                title,
+                type: 'file',
+              })
+            }
+          }
+        }
       }
     }
-    
+
     const { error: assistantMessageError } = await supabaseServer
       .from('Messages')
       .insert({
