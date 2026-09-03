@@ -9,6 +9,8 @@ type TechnicianDirectoryItem = {
   name: string
   reflectionCount: number
   latestReflectionAt: string | null
+  conversationCount: number
+  latestConversationAt: string | null
 }
 type TechnicianReflection = {
   job_type: string | null
@@ -50,6 +52,18 @@ const splitManagerSummary = (text: string): ManagerSummarySection[] => {
   }
 
   return sections.length ? sections : [{ title: 'Manager read', body: cleaned }]
+}
+
+const getLatestTechnicianActivity = (technician: TechnicianDirectoryItem) => {
+  const dates = [technician.latestReflectionAt, technician.latestConversationAt].filter(
+    (value): value is string => Boolean(value)
+  )
+
+  if (!dates.length) return null
+
+  return dates.reduce((latest, current) =>
+    new Date(current).getTime() > new Date(latest).getTime() ? current : latest
+  )
 }
 
 const SummaryBody = ({ body }: { body: string }) => {
@@ -369,6 +383,8 @@ export default function ManagerPage() {
       name: followUp.technician_name,
       reflectionCount: 0,
       latestReflectionAt: null,
+      conversationCount: 0,
+      latestConversationAt: null,
     })
   }
 
@@ -580,26 +596,43 @@ export default function ManagerPage() {
         ) : managerView === 'technicians' ? (
           <div>
             <div style={{ marginBottom: 28 }}>
-              <div style={eyebrowStyle}>Team</div>
-              <h1 style={pageTitleStyle}>Technicians</h1>
+              <div style={technicianDirectoryHeaderStyle}>
+                <div>
+                  <div style={eyebrowStyle}>Team</div>
+                  <h1 style={pageTitleStyle}>Technicians</h1>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.location.assign('/manager/add-technician')}
+                  style={addTechnicianButtonStyle}
+                >
+                  + Add Technician
+                </button>
+              </div>
               <p style={subtleTextStyle}>Open a technician to review their recent history, manager context, and coaching needs.</p>
             </div>
             {techniciansLoading ? <div style={statusCardStyle}>Loading technicians...</div> :
              techniciansError ? <div style={statusCardStyle}>{techniciansError}</div> :
              technicians.length === 0 ? <div style={statusCardStyle}>No technicians found yet.</div> : (
               <div style={{ display: 'grid', gap: 12 }}>
-                {technicians.map((technician) => (
-                  <button key={technician.id} type="button" onClick={() => void loadTechnicianProfile(technician)} style={technicianCardStyle}>
-                    <div>
-                      <div style={{ fontSize: 17, fontWeight: 700, color: '#172033' }}>{technician.name}</div>
-                      <div style={{ marginTop: 6, fontSize: 14, color: '#64748b' }}>
-                        {technician.reflectionCount} reflection{technician.reflectionCount === 1 ? '' : 's'}
-                        {technician.latestReflectionAt ? ` · Latest ${new Date(technician.latestReflectionAt).toLocaleDateString()}` : ''}
+                {technicians.map((technician) => {
+                  const latestActivityAt = getLatestTechnicianActivity(technician)
+
+                  return (
+                    <button key={technician.id} type="button" onClick={() => void loadTechnicianProfile(technician)} style={technicianCardStyle}>
+                      <div>
+                        <div style={{ fontSize: 17, fontWeight: 700, color: '#172033' }}>{technician.name}</div>
+                        <div style={{ marginTop: 6, fontSize: 14, color: '#64748b' }}>
+                          {technician.reflectionCount} reflection{technician.reflectionCount === 1 ? '' : 's'}
+                          {' · '}
+                          {technician.conversationCount} conversation{technician.conversationCount === 1 ? '' : 's'}
+                          {latestActivityAt ? ` · Latest ${new Date(latestActivityAt).toLocaleDateString()}` : ''}
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ fontSize: 20, color: '#94a3b8' }}>›</div>
-                  </button>
-                ))}
+                      <div style={{ fontSize: 20, color: '#94a3b8' }}>›</div>
+                    </button>
+                  )
+                })}
               </div>
             )}
           </div>
@@ -768,6 +801,8 @@ const inputStyle: React.CSSProperties = { flex: 1, border: 'none', outline: 'non
 const sendButtonStyle: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#111827', color: '#ffffff', cursor: 'pointer', fontSize: 18 }
 const statusCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', color: '#64748b' }
 const technicianCardStyle: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', background: '#ffffff', cursor: 'pointer', boxShadow: '0 3px 12px rgba(15,23,42,0.035)' }
+const technicianDirectoryHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }
+const addTechnicianButtonStyle: React.CSSProperties = { border: 'none', borderRadius: 11, padding: '10px 14px', background: '#172033', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }
 const eyebrowStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
 const pageTitleStyle: React.CSSProperties = { margin: '8px 0 0', fontSize: 'clamp(28px, 5vw, 38px)' }
 const subtleTextStyle: React.CSSProperties = { marginTop: 10, color: '#6b7280', lineHeight: 1.6 }
