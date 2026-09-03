@@ -1,102 +1,41 @@
 import OpenAI from 'openai'
 import { supabaseServer } from '../../lib/supabase-server'
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-})
-
-const MANUFACTURER_VECTOR_STORE_ID =
-  'vs_6a98660446588191b62260aac59bbc6e'
-
-const INDIANA_CODE_VECTOR_STORE_ID =
-  'vs_6a996352eeb881918287dd09964c66e7'
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
+const INDIANA_CODE_VECTOR_STORE_ID = 'vs_6a996352eeb881918287dd09964c66e7'
 
 export async function POST(req: Request) {
   try {
     const { message, image, history = [], conversationId } = await req.json()
-
     const authHeader = req.headers.get('authorization')
-
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!authHeader?.startsWith('Bearer ')) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
     const accessToken = authHeader.replace('Bearer ', '')
     const { data: { user }, error: userError } = await supabaseServer.auth.getUser(accessToken)
+    if (userError || !user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (userError || !user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: technician, error: technicianError } = await supabaseServer
-      .from('Technicians')
-      .select('id')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (technicianError || !technician) {
-      return Response.json({ error: 'Technician not found' }, { status: 404 })
-    }
-
-    if (!message?.trim() && !image) {
-      return Response.json({ error: 'A message or image is required.' }, { status: 400 })
-    }
+    const { data: technician, error: technicianError } = await supabaseServer.from('Technicians').select('id').eq('auth_user_id', user.id).single()
+    if (technicianError || !technician) return Response.json({ error: 'Technician not found' }, { status: 404 })
+    if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
 
     let activeConversationId = conversationId
-
     if (activeConversationId) {
-      const { data: existingConversation, error: conversationError } = await supabaseServer
-        .from('Conversations')
-        .select('id')
-        .eq('id', activeConversationId)
-        .eq('technician_id', technician.id)
-        .single()
-
-      if (conversationError || !existingConversation) {
-        return Response.json({ error: 'Conversation not found' }, { status: 404 })
-      }
+      const { data: existingConversation, error: conversationError } = await supabaseServer.from('Conversations').select('id').eq('id', activeConversationId).eq('technician_id', technician.id).single()
+      if (conversationError || !existingConversation) return Response.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
     if (!activeConversationId) {
-      const { data: conversation, error: conversationError } = await supabaseServer
-        .from('Conversations')
-        .insert({
-          title: message?.trim()?.slice(0, 80) || 'New conversation',
-          status: 'active',
-          technician_id: technician.id,
-        })
-        .select('id')
-        .single()
-
+      const { data: conversation, error: conversationError } = await supabaseServer.from('Conversations').insert({ title: message?.trim()?.slice(0, 80) || 'New conversation', status: 'active', technician_id: technician.id }).select('id').single()
       if (conversationError) throw conversationError
       activeConversationId = conversation.id
     }
 
-    const { error: userMessageError } = await supabaseServer.from('Messages').insert({
-      conversation_id: activeConversationId,
-      role: 'user',
-      content: message?.trim() || '',
-      image_url: image || null,
-    })
+    const { error: userMessageError } = await supabaseServer.from('Messages').insert({ conversation_id: activeConversationId, role: 'user', content: message?.trim() || '', image_url: image || null })
     if (userMessageError) throw userMessageError
 
-    const conversationHistory: any[] = Array.isArray(history)
-      ? history
-          .filter((item: any) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string')
-          .map((item: any) => ({
-            role: item.role,
-            content: [{
-              type: item.role === 'assistant' ? 'output_text' : 'input_text',
-              text: item.text,
-            }],
-          }))
-      : []
-
-    const userContent: any[] = [{
-      type: 'input_text',
-      text: message?.trim() || 'Look at this image and help me understand what I am working with.',
-    }]
-
+    const conversationHistory: any[] = Array.isArray(history) ? history.filter((item: any) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string').map((item: any) => ({ role: item.role, content: [{ type: item.role === 'assistant' ? 'output_text' : 'input_text', text: item.text }] })) : []
+    const userContent: any[] = [{ type: 'input_text', text: message?.trim() || 'Look at this image and help me understand what I am working with.' }]
     if (image) userContent.push({ type: 'input_image', image_url: image })
 
     const response = await openai.responses.create({
@@ -126,6 +65,7 @@ Simple and effective is the objective.
 - Keep paragraphs short and use bullets only when helpful.
 - Do not use Markdown bold markers for headings.
 - Do not place URLs, Markdown links, source-domain citations, parenthetical web citations, or raw citation markers in the visible answer text. Source links are displayed separately by the Tradewise interface under Verified sources.
+- Never append a source domain in parentheses such as (example.com) to a sentence.
 - When web search or file search supports an answer, write the answer cleanly and let the interface display the captured sources separately.
 - End with ONE short useful question when another piece of information would move the job forward.
 
@@ -182,17 +122,16 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
     })
 
     const rawReply = response.output_text || 'I could not generate a response.'
-
     const reply = rawReply
       .replace(/filecite[^]+/g, '')
       .replace(/cite[^]+/g, '')
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
       .replace(/\(\s*https?:\/\/[^)]+\)/g, '')
+      .replace(/\(\s*(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^)]*)?\s*\)/gi, '')
       .replace(/[ \t]{2,}/g, ' ')
       .trim()
 
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
-
     for (const outputItem of response.output) {
       if (outputItem.type !== 'message') continue
       for (const contentItem of outputItem.content) {
@@ -211,14 +150,8 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       }
     }
 
-    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({
-      conversation_id: activeConversationId,
-      role: 'assistant',
-      content: reply,
-      image_url: null,
-    })
+    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({ conversation_id: activeConversationId, role: 'assistant', content: reply, image_url: null })
     if (assistantMessageError) throw assistantMessageError
-
     return Response.json({ reply, conversationId: activeConversationId, sources })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
