@@ -20,6 +20,9 @@ export async function POST(req: Request) {
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
 
     let activeConversationId = conversationId
+    const isNewConversation = !activeConversationId
+    const isPhotoStartedConversation = isNewConversation && !message?.trim() && !!image
+
     if (activeConversationId) {
       const { data: existingConversation, error: conversationError } = await supabaseServer.from('Conversations').select('id').eq('id', activeConversationId).eq('technician_id', technician.id).single()
       if (conversationError || !existingConversation) return Response.json({ error: 'Conversation not found' }, { status: 404 })
@@ -150,6 +153,34 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
             if (!alreadyAdded) sources.push({ title, type: 'file' })
           }
         }
+      }
+    }
+
+    if (isPhotoStartedConversation) {
+      try {
+        const titleResponse = await openai.responses.create({
+          model: 'gpt-5.6-luna',
+          instructions: 'Create a concise conversation title of 3 to 8 words. If equipment is identified, prioritize manufacturer and model. Return only the title with no punctuation or explanation. Do not invent any information.',
+          input: `Create a title from this verified assistant response:\n\n${reply}`,
+        })
+
+        const generatedTitle = titleResponse.output_text
+          ?.replace(/[\r\n]+/g, ' ')
+          .replace(/^['\"“”]+|['\"“”]+$/g, '')
+          .trim()
+          .slice(0, 80)
+
+        if (generatedTitle) {
+          const { error: titleUpdateError } = await supabaseServer
+            .from('Conversations')
+            .update({ title: generatedTitle })
+            .eq('id', activeConversationId)
+            .eq('technician_id', technician.id)
+
+          if (titleUpdateError) console.error('CONVERSATION TITLE UPDATE ERROR:', titleUpdateError)
+        }
+      } catch (titleError) {
+        console.error('CONVERSATION TITLE GENERATION ERROR:', titleError)
       }
     }
 
