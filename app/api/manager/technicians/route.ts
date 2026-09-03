@@ -1,36 +1,17 @@
 import { supabaseServer } from '../../../lib/supabase-server'
+import { requireManagementAccess } from '../../../lib/management-auth'
 
 export async function GET(request: Request) {
   try {
-    const authHeader = request.headers.get('authorization')
+    const auth = await requireManagementAccess(request)
+    if ('error' in auth) return auth.error
 
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const accessToken = authHeader.replace('Bearer ', '')
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser(accessToken)
-
-    if (userError || !user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('UserProfiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (profileError || profile?.role !== 'manager') {
-      return Response.json({ error: 'Manager access required' }, { status: 403 })
-    }
+    const companyId = auth.profile.company_id
 
     const { data: technicians, error: technicianError } = await supabaseServer
       .from('Technicians')
       .select('id, canonical_name')
+      .eq('company_id', companyId)
       .order('canonical_name', { ascending: true })
 
     if (technicianError) {
@@ -42,10 +23,12 @@ export async function GET(request: Request) {
       supabaseServer
         .from('Reflections')
         .select('technician_id, technician_name, created_at')
+        .eq('company_id', companyId)
         .order('created_at', { ascending: false }),
       supabaseServer
         .from('Conversations')
         .select('technician_id, created_at, updated_at')
+        .eq('company_id', companyId)
         .order('created_at', { ascending: false }),
     ])
 
@@ -100,9 +83,6 @@ export async function GET(request: Request) {
     return Response.json({ technicians: directory })
   } catch (error: any) {
     console.error('MANAGER TECHNICIAN DIRECTORY API ERROR:', error)
-    return Response.json(
-      { error: error?.message || 'Could not load technicians.' },
-      { status: 500 }
-    )
+    return Response.json({ error: error?.message || 'Could not load technicians.' }, { status: 500 })
   }
 }
