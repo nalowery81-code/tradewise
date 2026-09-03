@@ -24,3 +24,31 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Technician desktop layout: keep navigation visible on large screens only.
+   Phone and tablet behavior stays unchanged. */
+@media (min-width: 1200px) {
+  main > aside {
+    transform: translateX(0) !important;
+    box-shadow: none !important;
+    border-right: 1px solid #e5e7eb;
+  }
+
+  main > aside button[aria-label="Close menu"] {
+    display: none !important;
+  }
+
+  main > header,
+  main > section {
+    margin-left: 330px;
+  }
+
+  main > header button[aria-label="Open menu"] {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  main > section + div {
+    left: 330px !important;
+  }
+}

@@ -25,7 +25,7 @@ const DOCUMENTS: Array<{
     },
   },
   {
-    url: 'https://www.in.gov/legislative/iac/20121024-IR-675110448FRA.xml.pdf',
+   url: 'https://laccqupnsredkuczkivd.supabase.co/storage/v1/object/public/tradewise-code/2012-IPC-IN-amendments.pdf',
     filename: '2012-Indiana-Plumbing-Code-Amendments.pdf',
     attributes: {
       authority_lane: 'indiana_code',
