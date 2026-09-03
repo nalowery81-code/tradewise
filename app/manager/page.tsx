@@ -30,6 +30,58 @@ type TechnicianProfile = {
   managerNote: { note: string | null; updated_at: string | null } | null
 }
 
+type ManagerSummarySection = {
+  title: string
+  body: string
+}
+
+const splitManagerSummary = (text: string): ManagerSummarySection[] => {
+  const cleaned = text
+    .replace(/#{1,6}\s*/g, '')
+    .replace(/\*\*/g, '')
+    .replace(/\r/g, '')
+    .trim()
+
+  if (!cleaned) return []
+
+  const parts = cleaned.split(
+    /\b(Recent issues|Strengths|Support needs|Follow up)\b\s*:?\s*/gi
+  )
+
+  const sections: ManagerSummarySection[] = []
+
+  for (let index = 1; index < parts.length; index += 2) {
+    const title = parts[index]?.trim()
+    const body = parts[index + 1]?.trim()
+    if (title && body) sections.push({ title, body })
+  }
+
+  if (sections.length > 0) return sections
+
+  return [{ title: 'Manager read', body: cleaned }]
+}
+
+const renderSummaryBody = (body: string) => {
+  const bulletParts = body
+    .split(/\n+/)
+    .map((item) => item.replace(/^[-•]\s*/, '').trim())
+    .filter(Boolean)
+
+  if (bulletParts.length > 1) {
+    return (
+      <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 7 }}>
+        {bulletParts.map((item, index) => (
+          <li key={`${item}-${index}`} style={{ lineHeight: 1.55 }}>
+            {item}
+          </li>
+        ))}
+      </ul>
+    )
+  }
+
+  return <div style={{ lineHeight: 1.6 }}>{body}</div>
+}
+
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ManagerMessage[]>([])
@@ -49,6 +101,9 @@ export default function ManagerPage() {
   const [profileError, setProfileError] = useState('')
   const [profileSummary, setProfileSummary] = useState('')
   const [profileSummaryLoading, setProfileSummaryLoading] = useState(false)
+  const [managerNoteDraft, setManagerNoteDraft] = useState('')
+  const [managerNoteSaving, setManagerNoteSaving] = useState(false)
+  const [managerNoteStatus, setManagerNoteStatus] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -148,6 +203,8 @@ export default function ManagerPage() {
     setManagerView('technicians')
     setTechnicianProfile(null)
     setProfileSummary('')
+    setManagerNoteDraft('')
+    setManagerNoteStatus('')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     void loadTechnicians()
@@ -160,6 +217,8 @@ export default function ManagerPage() {
     setProfileError('')
     setProfileSummary('')
     setProfileSummaryLoading(true)
+    setManagerNoteDraft('')
+    setManagerNoteStatus('')
     setTechnicianProfile(null)
 
     try {
@@ -180,7 +239,7 @@ export default function ManagerPage() {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
-            message: `Give me a concise manager summary of ${technician.name}. Focus on recent issues, strengths, support needs, and what I should follow up on. Do not use markdown symbols like # or **.`,
+            message: `Give me a concise manager summary of ${technician.name}. Return exactly these four sections in this order: Recent issues, Strengths, Support needs, Follow up. Put each heading on its own line. Under each heading use 1 to 3 short bullet lines. No introduction. Do not use markdown heading or bold symbols such as # or **.`,
           }),
         }),
       ])
@@ -192,6 +251,7 @@ export default function ManagerPage() {
         setProfileError(profileData.error || 'Could not load technician profile.')
       } else {
         setTechnicianProfile(profileData)
+        setManagerNoteDraft(profileData.managerNote?.note || '')
       }
 
       if (summaryResponse.ok) {
@@ -206,12 +266,63 @@ export default function ManagerPage() {
     }
   }
 
+  const saveManagerNote = async () => {
+    if (!technicianProfile || managerNoteSaving) return
+
+    setManagerNoteSaving(true)
+    setManagerNoteStatus('')
+
+    try {
+      const session = await getSession()
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch(
+        `/api/manager/technicians/${technicianProfile.technician.id}/note`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ note: managerNoteDraft }),
+        }
+      )
+      const data = await response.json()
+
+      if (!response.ok) {
+        setManagerNoteStatus(data.error || 'Could not save note.')
+        return
+      }
+
+      setTechnicianProfile((current) =>
+        current
+          ? {
+              ...current,
+              managerNote: data.managerNote,
+            }
+          : current
+      )
+      setManagerNoteDraft(data.managerNote?.note || '')
+      setManagerNoteStatus('Saved')
+    } catch (error) {
+      console.error('MANAGER NOTE SAVE ERROR:', error)
+      setManagerNoteStatus('Could not save note.')
+    } finally {
+      setManagerNoteSaving(false)
+    }
+  }
+
   const handleNewChat = () => {
     setMessage('')
     setMessages([])
     setManagerView('chat')
     setTechnicianProfile(null)
     setProfileSummary('')
+    setManagerNoteDraft('')
+    setManagerNoteStatus('')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     if (!isDesktop) setSidebarOpen(false)
@@ -294,6 +405,8 @@ export default function ManagerPage() {
     'What recurring issues are showing up?',
     'Where do you see training opportunities?',
   ]
+
+  const managerSummarySections = splitManagerSummary(profileSummary)
 
   if (checkingAccess) {
     return (
@@ -424,27 +537,56 @@ export default function ManagerPage() {
                   <h2 style={sectionTitleStyle}>Manager read</h2>
                   {profileSummaryLoading ? (
                     <div style={{ color: '#64748b' }}>Reading recent team data...</div>
-                  ) : profileSummary ? (
-                    <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.65 }}>{profileSummary}</div>
+                  ) : managerSummarySections.length > 0 ? (
+                    <div style={{ display: 'grid', gap: 12 }}>
+                      {managerSummarySections.map((section) => (
+                        <div key={section.title} style={summarySectionStyle}>
+                          <div style={summarySectionTitleStyle}>{section.title}</div>
+                          <div style={{ marginTop: 7 }}>{renderSummaryBody(section.body)}</div>
+                        </div>
+                      ))}
+                    </div>
                   ) : (
                     <div style={{ color: '#64748b' }}>No summary available yet.</div>
                   )}
                 </section>
 
                 <section style={profileSectionStyle}>
-                  <h2 style={sectionTitleStyle}>Manager note</h2>
-                  {technicianProfile.managerNote?.note ? (
-                    <>
-                      <div style={{ lineHeight: 1.6 }}>{technicianProfile.managerNote.note}</div>
-                      {technicianProfile.managerNote.updated_at && (
-                        <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
-                          Updated {new Date(technicianProfile.managerNote.updated_at).toLocaleDateString()}
-                        </div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ color: '#64748b' }}>No manager note saved yet.</div>
-                  )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
+                    <h2 style={sectionTitleStyle}>Manager note</h2>
+                    {technicianProfile.managerNote?.updated_at && (
+                      <div style={{ fontSize: 12, color: '#94a3b8' }}>
+                        Updated {new Date(technicianProfile.managerNote.updated_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+
+                  <textarea
+                    value={managerNoteDraft}
+                    onChange={(event) => {
+                      setManagerNoteDraft(event.target.value)
+                      if (managerNoteStatus) setManagerNoteStatus('')
+                    }}
+                    placeholder={`Add a private manager note about ${technicianProfile.technician.name}...`}
+                    rows={4}
+                    style={managerNoteInputStyle}
+                  />
+
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => void saveManagerNote()}
+                      disabled={managerNoteSaving}
+                      style={{ ...saveNoteButtonStyle, opacity: managerNoteSaving ? 0.6 : 1 }}
+                    >
+                      {managerNoteSaving ? 'Saving...' : 'Save note'}
+                    </button>
+                    {managerNoteStatus && (
+                      <div style={{ fontSize: 13, color: managerNoteStatus === 'Saved' ? '#475569' : '#991b1b' }}>
+                        {managerNoteStatus}
+                      </div>
+                    )}
+                  </div>
                 </section>
 
                 <section style={{ marginTop: 26 }}>
@@ -579,3 +721,7 @@ const subtleTextStyle: React.CSSProperties = { marginTop: 10, color: '#6b7280', 
 const profileSectionStyle: React.CSSProperties = { marginTop: 18, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '20px 22px', boxShadow: '0 3px 14px rgba(15,23,42,0.03)' }
 const sectionTitleStyle: React.CSSProperties = { margin: '0 0 14px', fontSize: 18, fontWeight: 700, color: '#172033' }
 const reflectionCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', boxShadow: '0 3px 12px rgba(15,23,42,0.03)' }
+const summarySectionStyle: React.CSSProperties = { background: '#f8fafc', border: '1px solid #eef2f5', borderRadius: 14, padding: '14px 16px' }
+const summarySectionTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: '#172033' }
+const managerNoteInputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 12, padding: '12px 14px', resize: 'vertical', fontFamily: 'inherit', fontSize: 15, lineHeight: 1.5, outline: 'none', background: '#ffffff' }
+const saveNoteButtonStyle: React.CSSProperties = { border: 'none', borderRadius: 10, padding: '9px 14px', background: '#172033', color: '#ffffff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }
