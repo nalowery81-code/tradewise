@@ -292,9 +292,10 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       'I could not generate a response.'
 
     const sources: {
-      title: string
-      url: string
-    }[] = []
+  title: string
+  url?: string
+  type: 'web' | 'file'
+}[] = []
 
     for (const outputItem of response.output) {
       if (outputItem.type !== 'message') continue
@@ -302,22 +303,41 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       for (const contentItem of outputItem.content) {
         if (contentItem.type !== 'output_text') continue
 
-        for (const annotation of contentItem.annotations || []) {
-          if (annotation.type !== 'url_citation') continue
+    for (const annotation of contentItem.annotations || []) {
+  if (annotation.type === 'url_citation') {
+    const alreadyAdded = sources.some(
+      (source) =>
+        source.type === 'web' &&
+        source.url === annotation.url
+    )
 
-          const alreadyAdded = sources.some(
-            (source) => source.url === annotation.url
-          )
-
-          if (!alreadyAdded) {
-            sources.push({
-              title: annotation.title || annotation.url,
-              url: annotation.url,
-            })
-          }
-        }
-      }
+    if (!alreadyAdded) {
+      sources.push({
+        title: annotation.title || annotation.url,
+        url: annotation.url,
+        type: 'web',
+      })
     }
+  }
+
+  if (annotation.type === 'file_citation') {
+    const title =
+      annotation.filename || 'Verified document'
+
+    const alreadyAdded = sources.some(
+      (source) =>
+        source.type === 'file' &&
+        source.title === title
+    )
+
+    if (!alreadyAdded) {
+      sources.push({
+        title,
+        type: 'file',
+      })
+    }
+  }
+}    
 
     const { error: assistantMessageError } = await supabaseServer
       .from('Messages')
