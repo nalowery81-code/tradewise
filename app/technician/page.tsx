@@ -4,6 +4,77 @@ import { useEffect, useRef, useState } from 'react'
 
 import { supabase } from '../lib/supabase'
 
+function renderAssistantText(text: string) {
+  const lines = text.split('\n')
+  const headingLabels = new Set([
+    'Indiana Code',
+    'Manufacturer',
+    'What this means',
+    'Conclusion',
+  ])
+
+  const lastContentIndex = [...lines]
+    .map((line, index) => ({ line: line.trim(), index }))
+    .filter(({ line }) => line.length > 0)
+    .at(-1)?.index
+
+  return (
+    <div>
+      {lines.map((line, index) => {
+        const trimmed = line.trim()
+        const cleaned = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/:$/, '')
+        const isHeading = headingLabels.has(cleaned)
+        const isFinalQuestion =
+          index === lastContentIndex && trimmed.endsWith('?')
+
+        if (!trimmed) {
+          return <div key={index} style={{ height: 10 }} />
+        }
+
+        if (isHeading) {
+          return (
+            <div
+              key={index}
+              style={{
+                marginTop: index === 0 ? 0 : 8,
+                marginBottom: 6,
+                fontSize: 17,
+                fontWeight: 800,
+                color: '#123047',
+                letterSpacing: '-0.01em',
+              }}
+            >
+              {cleaned}
+            </div>
+          )
+        }
+
+        if (isFinalQuestion) {
+          return (
+            <div
+              key={index}
+              style={{
+                marginTop: 12,
+                padding: '12px 14px',
+                borderRadius: 12,
+                background: '#eef4f7',
+                borderLeft: '4px solid #123047',
+                fontWeight: 700,
+                lineHeight: 1.5,
+                color: '#123047',
+              }}
+            >
+              {trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '')}
+            </div>
+          )
+        }
+
+        return <div key={index}>{line}</div>
+      })}
+    </div>
+  )
+}
+
 export default function TechnicianPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [attachOpen, setAttachOpen] = useState(false)
@@ -430,7 +501,12 @@ try {
     />
   )}
 
-  {item.text && <div>{item.text}</div>}
+  {item.text &&
+    (item.role === 'assistant' ? (
+      renderAssistantText(item.text)
+    ) : (
+      <div>{item.text}</div>
+    ))}
 
 {item.sources && item.sources.length > 0 && (
   <div
