@@ -28,6 +28,8 @@ type CompanyData = {
   counts: { owners: number; managers: number; technicians: number }
 }
 
+type LifecycleAction = 'promote' | 'demote' | 'deactivate' | 'reactivate'
+
 export default function CompanyPage() {
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [loading, setLoading] = useState(true)
@@ -36,6 +38,9 @@ export default function CompanyPage() {
   const [savingName, setSavingName] = useState(false)
   const [nameStatus, setNameStatus] = useState('')
   const [error, setError] = useState('')
+  const [managedProfileId, setManagedProfileId] = useState<string | null>(null)
+  const [lifecycleBusy, setLifecycleBusy] = useState(false)
+  const [lifecycleStatus, setLifecycleStatus] = useState('')
 
   const getSession = async () => (await supabase.auth.getSession()).data.session
 
@@ -131,6 +136,64 @@ export default function CompanyPage() {
     }
   }
 
+  const runLifecycleAction = async (member: CompanyMember, action: LifecycleAction) => {
+    if (lifecycleBusy) return
+
+    const prompt = action === 'promote'
+      ? `Promote ${member.name} to Manager? Their technician history will be preserved.`
+      : action === 'demote'
+        ? `Change ${member.name} to Technician? Their prior history will be preserved.`
+        : action === 'deactivate'
+          ? `Deactivate ${member.name}? They will lose Tradewise access, but their history will be preserved.`
+          : ''
+
+    if (prompt && !window.confirm(prompt)) return
+
+    setLifecycleBusy(true)
+    setLifecycleStatus('')
+
+    try {
+      const session = await getSession()
+      if (!session) return window.location.replace('/login')
+
+      const response = await fetch(`/api/owner/employees/${member.profileId}`, {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ action }),
+      })
+      const result = await response.json()
+
+      if (response.status === 401) return window.location.replace('/login')
+      if (response.status === 403) return window.location.replace('/manager')
+
+      if (!response.ok) {
+        setLifecycleStatus(result.error || 'Could not update employee.')
+        return
+      }
+
+      const actionLabel = action === 'promote'
+        ? 'promoted to Manager'
+        : action === 'demote'
+          ? 'changed to Technician'
+          : action === 'deactivate'
+            ? 'deactivated'
+            : 'reactivated'
+
+      setLifecycleStatus(`${member.name} ${actionLabel}.`)
+      setManagedProfileId(null)
+      await loadCompany()
+    } catch (actionError) {
+      console.error('OWNER EMPLOYEE ACTION ERROR:', actionError)
+      setLifecycleStatus('Could not update employee.')
+    } finally {
+      setLifecycleBusy(false)
+    }
+  }
+
   if (checkingAccess) return <main style={loadingPageStyle}>Checking owner access...</main>
 
   const owners = data?.members.filter((member) => member.role === 'owner') || []
@@ -140,25 +203,71 @@ export default function CompanyPage() {
   const renderMember = (member: CompanyMember) => {
     const needsLogin = member.role === 'technician' && member.accountStatus === 'no_login'
     const isInactive = member.accountStatus === 'inactive'
+    const canManage = member.role !== 'owner' && !needsLogin && !!member.authUserId
+    const isOpen = managedProfileId === member.profileId
 
     return (
-      <div key={member.profileId} style={memberRowStyle}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontWeight: 700, color: '#172033' }}>{member.name}</div>
-          <div style={{ marginTop: 4, fontSize: 13, color: '#64748b', overflowWrap: 'anywhere' }}>
-            {needsLogin ? 'No Tradewise login yet' : member.email || 'No email available'}
+      <div key={member.profileId} style={memberCardStyle}>
+        <div style={memberRowStyle}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 700, color: '#172033' }}>{member.name}</div>
+            <div style={{ marginTop: 4, fontSize: 13, color: '#64748b', overflowWrap: 'anywhere' }}>
+              {needsLogin ? 'No Tradewise login yet' : member.email || 'No email available'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            {needsLogin ? (
+              <div style={needsInviteBadgeStyle}>Needs invite</div>
+            ) : (
+              <div style={isInactive ? inactiveBadgeStyle : activeBadgeStyle}>
+                {isInactive ? 'Inactive' : 'Active'}
+              </div>
+            )}
+            <div style={roleBadgeStyle}>{member.role}</div>
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLifecycleStatus('')
+                  setManagedProfileId(isOpen ? null : member.profileId)
+                }}
+                style={manageButtonStyle}
+              >
+                {isOpen ? 'Close' : 'Manage'}
+              </button>
+            )}
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {needsLogin ? (
-            <div style={needsInviteBadgeStyle}>Needs invite</div>
-          ) : (
-            <div style={isInactive ? inactiveBadgeStyle : activeBadgeStyle}>
-              {isInactive ? 'Inactive' : 'Active'}
+
+        {canManage && isOpen && (
+          <div style={managePanelStyle}>
+            <div style={{ fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+              Role and access changes preserve this employee&apos;s existing company history.
             </div>
-          )}
-          <div style={roleBadgeStyle}>{member.role}</div>
-        </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {member.role === 'technician' && (
+                <button type="button" disabled={lifecycleBusy} onClick={() => void runLifecycleAction(member, 'promote')} style={actionButtonStyle}>
+                  Promote to Manager
+                </button>
+              )}
+              {member.role === 'manager' && (
+                <button type="button" disabled={lifecycleBusy} onClick={() => void runLifecycleAction(member, 'demote')} style={actionButtonStyle}>
+                  Change to Technician
+                </button>
+              )}
+              {isInactive ? (
+                <button type="button" disabled={lifecycleBusy} onClick={() => void runLifecycleAction(member, 'reactivate')} style={actionButtonStyle}>
+                  Reactivate Account
+                </button>
+              ) : (
+                <button type="button" disabled={lifecycleBusy} onClick={() => void runLifecycleAction(member, 'deactivate')} style={dangerOutlineButtonStyle}>
+                  Deactivate Account
+                </button>
+              )}
+            </div>
+            {lifecycleStatus && <div style={lifecycleStatusStyle}>{lifecycleStatus}</div>}
+          </div>
+        )}
       </div>
     )
   }
@@ -178,6 +287,7 @@ export default function CompanyPage() {
           <div style={eyebrowStyle}>Owner workspace</div>
           <h1 style={titleStyle}>{data?.company.name || 'Company'}</h1>
           <p style={subtleTextStyle}>Owners can see and manage the full company. Managers and technicians stay inside this company boundary.</p>
+          {lifecycleStatus && !managedProfileId && <div style={successNoticeStyle}>{lifecycleStatus}</div>}
         </div>
 
         {loading ? <div style={statusCardStyle}>Loading company...</div> :
@@ -254,11 +364,18 @@ const sectionHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: '
 const sectionTitleStyle: React.CSSProperties = { margin: 0, fontSize: 18, fontWeight: 700, color: '#172033' }
 const countBadgeStyle: React.CSSProperties = { minWidth: 24, height: 24, borderRadius: 999, background: '#e7edf2', color: '#475569', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 7px' }
 const memberListStyle: React.CSSProperties = { display: 'grid', gap: 9 }
-const memberRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '13px 14px', border: '1px solid #eef2f5', borderRadius: 13, background: '#f8fafc' }
+const memberCardStyle: React.CSSProperties = { border: '1px solid #eef2f5', borderRadius: 13, background: '#f8fafc', overflow: 'hidden' }
+const memberRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '13px 14px' }
 const roleBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#e7edf2', color: '#475569', fontSize: 11, fontWeight: 700, textTransform: 'capitalize', whiteSpace: 'nowrap' }
 const activeBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
 const inactiveBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
 const needsInviteBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const manageButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 9, padding: '6px 10px', background: '#ffffff', color: '#172033', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
+const managePanelStyle: React.CSSProperties = { display: 'grid', gap: 10, padding: '12px 14px 14px', borderTop: '1px solid #e5e7eb', background: '#ffffff' }
+const actionButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 9, padding: '8px 11px', background: '#ffffff', color: '#172033', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
+const dangerOutlineButtonStyle: React.CSSProperties = { ...actionButtonStyle, border: '1px solid #fecaca', color: '#991b1b', background: '#fffafa' }
+const lifecycleStatusStyle: React.CSSProperties = { fontSize: 13, color: '#991b1b', lineHeight: 1.5 }
+const successNoticeStyle: React.CSSProperties = { marginTop: 12, display: 'inline-block', borderRadius: 10, padding: '8px 11px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 600 }
 const inputStyle: React.CSSProperties = { flex: '1 1 280px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 11, padding: '11px 12px', fontSize: 15, outline: 'none' }
 const saveButtonStyle: React.CSSProperties = { border: 'none', borderRadius: 10, padding: '10px 14px', background: '#172033', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }
 const statusCardStyle: React.CSSProperties = { marginTop: 24, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', color: '#64748b' }
