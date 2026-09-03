@@ -15,10 +15,11 @@ export default function TechnicianPage() {
     role: 'user' | 'assistant'
     text: string
     image?: string
-    sources?: {
-      title: string
-      url: string
-    }[]
+   sources?: {
+  title: string
+  url?: string
+  type: 'web' | 'file'
+}[]
   }[]
 >([])  
 
@@ -434,27 +435,54 @@ try {
 {item.sources && item.sources.length > 0 && (
   <div
     style={{
-      marginTop: 10,
+      marginTop: 12,
+      paddingTop: 10,
+      borderTop: '1px solid #e5e7eb',
       display: 'flex',
       flexDirection: 'column',
       gap: 6,
     }}
   >
-    {item.sources.map((source, sourceIndex) => (
-      <a
-        key={sourceIndex}
-        href={source.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{
-          textDecoration: 'underline',
-          fontSize: 14,
-          fontWeight: 600,
-        }}
-      >
-        {source.title || 'Open manufacturer documentation'}
-      </a>
-    ))}
+    <div
+      style={{
+        fontSize: 12,
+        fontWeight: 700,
+        color: '#64748b',
+        textTransform: 'uppercase',
+        letterSpacing: '0.04em',
+      }}
+    >
+      Verified sources
+    </div>
+
+    {item.sources.map((source, sourceIndex) =>
+      source.type === 'web' && source.url ? (
+        <a
+          key={sourceIndex}
+          href={source.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            textDecoration: 'underline',
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          {source.title}
+        </a>
+      ) : (
+        <div
+          key={sourceIndex}
+          style={{
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#334155',
+          }}
+        >
+          📄 {source.title}
+        </div>
+      )
+    )}
   </div>
 )}
 </div> 
