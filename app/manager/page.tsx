@@ -8,6 +8,13 @@ type ManagerMessage = {
   text: string
 }
 
+type TechnicianDirectoryItem = {
+  id: string
+  name: string
+  reflectionCount: number
+  latestReflectionAt: string | null
+}
+
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ManagerMessage[]>([])
@@ -18,6 +25,10 @@ export default function ManagerPage() {
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
+  const [managerView, setManagerView] = useState<'chat' | 'technicians'>('chat')
+  const [technicians, setTechnicians] = useState<TechnicianDirectoryItem[]>([])
+  const [techniciansLoading, setTechniciansLoading] = useState(false)
+  const [techniciansError, setTechniciansError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -78,15 +89,56 @@ export default function ManagerPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
+  const loadTechnicians = async () => {
+    setTechniciansLoading(true)
+    setTechniciansError('')
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch('/api/manager/technicians', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        setTechniciansError(data.error || 'Could not load technicians.')
+        return
+      }
+
+      setTechnicians(data.technicians || [])
+    } catch (error) {
+      console.error('MANAGER TECHNICIAN DIRECTORY ERROR:', error)
+      setTechniciansError('Could not load technicians.')
+    } finally {
+      setTechniciansLoading(false)
+    }
+  }
+
+  const openTechnicians = () => {
+    setManagerView('technicians')
+    setSelectedHistoryCategory(null)
+    setSelectedConversation(null)
+    void loadTechnicians()
+    if (!isDesktop) setSidebarOpen(false)
+  }
+
   const handleNewChat = () => {
     setMessage('')
     setMessages([])
+    setManagerView('chat')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
-
-    if (!isDesktop) {
-      setSidebarOpen(false)
-    }
+    if (!isDesktop) setSidebarOpen(false)
   }
 
   const handleSignOut = async () => {
@@ -98,6 +150,7 @@ export default function ManagerPage() {
     const question = (questionOverride ?? message).trim()
     if (!question || sending) return
 
+    setManagerView('chat')
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     setMessages((current) => [...current, { role: 'user', text: question }])
@@ -136,10 +189,7 @@ export default function ManagerPage() {
         return
       }
 
-      setMessages((current) => [
-        ...current,
-        { role: 'assistant', text: data.reply },
-      ])
+      setMessages((current) => [...current, { role: 'assistant', text: data.reply }])
     } catch (error) {
       console.error('MANAGER CHAT ERROR:', error)
       setMessages((current) => [
@@ -154,14 +204,7 @@ export default function ManagerPage() {
     }
   }
 
-  const sidebarItems = [
-    'New chat',
-    'Search',
-    'History',
-    'Follow-up',
-    'Technicians',
-    'Manager Notes',
-  ]
+  const sidebarItems = ['New chat', 'Search', 'History', 'Follow-up', 'Technicians', 'Manager Notes']
 
   const historyCategories = [
     'Weekly Team Review',
@@ -183,81 +226,25 @@ export default function ManagerPage() {
 
   if (checkingAccess) {
     return (
-      <main
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#f7f7f8',
-          fontFamily: 'Arial, Helvetica, sans-serif',
-          color: '#1f2937',
-        }}
-      >
+      <main style={loadingPageStyle}>
         <div>Loading manager workspace...</div>
       </main>
     )
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        background: '#f7f7f8',
-        fontFamily: 'Arial, Helvetica, sans-serif',
-        color: '#1f2937',
-      }}
-    >
-      <aside
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: 250,
-          background: '#ffffff',
-          borderRight: '1px solid #e5e7eb',
-          padding: '18px 14px',
-          zIndex: 20,
-          display: sidebarOpen ? 'flex' : 'none',
-          flexDirection: 'column',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 22,
-            padding: '0 8px',
-          }}
-        >
+    <main style={pageStyle}>
+      <aside style={{ ...sidebarStyle, display: sidebarOpen ? 'flex' : 'none' }}>
+        <div style={sidebarHeaderStyle}>
           <div style={{ fontWeight: 700, fontSize: 18 }}>Tradewise Manager</div>
-
           {!isDesktop && (
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                border: 'none',
-                background: 'transparent',
-                fontSize: 22,
-                cursor: 'pointer',
-              }}
-            >
+            <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>
               ×
             </button>
           )}
         </div>
 
-        <div
-          style={{
-            display: 'grid',
-            gap: 6,
-            flex: 1,
-            alignContent: 'start',
-          }}
-        >
+        <div style={{ display: 'grid', gap: 6, flex: 1, alignContent: 'start' }}>
           {sidebarItems.map((item) => (
             <div key={item}>
               <button
@@ -265,16 +252,12 @@ export default function ManagerPage() {
                 onClick={() => {
                   if (item === 'New chat') handleNewChat()
                   if (item === 'History') setHistoryOpen((current) => !current)
+                  if (item === 'Technicians') openTechnicians()
                 }}
                 style={{
-                  width: '100%',
-                  border: 'none',
-                  background: 'transparent',
-                  textAlign: 'left',
-                  padding: '11px 10px',
-                  borderRadius: 10,
-                  cursor: 'pointer',
-                  fontSize: 15,
+                  ...sidebarButtonStyle,
+                  background: item === 'Technicians' && managerView === 'technicians' ? '#eef2f5' : 'transparent',
+                  fontWeight: item === 'Technicians' && managerView === 'technicians' ? 700 : 400,
                 }}
               >
                 {item}
@@ -287,20 +270,12 @@ export default function ManagerPage() {
                       key={category}
                       type="button"
                       onClick={() => {
+                        setManagerView('chat')
                         setSelectedHistoryCategory(category)
                         setSelectedConversation(null)
                         if (!isDesktop) setSidebarOpen(false)
                       }}
-                      style={{
-                        border: 'none',
-                        background: 'transparent',
-                        textAlign: 'left',
-                        padding: '8px 10px',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        color: '#6b7280',
-                      }}
+                      style={historyButtonStyle}
                     >
                       {category}
                     </button>
@@ -311,49 +286,18 @@ export default function ManagerPage() {
           ))}
         </div>
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          style={{
-            width: '100%',
-            border: '1px solid #e5e7eb',
-            background: '#ffffff',
-            textAlign: 'left',
-            padding: '11px 10px',
-            borderRadius: 10,
-            cursor: 'pointer',
-            fontSize: 15,
-            marginTop: 16,
-          }}
-        >
+        <button type="button" onClick={handleSignOut} style={signOutStyle}>
           Sign out
         </button>
       </aside>
 
       <header
         style={{
-          height: 64,
-          borderBottom: '1px solid #e5e7eb',
-          background: '#ffffff',
-          display: 'flex',
-          alignItems: 'center',
-          padding: '0 20px',
+          ...headerStyle,
           marginLeft: isDesktop && sidebarOpen ? 278 : 0,
-          fontWeight: 700,
-          fontSize: 20,
         }}
       >
-        <button
-          type="button"
-          onClick={() => setSidebarOpen((current) => !current)}
-          style={{
-            marginRight: 12,
-            border: 'none',
-            background: 'transparent',
-            fontSize: 22,
-            cursor: 'pointer',
-          }}
-        >
+        <button type="button" onClick={() => setSidebarOpen((current) => !current)} style={menuButtonStyle}>
           ☰
         </button>
         Tradewise
@@ -367,87 +311,74 @@ export default function ManagerPage() {
           transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
         }}
       >
-        {selectedHistoryCategory ? (
+        {managerView === 'technicians' ? (
+          <div>
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Team
+              </div>
+              <h1 style={{ margin: '8px 0 0', fontSize: 'clamp(28px, 5vw, 38px)' }}>Technicians</h1>
+              <p style={{ marginTop: 10, color: '#6b7280', lineHeight: 1.6 }}>
+                Open a technician to review their history, notes, and coaching context as we build out the profile view.
+              </p>
+            </div>
+
+            {techniciansLoading ? (
+              <div style={statusCardStyle}>Loading technicians...</div>
+            ) : techniciansError ? (
+              <div style={statusCardStyle}>{techniciansError}</div>
+            ) : technicians.length === 0 ? (
+              <div style={statusCardStyle}>No technicians found yet.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 12 }}>
+                {technicians.map((technician) => (
+                  <button
+                    key={technician.id}
+                    type="button"
+                    onClick={() => void handleSend(`Give me a concise summary of ${technician.name}, including recent issues, strengths, support needs, and anything I should follow up on.`)}
+                    style={technicianCardStyle}
+                  >
+                    <div>
+                      <div style={{ fontSize: 17, fontWeight: 700, color: '#172033' }}>{technician.name}</div>
+                      <div style={{ marginTop: 6, fontSize: 14, color: '#64748b' }}>
+                        {technician.reflectionCount} reflection{technician.reflectionCount === 1 ? '' : 's'}
+                        {technician.latestReflectionAt
+                          ? ` · Latest ${new Date(technician.latestReflectionAt).toLocaleDateString()}`
+                          : ''}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 20, color: '#94a3b8' }}>›</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : selectedHistoryCategory ? (
           selectedConversation ? (
             <div>
-              <button
-                type="button"
-                onClick={() => setSelectedConversation(null)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  marginBottom: 18,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  color: '#6b7280',
-                }}
-              >
+              <button type="button" onClick={() => setSelectedConversation(null)} style={backButtonStyle}>
                 ← Back to History
               </button>
-              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>
-                Coaching follow-up: customer communication
-              </h1>
+              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>Coaching follow-up: customer communication</h1>
               <p style={{ marginTop: 12, color: '#6b7280', lineHeight: 1.6 }}>
                 Saved manager conversations will appear here as we build manager history.
               </p>
             </div>
           ) : (
             <div>
-              <button
-                type="button"
-                onClick={() => setSelectedHistoryCategory(null)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
-                  marginBottom: 18,
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  color: '#6b7280',
-                }}
-              >
+              <button type="button" onClick={() => setSelectedHistoryCategory(null)} style={backButtonStyle}>
                 ← Back
               </button>
-              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>
-                {selectedHistoryCategory}
-              </h1>
+              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>{selectedHistoryCategory}</h1>
               <p style={{ marginTop: 10, color: '#6b7280', lineHeight: 1.6 }}>
                 Conversations and insights related to this area will appear here.
               </p>
-              <button
-                type="button"
-                onClick={() => setSelectedConversation('coaching-follow-up')}
-                style={{
-                  width: '100%',
-                  textAlign: 'left',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 16,
-                  padding: '18px 20px',
-                  background: '#ffffff',
-                  cursor: 'pointer',
-                  marginTop: 28,
-                }}
-              >
-                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
-                  Coaching follow-up: customer communication
-                </div>
-                <div style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>
-                  Manager history is still being connected to saved conversations.
-                </div>
-              </button>
             </div>
           )
         ) : messages.length === 0 ? (
           <>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 'clamp(26px, 5vw, 34px)',
-                  fontWeight: 700,
-                }}
-              >
+              <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>
                 What would you like to know about your team?
               </h1>
               <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>
@@ -455,32 +386,9 @@ export default function ManagerPage() {
               </p>
             </div>
 
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-                gap: 12,
-                marginBottom: 28,
-              }}
-            >
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
               {starters.map((starter) => (
-                <button
-                  key={starter}
-                  type="button"
-                  onClick={() => void handleSend(starter)}
-                  disabled={sending}
-                  style={{
-                    padding: 18,
-                    borderRadius: 16,
-                    border: '1px solid #d1d5db',
-                    background: '#ffffff',
-                    cursor: sending ? 'default' : 'pointer',
-                    fontSize: 15,
-                    fontWeight: 600,
-                    textAlign: 'left',
-                    lineHeight: 1.45,
-                  }}
-                >
+                <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>
                   {starter}
                 </button>
               ))}
@@ -489,55 +397,12 @@ export default function ManagerPage() {
         ) : (
           <div style={{ display: 'grid', gap: 18 }}>
             {messages.map((item, index) => (
-              <div
-                key={`${item.role}-${index}`}
-                style={{
-                  display: 'flex',
-                  justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
-                }}
-              >
-                <div
-                  style={
-                    item.role === 'user'
-                      ? {
-                          maxWidth: '78%',
-                          background: '#e7edf2',
-                          borderRadius: 18,
-                          padding: '12px 16px',
-                          lineHeight: 1.5,
-                          whiteSpace: 'pre-wrap',
-                        }
-                      : {
-                          width: '100%',
-                          background: '#ffffff',
-                          border: '1px solid #e5e7eb',
-                          borderRadius: 18,
-                          padding: '18px 20px',
-                          lineHeight: 1.62,
-                          whiteSpace: 'pre-wrap',
-                          boxShadow: '0 4px 18px rgba(0,0,0,0.04)',
-                        }
-                  }
-                >
-                  {item.text}
-                </div>
+              <div key={`${item.role}-${index}`} style={{ display: 'flex', justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                <div style={item.role === 'user' ? userBubbleStyle : assistantBubbleStyle}>{item.text}</div>
               </div>
             ))}
 
-            {sending && (
-              <div
-                style={{
-                  width: 'fit-content',
-                  background: '#ffffff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 16,
-                  padding: '12px 16px',
-                  color: '#6b7280',
-                }}
-              >
-                Reading the team data...
-              </div>
-            )}
+            {sending && <div style={readingStyle}>Reading the team data...</div>}
             <div ref={bottomRef} />
           </div>
         )}
@@ -554,20 +419,7 @@ export default function ManagerPage() {
           paddingLeft: isDesktop && sidebarOpen ? 298 : 20,
         }}
       >
-        <div
-          style={{
-            maxWidth: 760,
-            margin: '0 auto',
-            background: '#ffffff',
-            border: '1px solid #d1d5db',
-            borderRadius: 22,
-            padding: '10px 12px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            boxShadow: '0 4px 18px rgba(0,0,0,0.06)',
-          }}
-        >
+        <div style={composerStyle}>
           <textarea
             value={message}
             onChange={(e) => setMessage(e.target.value)}
@@ -580,34 +432,10 @@ export default function ManagerPage() {
                 void handleSend()
               }
             }}
-            style={{
-              flex: 1,
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              fontSize: 16,
-              fontFamily: 'inherit',
-              padding: '10px 8px',
-              background: 'transparent',
-            }}
+            style={inputStyle}
           />
 
-          <button
-            type="button"
-            onClick={() => void handleSend()}
-            disabled={sending || !message.trim()}
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: '50%',
-              border: 'none',
-              background: '#111827',
-              color: '#ffffff',
-              cursor: sending || !message.trim() ? 'default' : 'pointer',
-              fontSize: 18,
-              opacity: sending || !message.trim() ? 0.45 : 1,
-            }}
-          >
+          <button type="button" onClick={() => void handleSend()} disabled={sending || !message.trim()} style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}>
             ↑
           </button>
         </div>
@@ -615,3 +443,74 @@ export default function ManagerPage() {
     </main>
   )
 }
+
+const pageStyle: React.CSSProperties = {
+  minHeight: '100vh',
+  background: '#f7f7f8',
+  fontFamily: 'Arial, Helvetica, sans-serif',
+  color: '#1f2937',
+}
+
+const loadingPageStyle: React.CSSProperties = {
+  ...pageStyle,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+}
+
+const sidebarStyle: React.CSSProperties = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  bottom: 0,
+  width: 250,
+  background: '#ffffff',
+  borderRight: '1px solid #e5e7eb',
+  padding: '18px 14px',
+  zIndex: 20,
+  flexDirection: 'column',
+}
+
+const sidebarHeaderStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 22,
+  padding: '0 8px',
+}
+
+const sidebarButtonStyle: React.CSSProperties = {
+  width: '100%',
+  border: 'none',
+  textAlign: 'left',
+  padding: '11px 10px',
+  borderRadius: 10,
+  cursor: 'pointer',
+  fontSize: 15,
+}
+
+const historyButtonStyle: React.CSSProperties = {
+  border: 'none',
+  background: 'transparent',
+  textAlign: 'left',
+  padding: '8px 10px',
+  borderRadius: 8,
+  cursor: 'pointer',
+  fontSize: 13,
+  color: '#6b7280',
+}
+
+const iconButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer' }
+const signOutStyle: React.CSSProperties = { width: '100%', border: '1px solid #e5e7eb', background: '#ffffff', textAlign: 'left', padding: '11px 10px', borderRadius: 10, cursor: 'pointer', fontSize: 15, marginTop: 16 }
+const headerStyle: React.CSSProperties = { height: 64, borderBottom: '1px solid #e5e7eb', background: '#ffffff', display: 'flex', alignItems: 'center', padding: '0 20px', fontWeight: 700, fontSize: 20 }
+const menuButtonStyle: React.CSSProperties = { marginRight: 12, border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer' }
+const backButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', padding: 0, marginBottom: 18, cursor: 'pointer', fontSize: 14, color: '#6b7280' }
+const starterStyle: React.CSSProperties = { padding: 18, borderRadius: 16, border: '1px solid #d1d5db', background: '#ffffff', cursor: 'pointer', fontSize: 15, fontWeight: 600, textAlign: 'left', lineHeight: 1.45 }
+const userBubbleStyle: React.CSSProperties = { maxWidth: '78%', background: '#e7edf2', borderRadius: 18, padding: '12px 16px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }
+const assistantBubbleStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '18px 20px', lineHeight: 1.62, whiteSpace: 'pre-wrap', boxShadow: '0 4px 18px rgba(0,0,0,0.04)' }
+const readingStyle: React.CSSProperties = { width: 'fit-content', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '12px 16px', color: '#6b7280' }
+const composerStyle: React.CSSProperties = { maxWidth: 760, margin: '0 auto', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 22, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 4px 18px rgba(0,0,0,0.06)' }
+const inputStyle: React.CSSProperties = { flex: 1, border: 'none', outline: 'none', resize: 'none', fontSize: 16, fontFamily: 'inherit', padding: '10px 8px', background: 'transparent' }
+const sendButtonStyle: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#111827', color: '#ffffff', cursor: 'pointer', fontSize: 18 }
+const statusCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', color: '#64748b' }
+const technicianCardStyle: React.CSSProperties = { width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textAlign: 'left', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', background: '#ffffff', cursor: 'pointer', boxShadow: '0 3px 12px rgba(15,23,42,0.035)' }
