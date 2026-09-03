@@ -240,7 +240,7 @@ Keep manufacturer requirements and Indiana code requirements distinct. Do not de
 When both apply, structure the answer clearly as:
 Indiana Code: [verified code requirement]
 Manufacturer: [verified manufacturer requirement]
-Conclusion: [only what those verified sources support]
+Conclusion: [only what those verified sources support]  For code or manufacturer conflicts, do not add legal, permitting, approval, inspection, or AHJ advice unless the retrieved authoritative sources specifically support that advice. Do not invent a requirement for written approval, a permit condition, an inspector decision, or an enforcement procedure.
 
 Do not assume that manufacturer instructions always override code. Only describe an interaction between manufacturer instructions and Indiana code when the retrieved authoritative code supports that interaction.
 
