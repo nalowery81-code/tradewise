@@ -16,7 +16,7 @@ export async function GET(request: Request) {
         .single(),
       supabaseServer
         .from('UserProfiles')
-        .select('id, auth_user_id, role, created_at, is_active, deactivated_at')
+        .select('id, auth_user_id, role, created_at, is_active, deactivated_at, technician_id')
         .eq('company_id', companyId)
         .order('created_at', { ascending: true }),
       supabaseServer
@@ -47,6 +47,7 @@ export async function GET(request: Request) {
     }
 
     const authUserMap = new Map(authUsers.users.map((user) => [user.id, user]))
+    const technicianById = new Map((technicians || []).map((technician) => [technician.id, technician]))
     const technicianByAuthId = new Map(
       (technicians || [])
         .filter((technician) => technician.auth_user_id)
@@ -57,7 +58,12 @@ export async function GET(request: Request) {
 
     const profileMembers = (profiles || []).map((profile) => {
       const user = profile.auth_user_id ? authUserMap.get(profile.auth_user_id) : null
-      const technician = profile.auth_user_id ? technicianByAuthId.get(profile.auth_user_id) : null
+      const technician = profile.technician_id
+        ? technicianById.get(profile.technician_id)
+        : profile.auth_user_id
+          ? technicianByAuthId.get(profile.auth_user_id)
+          : null
+
       if (technician?.id) linkedTechnicianIds.add(technician.id)
 
       const email = user?.email || ''
@@ -72,7 +78,7 @@ export async function GET(request: Request) {
         role: profile.role,
         name: technician?.canonical_name || metadataName || fallbackName,
         email,
-        technicianId: technician?.id || null,
+        technicianId: profile.technician_id || technician?.id || null,
         createdAt: profile.created_at,
         accountStatus: profile.is_active === false || authBanned ? 'inactive' as const : 'active' as const,
         deactivatedAt: profile.deactivated_at || null,
