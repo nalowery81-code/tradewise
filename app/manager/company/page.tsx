@@ -44,51 +44,49 @@ export default function CompanyPage() {
 
     try {
       const session = await getSession()
-      if (!session) return window.location.replace('/login')
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
 
+      // Use the owner-only API itself as the page gate. This prevents a stale
+      // client-side role response from ever exposing the Owner workspace.
       const response = await fetch('/api/owner/company', {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const companyData = await response.json()
 
+      if (response.status === 401) {
+        window.location.replace('/login')
+        return
+      }
+
+      if (response.status === 403) {
+        window.location.replace('/manager')
+        return
+      }
+
       if (!response.ok) {
         setError(companyData.error || 'Could not load company.')
+        setCheckingAccess(false)
         return
       }
 
       setData(companyData)
       setCompanyName(companyData.company.name || '')
+      setCheckingAccess(false)
     } catch (loadError) {
       console.error('OWNER COMPANY PAGE LOAD ERROR:', loadError)
       setError('Could not load company.')
+      setCheckingAccess(false)
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    const checkAccess = async () => {
-      const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
-
-      const response = await fetch('/api/auth/role', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      })
-      const roleData = await response.json()
-
-      if (!response.ok || roleData.accountRole !== 'owner') {
-        window.location.replace(roleData.role === 'technician' ? '/technician' : '/manager')
-        return
-      }
-
-      setCheckingAccess(false)
-      void loadCompany()
-    }
-
-    void checkAccess()
+    void loadCompany()
   }, [])
 
   const saveCompanyName = async () => {
@@ -104,6 +102,7 @@ export default function CompanyPage() {
 
       const response = await fetch('/api/owner/company', {
         method: 'PATCH',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
@@ -111,6 +110,9 @@ export default function CompanyPage() {
         body: JSON.stringify({ name: cleanName }),
       })
       const result = await response.json()
+
+      if (response.status === 401) return window.location.replace('/login')
+      if (response.status === 403) return window.location.replace('/manager')
 
       if (!response.ok) {
         setNameStatus(result.error || 'Could not save company name.')
@@ -128,7 +130,7 @@ export default function CompanyPage() {
     }
   }
 
-  if (checkingAccess) return <main style={loadingPageStyle}>Loading owner workspace...</main>
+  if (checkingAccess) return <main style={loadingPageStyle}>Checking owner access...</main>
 
   const owners = data?.members.filter((member) => member.role === 'owner') || []
   const managers = data?.members.filter((member) => member.role === 'manager') || []
