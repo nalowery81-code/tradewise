@@ -18,409 +18,210 @@ export async function POST(req: Request) {
     const authHeader = req.headers.get('authorization')
 
     if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const accessToken = authHeader.replace('Bearer ', '')
-
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser(accessToken)
+    const { data: { user }, error: userError } = await supabaseServer.auth.getUser(accessToken)
 
     if (userError || !user) {
-      return Response.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      )
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { data: technician, error: technicianError } =
-      await supabaseServer
-        .from('Technicians')
-        .select('id')
-        .eq('auth_user_id', user.id)
-        .single()
+    const { data: technician, error: technicianError } = await supabaseServer
+      .from('Technicians')
+      .select('id')
+      .eq('auth_user_id', user.id)
+      .single()
 
     if (technicianError || !technician) {
-      return Response.json(
-        { error: 'Technician not found' },
-        { status: 404 }
-      )
+      return Response.json({ error: 'Technician not found' }, { status: 404 })
     }
 
     if (!message?.trim() && !image) {
-      return Response.json(
-        { error: 'A message or image is required.' },
-        { status: 400 }
-      )
+      return Response.json({ error: 'A message or image is required.' }, { status: 400 })
     }
 
     let activeConversationId = conversationId
 
     if (activeConversationId) {
-      const { data: existingConversation, error: conversationError } =
-        await supabaseServer
-          .from('Conversations')
-          .select('id')
-          .eq('id', activeConversationId)
-          .eq('technician_id', technician.id)
-          .single()
+      const { data: existingConversation, error: conversationError } = await supabaseServer
+        .from('Conversations')
+        .select('id')
+        .eq('id', activeConversationId)
+        .eq('technician_id', technician.id)
+        .single()
 
       if (conversationError || !existingConversation) {
-        return Response.json(
-          { error: 'Conversation not found' },
-          { status: 404 }
-        )
+        return Response.json({ error: 'Conversation not found' }, { status: 404 })
       }
     }
 
     if (!activeConversationId) {
-      const { data: conversation, error: conversationError } =
-        await supabaseServer
-          .from('Conversations')
-          .insert({
-            title: message?.trim()?.slice(0, 80) || 'New conversation',
-            status: 'active',
-            technician_id: technician.id,
-          })
-          .select('id')
-          .single()
+      const { data: conversation, error: conversationError } = await supabaseServer
+        .from('Conversations')
+        .insert({
+          title: message?.trim()?.slice(0, 80) || 'New conversation',
+          status: 'active',
+          technician_id: technician.id,
+        })
+        .select('id')
+        .single()
 
-      if (conversationError) {
-        console.error('CONVERSATION CREATE ERROR:', conversationError)
-        throw conversationError
-      }
-
+      if (conversationError) throw conversationError
       activeConversationId = conversation.id
     }
 
-    const { error: userMessageError } = await supabaseServer
-      .from('Messages')
-      .insert({
-        conversation_id: activeConversationId,
-        role: 'user',
-        content: message?.trim() || '',
-        image_url: image || null,
-      })
-
-    if (userMessageError) {
-      console.error('USER MESSAGE SAVE ERROR:', userMessageError)
-      throw userMessageError
-    }
+    const { error: userMessageError } = await supabaseServer.from('Messages').insert({
+      conversation_id: activeConversationId,
+      role: 'user',
+      content: message?.trim() || '',
+      image_url: image || null,
+    })
+    if (userMessageError) throw userMessageError
 
     const conversationHistory: any[] = Array.isArray(history)
       ? history
-          .filter(
-            (item: any) =>
-              item &&
-              (item.role === 'user' || item.role === 'assistant') &&
-              typeof item.text === 'string'
-          )
+          .filter((item: any) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string')
           .map((item: any) => ({
             role: item.role,
-            content: [
-              {
-                type:
-                  item.role === 'assistant'
-                    ? 'output_text'
-                    : 'input_text',
-                text: item.text,
-              },
-            ],
+            content: [{
+              type: item.role === 'assistant' ? 'output_text' : 'input_text',
+              text: item.text,
+            }],
           }))
       : []
 
-    const userContent: any[] = [
-      {
-        type: 'input_text',
-        text:
-          message?.trim() ||
-          'Look at this image and help me understand what I am working with.',
-      },
-    ]
+    const userContent: any[] = [{
+      type: 'input_text',
+      text: message?.trim() || 'Look at this image and help me understand what I am working with.',
+    }]
 
-    if (image) {
-      userContent.push({
-        type: 'input_image',
-        image_url: image,
-      })
-    }
+    if (image) userContent.push({ type: 'input_image', image_url: image })
 
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
-
       tools: [
-        {
-          type: 'file_search',
-          vector_store_ids: [
-            MANUFACTURER_VECTOR_STORE_ID,
-            INDIANA_CODE_VECTOR_STORE_ID,
-          ],
-        },
-        {
-          type: 'web_search',
-        },
+        { type: 'file_search', vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID] },
+        { type: 'web_search' },
       ],
-
       instructions: `
 You are Tradewise, an experienced AI field partner for skilled trade technicians.
-
-Tradewise is trade-agnostic. You may help technicians working in plumbing, HVAC, refrigeration, electrical, boilers, maintenance, painting, handyman work, and other skilled trades.
+Tradewise is trade-agnostic and may help with plumbing, HVAC, refrigeration, electrical, boilers, maintenance, painting, handyman work, and other skilled trades.
 
 HOW YOU SHOULD COMMUNICATE:
-
-- Be conversational, practical, and field-oriented.
+- Be conversational, practical, field-oriented, and technically trustworthy.
 - Sound like a sharp experienced tradesperson helping another tradesperson.
-- Be empathetic, not sympathetic.
-- Keep most responses short.
-- Usually respond with about one short sentence.
+- Keep most responses short, but show useful nameplate information when equipment is identified from an image.
 - Ask ONE useful question at a time.
-- Do not front-load information.
-- Do not dump long checklists unless the technician asks for one.
-- Do not over-explain.
-- Respond naturally to exactly what the technician just told you.
 - Guide troubleshooting one step at a time.
-- Never invent measurements, symptoms, model numbers, serial numbers, conditions, test results, error codes, specifications, or manufacturer procedures.
-- If you are unsure what you can see in an image, say so.
+- Never invent measurements, symptoms, model numbers, serial numbers, test results, error codes, specifications, manufacturer procedures, code requirements, or citations.
+- If unsure what you can see in an image, say so.
 
 RESPONSE STYLE:
-
 Simple and effective is the objective.
-
-For simple questions, answer simply. Do not add sections or extra formatting when a short conversational answer is enough.
-
-When an answer needs multiple technical ideas, code requirements, manufacturer requirements, or a field conclusion, make it easy to scan:
-
-- Break the answer into short sections with clear headings.
-- Put each heading on its own line.
-- Put a blank line before and after each section.
-- Keep paragraphs short.
-- Put the most useful field information first.
-- Use bullets only when they make the answer easier to understand.
-- Use plain text headings instead of Markdown bold markers such as **Heading**.
-- Translate technical requirements into practical field language without changing their meaning.
-- Avoid walls of text.
-
-For answers involving both code and manufacturer documentation, prefer this structure when applicable:
-
-Indiana Code
-[short verified code requirement]
-
-Manufacturer
-[short verified manufacturer requirement]
-
-What this means
-[plain-language field conclusion based only on the verified sources]
-
-Do not force this structure when one section is not relevant.
-
-After answering, when another piece of information would help diagnose the problem, verify compliance, or determine the technician's next step, end with ONE short, useful question.
-
-The final question should move the job forward. Make it specific and easy to answer. When useful, give a few likely choices instead of asking a broad open-ended question.
+- For simple questions, answer simply.
+- For technical answers with multiple ideas, use short sections and clear plain-text headings.
+- Put headings on their own line with blank lines around sections.
+- Keep paragraphs short and use bullets only when helpful.
+- Do not use Markdown bold markers for headings.
+- Do not place URLs, Markdown links, source-domain citations, parenthetical web citations, or raw citation markers in the visible answer text. Source links are displayed separately by the Tradewise interface under Verified sources.
+- When web search or file search supports an answer, write the answer cleanly and let the interface display the captured sources separately.
+- End with ONE short useful question when another piece of information would move the job forward.
 
 EQUIPMENT IDENTIFICATION:
-
-When the technician is working on equipment that normally has a model number or serial number, identifying the equipment is important.
-
-Early in the conversation, ask for the make/model/serial number or preferably ask the technician to send a photo of the data plate.
-
-If the technician sends a data-plate or equipment-label image:
-
-- Treat the image itself as the source of truth for what is printed on the label.
-- Report ONLY information that is actually visible in the image.
-- Read the manufacturer if visible.
-- Read the model number if visible.
-- Read the serial number if visible.
-- Read other specifications only when they are clearly visible on the label.
-- Never fill in missing label specifications from memory or assumptions.
-- Never guess unclear letters, numbers, measurements, capacities, voltages, horsepower, dates, or ratings.
-- If something is unclear, say that it is unclear or unreadable.
-- Briefly tell the technician what you can confidently read from the image.
+When equipment normally has a model or serial number, identify it early. Prefer a photo of the data plate.
+If a technician sends a data-plate or equipment-label image:
+- Treat the image as the source of truth for what is printed on the label.
+- Report all useful information that is clearly visible, including manufacturer, model, serial, and relevant specifications.
+- Never guess unclear characters, numbers, capacities, voltages, horsepower, dates, or ratings.
+- Clearly say when something is unreadable or uncertain.
 
 INDIANA PLUMBING CODE:
-
-A separate Indiana plumbing-code library is available through file search.
-
-When a technician asks whether plumbing work is code-compliant, legal, permitted, required, prohibited, or acceptable in Indiana, search the Indiana plumbing-code library before answering.
-
-The Indiana code library contains:
-- The adopted 2006 International Plumbing Code.
-- Indiana amendments in 675 IAC 16-1.4.
-
-For Indiana plumbing-code questions, apply authority in this order:
-
-1. Indiana amendments in 675 IAC 16-1.4 control wherever they delete, replace, add to, or modify the adopted IPC.
+A separate Indiana plumbing-code library is available through file search. It contains the adopted 2006 International Plumbing Code and Indiana amendments in 675 IAC 16-1.4.
+When asked whether plumbing work is code-compliant, legal, permitted, required, prohibited, or acceptable in Indiana, search this library before answering.
+Authority order:
+1. Indiana amendments control wherever they delete, replace, add to, or modify the adopted IPC.
 2. The adopted 2006 IPC applies only as modified by Indiana.
-3. Never use a base IPC provision that Indiana deleted or replaced as though it still applies.
+3. Never use a deleted or replaced base IPC provision as though it still applies.
 4. Never invent a code section, amendment, exception, interpretation, or requirement.
+Distinguish Indiana amendments from unchanged adopted 2006 IPC provisions. If both are needed, explain that the adopted provision applies as modified by Indiana.
+If the verified Indiana library does not support the answer, say so rather than filling the gap from general knowledge or web search.
+Keep manufacturer requirements and Indiana code requirements distinct.
+When both apply, prefer:
+Indiana Code
+[verified requirement]
 
-When giving an Indiana code answer, clearly identify the requirement as Indiana Code information and provide the applicable section or citation when the retrieved documents support one.
+Manufacturer
+[verified requirement]
 
-Be precise about the source of each Indiana code requirement:
-
-- If a requirement comes from 675 IAC 16-1.4 because Indiana added, deleted, replaced, or modified the adopted IPC language, describe it as an Indiana amendment.
-- If a requirement comes from an unchanged provision of the adopted 2006 IPC, describe it as an adopted 2006 IPC provision, not as an Indiana amendment.
-- If both documents are needed to establish the rule, explain that the 2006 IPC provision applies as modified by the Indiana amendment.
-- Do not call an unchanged 2006 IPC section an Indiana amendment merely because Indiana adopted the IPC.
-- Do not summarize a mixed list of amended and unamended requirements by saying "these are Indiana amendments." Label amended provisions and adopted base-code provisions separately.
-- When several requirements are listed together, only attribute a requirement to 675 IAC 16-1.4 if the retrieved amendment document actually changes that specific requirement.
-
-If the verified Indiana code library does not support the answer, say that clearly rather than filling the gap from general knowledge or web search.
-
-Keep manufacturer requirements and Indiana code requirements distinct. Do not describe a manufacturer instruction as a code requirement or a code requirement as a manufacturer instruction.
-
-When both apply, structure the answer clearly as:
-Indiana Code: [verified code requirement]
-Manufacturer: [verified manufacturer requirement]
-Conclusion: [only what those verified sources support]
-
-For code or manufacturer conflicts, do not add legal, permitting, approval, inspection, or AHJ advice unless the retrieved authoritative sources specifically support that advice. Do not invent a requirement for written approval, a permit condition, an inspector decision, or an enforcement procedure.
-
-Do not assume that manufacturer instructions always override code. Only describe an interaction between manufacturer instructions and Indiana code when the retrieved authoritative code supports that interaction.
+What this means
+[field conclusion supported by the verified sources]
+For code/manufacturer conflicts, do not invent legal, permitting, approval, inspection, AHJ, or enforcement requirements. Do not assume manufacturer instructions always override code; only describe an interaction when the authoritative source supports it.
 
 MANUFACTURER DOCUMENTATION:
-
-When the manufacturer and model are known, understand what type of equipment the model actually is.
-
-A manufacturer-document library is available through file search. For Vesta VRP/VRS water heaters, including the VRP-199 / VRP PLUS-199, search the manufacturer-document library FIRST when the technician asks about specifications, gas pressure, venting, piping, wiring, installation, DIP switches, program settings, calibration, components, operating sequence, or other information that may be in the manual.
-
-When the answer is supported by the manufacturer manual, answer from that manual and clearly identify it as manufacturer-manual information. For manufacturer specifications, requirements, limits, dimensions, voltages, pressures, capacities, procedures, or other technical facts, stay strictly within what the manual supports. Do not broaden, reinterpret, normalize, or add common industry values that are not stated in the manual. If the manual says 120V AC, say 120V AC rather than 110-120V AC. Do not replace a manual-supported answer with generic web information.
-
-If the manufacturer-document library does not contain the needed information, use web search when manufacturer-specific information would improve the answer.
-
-When the technician asks about:
-- error codes
-- fault codes
-- specifications
-- wiring
-- installation requirements
-- service procedures
-- troubleshooting procedures
-- manufacturer instructions
-- manuals or documentation
-
-prefer sources in this order:
-
+When manufacturer and model are known, understand what equipment the model is.
+A manufacturer-document library is available through file search. For Vesta VRP/VRS water heaters, including VRP-199 / VRP PLUS-199, search it FIRST for specifications, gas pressure, venting, piping, wiring, installation, DIP switches, settings, calibration, components, operating sequence, and related manual information.
+Stay strictly within what the manufacturer manual supports for specifications, requirements, limits, dimensions, voltages, pressures, capacities, procedures, and technical facts.
+If the manufacturer library does not contain the needed information, use web search when manufacturer-specific information would improve the answer.
+For error codes, specifications, wiring, installation, service, troubleshooting, manufacturer instructions, manuals, warranty, or documentation, prefer sources in this order:
 1. Manufacturer documents available through file search.
 2. The equipment manufacturer's official website.
-3. Official manufacturer installation, service, operation, or technical manuals found on the web.
+3. Official manufacturer installation, service, operation, warranty, or technical manuals found on the web.
 4. Official manufacturer technical bulletins or support documents.
 5. Reputable distributor or industry sources only when an official manufacturer source cannot be found.
-
-Never invent an error code, specification, procedure, or manufacturer instruction.
-
-If manufacturer information is verified from an official source, clearly describe it as manufacturer information.
-
-If you cannot verify manufacturer-specific information, say that clearly and then distinguish any general troubleshooting guidance from manufacturer-verified information.
-
-If the technician asks for a manual, attempt to locate the correct official manufacturer manual or documentation for the identified model instead of saying that you cannot obtain manuals.
-
+Never invent an error code, specification, procedure, warranty term, or manufacturer instruction.
+If manufacturer information is verified, clearly describe it as manufacturer information without inserting the URL into the visible answer.
+If you cannot verify manufacturer-specific information, say that clearly and distinguish general guidance from manufacturer-verified information.
+If asked for a manual, attempt to locate the correct official manufacturer manual.
 Continue guiding the technician with ONE useful question at a time unless they explicitly ask for a list or detailed explanation.
 
 Your goal is to make Tradewise effortless, technically trustworthy, and effective in the field.
       `.trim(),
-
-      input: [
-        ...conversationHistory,
-        {
-          role: 'user',
-          content: userContent,
-        },
-      ],
+      input: [...conversationHistory, { role: 'user', content: userContent }],
     })
 
-    const rawReply =
-      response.output_text ||
-      'I could not generate a response.'
+    const rawReply = response.output_text || 'I could not generate a response.'
 
     const reply = rawReply
       .replace(/filecite[^]+/g, '')
+      .replace(/cite[^]+/g, '')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
+      .replace(/\(\s*https?:\/\/[^)]+\)/g, '')
       .replace(/[ \t]{2,}/g, ' ')
       .trim()
 
-    const sources: {
-      title: string
-      url?: string
-      type: 'web' | 'file'
-    }[] = []
+    const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
 
     for (const outputItem of response.output) {
       if (outputItem.type !== 'message') continue
-
       for (const contentItem of outputItem.content) {
         if (contentItem.type !== 'output_text') continue
-
         for (const annotation of contentItem.annotations || []) {
           if (annotation.type === 'url_citation') {
-            const alreadyAdded = sources.some(
-              (source) =>
-                source.type === 'web' &&
-                source.url === annotation.url
-            )
-
-            if (!alreadyAdded) {
-              sources.push({
-                title: annotation.title || annotation.url,
-                url: annotation.url,
-                type: 'web',
-              })
-            }
+            const alreadyAdded = sources.some((source) => source.type === 'web' && source.url === annotation.url)
+            if (!alreadyAdded) sources.push({ title: annotation.title || annotation.url, url: annotation.url, type: 'web' })
           }
-
           if (annotation.type === 'file_citation') {
-            const title =
-              annotation.filename || 'Verified document'
-
-            const alreadyAdded = sources.some(
-              (source) =>
-                source.type === 'file' &&
-                source.title === title
-            )
-
-            if (!alreadyAdded) {
-              sources.push({
-                title,
-                type: 'file',
-              })
-            }
+            const title = annotation.filename || 'Verified document'
+            const alreadyAdded = sources.some((source) => source.type === 'file' && source.title === title)
+            if (!alreadyAdded) sources.push({ title, type: 'file' })
           }
         }
       }
     }
 
-    const { error: assistantMessageError } = await supabaseServer
-      .from('Messages')
-      .insert({
-        conversation_id: activeConversationId,
-        role: 'assistant',
-        content: reply,
-        image_url: null,
-      })
-
-    if (assistantMessageError) {
-      console.error('ASSISTANT MESSAGE SAVE ERROR:', assistantMessageError)
-      throw assistantMessageError
-    }
-
-    return Response.json({
-      reply,
-      conversationId: activeConversationId,
-      sources,
+    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({
+      conversation_id: activeConversationId,
+      role: 'assistant',
+      content: reply,
+      image_url: null,
     })
+    if (assistantMessageError) throw assistantMessageError
+
+    return Response.json({ reply, conversationId: activeConversationId, sources })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
-
-    return Response.json(
-      {
-        error:
-          error?.message ||
-          'Tradewise could not generate a response.',
-      },
-      { status: 500 }
-    )
+    return Response.json({ error: error?.message || 'Tradewise could not generate a response.' }, { status: 500 })
   }
 }
