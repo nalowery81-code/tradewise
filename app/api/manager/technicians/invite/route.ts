@@ -1,6 +1,14 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../../lib/management-auth'
 
+const getInviteRedirectUrl = () => {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    'https://tradewise-git-technician-mvp-nalowery81-2073s-projects.vercel.app'
+
+  return `${baseUrl.replace(/\/+$/, '')}/setup-account`
+}
+
 export async function POST(request: Request) {
   let invitedUserId: string | null = null
 
@@ -37,11 +45,10 @@ export async function POST(request: Request) {
       )
     }
 
-    const origin = new URL(request.url).origin
     const { data: inviteData, error: inviteError } = await supabaseServer.auth.admin.inviteUserByEmail(
       email,
       {
-        redirectTo: `${origin}/setup-account`,
+        redirectTo: getInviteRedirectUrl(),
         data: { full_name: name, company_id: companyId, role: 'technician' },
       }
     )
