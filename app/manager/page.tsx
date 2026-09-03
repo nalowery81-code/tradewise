@@ -30,10 +30,23 @@ type TechnicianProfile = {
   managerNote: { note: string | null; updated_at: string | null } | null
 }
 
+type ManagerFollowUp = {
+  id: string
+  technician_id: string | null
+  technician_name: string
+  note: string
+  status: 'open' | 'done'
+  created_at: string
+  completed_at: string | null
+  updated_at: string
+}
+
 type ManagerSummarySection = {
   title: string
   body: string
 }
+
+type ManagerView = 'chat' | 'technicians' | 'technician-profile' | 'follow-ups'
 
 const splitManagerSummary = (text: string): ManagerSummarySection[] => {
   const cleaned = text
@@ -57,7 +70,6 @@ const splitManagerSummary = (text: string): ManagerSummarySection[] => {
   }
 
   if (sections.length > 0) return sections
-
   return [{ title: 'Manager read', body: cleaned }]
 }
 
@@ -92,18 +104,30 @@ export default function ManagerPage() {
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
-  const [managerView, setManagerView] = useState<'chat' | 'technicians' | 'technician-profile'>('chat')
+  const [managerView, setManagerView] = useState<ManagerView>('chat')
+
   const [technicians, setTechnicians] = useState<TechnicianDirectoryItem[]>([])
   const [techniciansLoading, setTechniciansLoading] = useState(false)
   const [techniciansError, setTechniciansError] = useState('')
+
   const [technicianProfile, setTechnicianProfile] = useState<TechnicianProfile | null>(null)
   const [profileLoading, setProfileLoading] = useState(false)
   const [profileError, setProfileError] = useState('')
   const [profileSummary, setProfileSummary] = useState('')
   const [profileSummaryLoading, setProfileSummaryLoading] = useState(false)
+
   const [managerNoteDraft, setManagerNoteDraft] = useState('')
   const [managerNoteSaving, setManagerNoteSaving] = useState(false)
   const [managerNoteStatus, setManagerNoteStatus] = useState('')
+
+  const [followUps, setFollowUps] = useState<ManagerFollowUp[]>([])
+  const [followUpsLoading, setFollowUpsLoading] = useState(false)
+  const [followUpsError, setFollowUpsError] = useState('')
+  const [followUpDraft, setFollowUpDraft] = useState('')
+  const [followUpSaving, setFollowUpSaving] = useState(false)
+  const [followUpStatus, setFollowUpStatus] = useState('')
+  const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(null)
+
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -169,6 +193,15 @@ export default function ManagerPage() {
     return session
   }
 
+  const resetProfileState = () => {
+    setTechnicianProfile(null)
+    setProfileSummary('')
+    setManagerNoteDraft('')
+    setManagerNoteStatus('')
+    setFollowUpDraft('')
+    setFollowUpStatus('')
+  }
+
   const loadTechnicians = async () => {
     setTechniciansLoading(true)
     setTechniciansError('')
@@ -199,15 +232,51 @@ export default function ManagerPage() {
     }
   }
 
+  const loadFollowUps = async () => {
+    setFollowUpsLoading(true)
+    setFollowUpsError('')
+
+    try {
+      const session = await getSession()
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch('/api/manager/follow-ups', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        setFollowUpsError(data.error || 'Could not load follow-ups.')
+        return
+      }
+
+      setFollowUps(data.followUps || [])
+    } catch (error) {
+      console.error('MANAGER FOLLOW-UP LOAD ERROR:', error)
+      setFollowUpsError('Could not load follow-ups.')
+    } finally {
+      setFollowUpsLoading(false)
+    }
+  }
+
   const openTechnicians = () => {
     setManagerView('technicians')
-    setTechnicianProfile(null)
-    setProfileSummary('')
-    setManagerNoteDraft('')
-    setManagerNoteStatus('')
+    resetProfileState()
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     void loadTechnicians()
+    if (!isDesktop) setSidebarOpen(false)
+  }
+
+  const openFollowUps = () => {
+    setManagerView('follow-ups')
+    resetProfileState()
+    setSelectedHistoryCategory(null)
+    setSelectedConversation(null)
+    void loadFollowUps()
     if (!isDesktop) setSidebarOpen(false)
   }
 
@@ -219,6 +288,8 @@ export default function ManagerPage() {
     setProfileSummaryLoading(true)
     setManagerNoteDraft('')
     setManagerNoteStatus('')
+    setFollowUpDraft('')
+    setFollowUpStatus('')
     setTechnicianProfile(null)
 
     try {
@@ -298,12 +369,7 @@ export default function ManagerPage() {
       }
 
       setTechnicianProfile((current) =>
-        current
-          ? {
-              ...current,
-              managerNote: data.managerNote,
-            }
-          : current
+        current ? { ...current, managerNote: data.managerNote } : current
       )
       setManagerNoteDraft(data.managerNote?.note || '')
       setManagerNoteStatus('Saved')
@@ -315,14 +381,102 @@ export default function ManagerPage() {
     }
   }
 
+  const createFollowUp = async () => {
+    const note = followUpDraft.trim()
+    if (!technicianProfile || !note || followUpSaving) return
+
+    setFollowUpSaving(true)
+    setFollowUpStatus('')
+
+    try {
+      const session = await getSession()
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch('/api/manager/follow-ups', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          technicianId: technicianProfile.technician.id,
+          note,
+        }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        setFollowUpStatus(data.error || 'Could not create follow-up.')
+        return
+      }
+
+      setFollowUps((current) => [data.followUp, ...current])
+      setFollowUpDraft('')
+      setFollowUpStatus('Added to Follow-up')
+    } catch (error) {
+      console.error('MANAGER FOLLOW-UP CREATE ERROR:', error)
+      setFollowUpStatus('Could not create follow-up.')
+    } finally {
+      setFollowUpSaving(false)
+    }
+  }
+
+  const updateFollowUpStatus = async (followUp: ManagerFollowUp, status: 'open' | 'done') => {
+    if (updatingFollowUpId) return
+    setUpdatingFollowUpId(followUp.id)
+    setFollowUpsError('')
+
+    try {
+      const session = await getSession()
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch(`/api/manager/follow-ups/${followUp.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ status }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        setFollowUpsError(data.error || 'Could not update follow-up.')
+        return
+      }
+
+      setFollowUps((current) =>
+        current.map((item) => (item.id === followUp.id ? data.followUp : item))
+      )
+    } catch (error) {
+      console.error('MANAGER FOLLOW-UP UPDATE ERROR:', error)
+      setFollowUpsError('Could not update follow-up.')
+    } finally {
+      setUpdatingFollowUpId(null)
+    }
+  }
+
+  const openFollowUpTechnician = (followUp: ManagerFollowUp) => {
+    if (!followUp.technician_id) return
+    void loadTechnicianProfile({
+      id: followUp.technician_id,
+      name: followUp.technician_name,
+      reflectionCount: 0,
+      latestReflectionAt: null,
+    })
+  }
+
   const handleNewChat = () => {
     setMessage('')
     setMessages([])
     setManagerView('chat')
-    setTechnicianProfile(null)
-    setProfileSummary('')
-    setManagerNoteDraft('')
-    setManagerNoteStatus('')
+    resetProfileState()
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
     if (!isDesktop) setSidebarOpen(false)
@@ -407,6 +561,9 @@ export default function ManagerPage() {
   ]
 
   const managerSummarySections = splitManagerSummary(profileSummary)
+  const openFollowUps = followUps.filter((item) => item.status === 'open')
+  const completedFollowUps = followUps.filter((item) => item.status === 'done')
+  const showComposer = managerView === 'chat' || managerView === 'technician-profile'
 
   if (checkingAccess) {
     return (
@@ -415,6 +572,41 @@ export default function ManagerPage() {
       </main>
     )
   }
+
+  const renderFollowUpCard = (followUp: ManagerFollowUp) => (
+    <div key={followUp.id} style={followUpCardStyle}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start' }}>
+        <div style={{ minWidth: 0 }}>
+          <button
+            type="button"
+            onClick={() => openFollowUpTechnician(followUp)}
+            disabled={!followUp.technician_id}
+            style={followUpTechnicianButtonStyle}
+          >
+            {followUp.technician_name}
+          </button>
+          <div style={{ marginTop: 7, lineHeight: 1.55 }}>{followUp.note}</div>
+          <div style={{ marginTop: 9, fontSize: 12, color: '#94a3b8' }}>
+            Added {new Date(followUp.created_at).toLocaleDateString()}
+            {followUp.completed_at ? ` · Completed ${new Date(followUp.completed_at).toLocaleDateString()}` : ''}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => void updateFollowUpStatus(followUp, followUp.status === 'open' ? 'done' : 'open')}
+          disabled={updatingFollowUpId === followUp.id}
+          style={followUpActionButtonStyle}
+        >
+          {updatingFollowUpId === followUp.id
+            ? 'Saving...'
+            : followUp.status === 'open'
+              ? 'Mark done'
+              : 'Reopen'}
+        </button>
+      </div>
+    </div>
+  )
 
   return (
     <main style={pageStyle}>
@@ -427,45 +619,52 @@ export default function ManagerPage() {
         </div>
 
         <div style={{ display: 'grid', gap: 6, flex: 1, alignContent: 'start' }}>
-          {sidebarItems.map((item) => (
-            <div key={item}>
-              <button
-                type="button"
-                onClick={() => {
-                  if (item === 'New chat') handleNewChat()
-                  if (item === 'History') setHistoryOpen((current) => !current)
-                  if (item === 'Technicians') openTechnicians()
-                }}
-                style={{
-                  ...sidebarButtonStyle,
-                  background: item === 'Technicians' && managerView !== 'chat' ? '#eef2f5' : 'transparent',
-                  fontWeight: item === 'Technicians' && managerView !== 'chat' ? 700 : 400,
-                }}
-              >
-                {item}
-              </button>
+          {sidebarItems.map((item) => {
+            const active =
+              (item === 'Technicians' && (managerView === 'technicians' || managerView === 'technician-profile')) ||
+              (item === 'Follow-up' && managerView === 'follow-ups')
 
-              {item === 'History' && historyOpen && (
-                <div style={{ display: 'grid', gap: 4, margin: '4px 0 8px 12px' }}>
-                  {historyCategories.map((category) => (
-                    <button
-                      key={category}
-                      type="button"
-                      onClick={() => {
-                        setManagerView('chat')
-                        setSelectedHistoryCategory(category)
-                        setSelectedConversation(null)
-                        if (!isDesktop) setSidebarOpen(false)
-                      }}
-                      style={historyButtonStyle}
-                    >
-                      {category}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+            return (
+              <div key={item}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (item === 'New chat') handleNewChat()
+                    if (item === 'History') setHistoryOpen((current) => !current)
+                    if (item === 'Technicians') openTechnicians()
+                    if (item === 'Follow-up') openFollowUps()
+                  }}
+                  style={{
+                    ...sidebarButtonStyle,
+                    background: active ? '#eef2f5' : 'transparent',
+                    fontWeight: active ? 700 : 400,
+                  }}
+                >
+                  {item}
+                </button>
+
+                {item === 'History' && historyOpen && (
+                  <div style={{ display: 'grid', gap: 4, margin: '4px 0 8px 12px' }}>
+                    {historyCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        onClick={() => {
+                          setManagerView('chat')
+                          setSelectedHistoryCategory(category)
+                          setSelectedConversation(null)
+                          if (!isDesktop) setSidebarOpen(false)
+                        }}
+                        style={historyButtonStyle}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         <button type="button" onClick={handleSignOut} style={signOutStyle}>Sign out</button>
@@ -480,11 +679,59 @@ export default function ManagerPage() {
         style={{
           maxWidth: 760,
           margin: '0 auto',
-          padding: 'clamp(34px, 7vw, 76px) 16px 160px',
+          padding: showComposer
+            ? 'clamp(34px, 7vw, 76px) 16px 160px'
+            : 'clamp(34px, 7vw, 76px) 16px 60px',
           transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
         }}
       >
-        {managerView === 'technicians' ? (
+        {managerView === 'follow-ups' ? (
+          <div>
+            <div style={{ marginBottom: 28 }}>
+              <div style={eyebrowStyle}>Manager actions</div>
+              <h1 style={pageTitleStyle}>Follow-up</h1>
+              <p style={subtleTextStyle}>Keep the things that need a manager action from getting lost.</p>
+            </div>
+
+            {followUpsLoading ? (
+              <div style={statusCardStyle}>Loading follow-ups...</div>
+            ) : followUpsError ? (
+              <div style={statusCardStyle}>{followUpsError}</div>
+            ) : (
+              <>
+                <section style={{ marginBottom: 30 }}>
+                  <div style={followUpSectionHeaderStyle}>
+                    <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Open</h2>
+                    <span style={countBadgeStyle}>{openFollowUps.length}</span>
+                  </div>
+
+                  {openFollowUps.length === 0 ? (
+                    <div style={{ ...statusCardStyle, marginTop: 12 }}>Nothing needs follow-up right now.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                      {openFollowUps.map(renderFollowUpCard)}
+                    </div>
+                  )}
+                </section>
+
+                <section>
+                  <div style={followUpSectionHeaderStyle}>
+                    <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Completed</h2>
+                    <span style={countBadgeStyle}>{completedFollowUps.length}</span>
+                  </div>
+
+                  {completedFollowUps.length === 0 ? (
+                    <div style={{ ...statusCardStyle, marginTop: 12 }}>Completed follow-ups will appear here.</div>
+                  ) : (
+                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
+                      {completedFollowUps.map(renderFollowUpCard)}
+                    </div>
+                  )}
+                </section>
+              </>
+            )}
+          </div>
+        ) : managerView === 'technicians' ? (
           <div>
             <div style={{ marginBottom: 28 }}>
               <div style={eyebrowStyle}>Team</div>
@@ -549,6 +796,41 @@ export default function ManagerPage() {
                   ) : (
                     <div style={{ color: '#64748b' }}>No summary available yet.</div>
                   )}
+                </section>
+
+                <section style={profileSectionStyle}>
+                  <h2 style={sectionTitleStyle}>Add follow-up</h2>
+                  <p style={{ ...subtleTextStyle, marginTop: -5 }}>
+                    Add something you want to make sure gets handled for {technicianProfile.technician.name}.
+                  </p>
+                  <textarea
+                    value={followUpDraft}
+                    onChange={(event) => {
+                      setFollowUpDraft(event.target.value)
+                      if (followUpStatus) setFollowUpStatus('')
+                    }}
+                    placeholder="Example: Check whether a helper is being assigned to the next large install."
+                    rows={3}
+                    style={managerNoteInputStyle}
+                  />
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => void createFollowUp()}
+                      disabled={followUpSaving || !followUpDraft.trim()}
+                      style={{
+                        ...saveNoteButtonStyle,
+                        opacity: followUpSaving || !followUpDraft.trim() ? 0.5 : 1,
+                      }}
+                    >
+                      {followUpSaving ? 'Adding...' : 'Add follow-up'}
+                    </button>
+                    {followUpStatus && (
+                      <div style={{ fontSize: 13, color: followUpStatus === 'Added to Follow-up' ? '#475569' : '#991b1b' }}>
+                        {followUpStatus}
+                      </div>
+                    )}
+                  </div>
                 </section>
 
                 <section style={profileSectionStyle}>
@@ -654,43 +936,45 @@ export default function ManagerPage() {
         )}
       </section>
 
-      <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))',
-          padding: '14px 20px 22px',
-          paddingLeft: isDesktop && sidebarOpen ? 298 : 20,
-        }}
-      >
-        <div style={composerStyle}>
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder={managerView === 'technician-profile' && technicianProfile ? `Ask Tradewise about ${technicianProfile.technician.name}...` : 'Ask Tradewise about your team...'}
-            rows={1}
-            disabled={sending}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                if (managerView === 'technician-profile') askAboutProfile()
-                else void handleSend()
-              }
-            }}
-            style={inputStyle}
-          />
-          <button
-            type="button"
-            onClick={() => managerView === 'technician-profile' ? askAboutProfile() : void handleSend()}
-            disabled={sending || !message.trim()}
-            style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}
-          >
-            ↑
-          </button>
+      {showComposer && (
+        <div
+          style={{
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))',
+            padding: '14px 20px 22px',
+            paddingLeft: isDesktop && sidebarOpen ? 298 : 20,
+          }}
+        >
+          <div style={composerStyle}>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder={managerView === 'technician-profile' && technicianProfile ? `Ask Tradewise about ${technicianProfile.technician.name}...` : 'Ask Tradewise about your team...'}
+              rows={1}
+              disabled={sending}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  if (managerView === 'technician-profile') askAboutProfile()
+                  else void handleSend()
+                }
+              }}
+              style={inputStyle}
+            />
+            <button
+              type="button"
+              onClick={() => managerView === 'technician-profile' ? askAboutProfile() : void handleSend()}
+              disabled={sending || !message.trim()}
+              style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}
+            >
+              ↑
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   )
 }
@@ -725,3 +1009,8 @@ const summarySectionStyle: React.CSSProperties = { background: '#f8fafc', border
 const summarySectionTitleStyle: React.CSSProperties = { fontSize: 14, fontWeight: 700, color: '#172033' }
 const managerNoteInputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #d1d5db', borderRadius: 12, padding: '12px 14px', resize: 'vertical', fontFamily: 'inherit', fontSize: 15, lineHeight: 1.5, outline: 'none', background: '#ffffff' }
 const saveNoteButtonStyle: React.CSSProperties = { border: 'none', borderRadius: 10, padding: '9px 14px', background: '#172033', color: '#ffffff', fontSize: 14, fontWeight: 600, cursor: 'pointer' }
+const followUpSectionHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9 }
+const countBadgeStyle: React.CSSProperties = { minWidth: 24, height: 24, borderRadius: 999, background: '#e7edf2', color: '#475569', fontSize: 12, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 7px' }
+const followUpCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '17px 18px', boxShadow: '0 3px 12px rgba(15,23,42,0.03)' }
+const followUpTechnicianButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', padding: 0, fontSize: 15, fontWeight: 700, color: '#172033', cursor: 'pointer', textAlign: 'left' }
+const followUpActionButtonStyle: React.CSSProperties = { border: '1px solid #d1d5db', background: '#ffffff', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }
