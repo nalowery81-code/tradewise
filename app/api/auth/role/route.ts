@@ -30,7 +30,10 @@ export async function GET(request: Request) {
     }
 
     return Response.json({
-      role: profile.role,
+      // Existing manager UI checks role === 'manager'. Keep that contract while
+      // exposing the true accountRole for owner-only screens and future routing.
+      role: profile.role === 'owner' ? 'manager' : profile.role,
+      accountRole: profile.role,
       companyId: profile.company_id,
     })
   } catch (error) {
