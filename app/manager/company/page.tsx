@@ -18,7 +18,8 @@ type CompanyMember = {
   email: string
   technicianId: string | null
   createdAt: string
-  accountStatus?: 'active' | 'no_login'
+  accountStatus?: 'active' | 'inactive' | 'no_login'
+  deactivatedAt?: string | null
 }
 
 type CompanyData = {
@@ -138,6 +139,7 @@ export default function CompanyPage() {
 
   const renderMember = (member: CompanyMember) => {
     const needsLogin = member.role === 'technician' && member.accountStatus === 'no_login'
+    const isInactive = member.accountStatus === 'inactive'
 
     return (
       <div key={member.profileId} style={memberRowStyle}>
@@ -148,7 +150,13 @@ export default function CompanyPage() {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-          {needsLogin && <div style={statusBadgeStyle}>Needs invite</div>}
+          {needsLogin ? (
+            <div style={needsInviteBadgeStyle}>Needs invite</div>
+          ) : (
+            <div style={isInactive ? inactiveBadgeStyle : activeBadgeStyle}>
+              {isInactive ? 'Inactive' : 'Active'}
+            </div>
+          )}
           <div style={roleBadgeStyle}>{member.role}</div>
         </div>
       </div>
@@ -248,7 +256,9 @@ const countBadgeStyle: React.CSSProperties = { minWidth: 24, height: 24, borderR
 const memberListStyle: React.CSSProperties = { display: 'grid', gap: 9 }
 const memberRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, padding: '13px 14px', border: '1px solid #eef2f5', borderRadius: 13, background: '#f8fafc' }
 const roleBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#e7edf2', color: '#475569', fontSize: 11, fontWeight: 700, textTransform: 'capitalize', whiteSpace: 'nowrap' }
-const statusBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const activeBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const inactiveBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const needsInviteBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
 const inputStyle: React.CSSProperties = { flex: '1 1 280px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 11, padding: '11px 12px', fontSize: 15, outline: 'none' }
 const saveButtonStyle: React.CSSProperties = { border: 'none', borderRadius: 10, padding: '10px 14px', background: '#172033', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }
 const statusCardStyle: React.CSSProperties = { marginTop: 24, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 20px', color: '#64748b' }
