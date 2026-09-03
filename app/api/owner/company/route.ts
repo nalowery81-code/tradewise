@@ -21,7 +21,7 @@ export async function GET(request: Request) {
         .order('created_at', { ascending: true }),
       supabaseServer
         .from('Technicians')
-        .select('id, canonical_name, auth_user_id')
+        .select('id, canonical_name, auth_user_id, created_at')
         .eq('company_id', companyId)
         .order('canonical_name', { ascending: true }),
     ])
@@ -53,9 +53,13 @@ export async function GET(request: Request) {
         .map((technician) => [technician.auth_user_id as string, technician])
     )
 
-    const members = (profiles || []).map((profile) => {
+    const linkedTechnicianIds = new Set<string>()
+
+    const profileMembers = (profiles || []).map((profile) => {
       const user = profile.auth_user_id ? authUserMap.get(profile.auth_user_id) : null
       const technician = profile.auth_user_id ? technicianByAuthId.get(profile.auth_user_id) : null
+      if (technician?.id) linkedTechnicianIds.add(technician.id)
+
       const email = user?.email || ''
       const metadataName = String(user?.user_metadata?.full_name || '').trim()
       const fallbackName = email ? email.split('@')[0] : 'Tradewise user'
@@ -68,8 +72,27 @@ export async function GET(request: Request) {
         email,
         technicianId: technician?.id || null,
         createdAt: profile.created_at,
+        accountStatus: 'active' as const,
       }
     })
+
+    // A technician can exist before they receive a Tradewise login. Owners should
+    // still see that person as part of the company roster instead of making the
+    // company look like it has fewer technicians than it actually does.
+    const rosterOnlyTechnicians = (technicians || [])
+      .filter((technician) => !linkedTechnicianIds.has(technician.id))
+      .map((technician) => ({
+        profileId: `technician:${technician.id}`,
+        authUserId: technician.auth_user_id || null,
+        role: 'technician' as const,
+        name: technician.canonical_name,
+        email: '',
+        technicianId: technician.id,
+        createdAt: technician.created_at,
+        accountStatus: 'no_login' as const,
+      }))
+
+    const members = [...profileMembers, ...rosterOnlyTechnicians]
 
     return Response.json({
       company,
