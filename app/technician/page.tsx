@@ -494,8 +494,8 @@ try {
       style={{
         display: 'block',
         maxWidth: '100%',
-        maxHeight: 320,
-        borderRadius: 12,
+        maxHeight: 390,
+        borderRadius: 14,
         marginBottom: item.text ? 8 : 0,
       }}
     />
@@ -649,7 +649,22 @@ try {
               style={styles.voiceButton}
               aria-label="Voice input"
             >
-              🎙
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="2" width="6" height="12" rx="3" />
+                <path d="M5 10a7 7 0 0 0 14 0" />
+                <path d="M12 17v5" />
+                <path d="M8 22h8" />
+              </svg>
             </button>
 
             <button
@@ -815,39 +830,39 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   content: {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  padding: '0 22px 150px',
-},
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '0 clamp(18px, 4vw, 48px) 165px',
+  },
 
   hero: {
     width: '100%',
-    maxWidth: 760,
+    maxWidth: 900,
     marginTop: 'clamp(90px, 17vh, 180px)',
     textAlign: 'center',
   },
 
   brandBlock: {
-  marginBottom: 42,
-},
+    marginBottom: 42,
+  },
 
-brandName: {
-  fontSize: 'clamp(42px, 9vw, 68px)',
-  lineHeight: 1,
-  fontWeight: 800,
-  letterSpacing: '-0.055em',
-  color: '#123047',
-},
+  brandName: {
+    fontSize: 'clamp(42px, 9vw, 68px)',
+    lineHeight: 1,
+    fontWeight: 800,
+    letterSpacing: '-0.055em',
+    color: '#123047',
+  },
 
-brandTagline: {
-  marginTop: 10,
-  fontSize: 'clamp(14px, 3vw, 17px)',
-  fontWeight: 500,
-  color: '#527080',
-  letterSpacing: '0.01em',
-},
+  brandTagline: {
+    marginTop: 10,
+    fontSize: 'clamp(14px, 3vw, 17px)',
+    fontWeight: 500,
+    color: '#527080',
+    letterSpacing: '0.01em',
+  },
 
   greeting: {
     fontSize: 'clamp(34px, 7vw, 54px)',
@@ -863,66 +878,73 @@ brandTagline: {
     color: '#64748b',
     fontWeight: 400,
   },
-chatArea: {
-  width: '100%',
-  maxWidth: 760,
-  margin: '32px auto 0',
-  paddingBottom: 24,
-},
 
-messageRow: {
-  width: '100%',
-  display: 'flex',
-  marginBottom: 18,
-},
+  chatArea: {
+    width: '100%',
+    maxWidth: 1040,
+    margin: '30px auto 0',
+    paddingBottom: 28,
+  },
 
-userBubble: {
-  maxWidth: '78%',
-  background: '#e7edf2',
-  color: '#172033',
-  padding: '12px 16px',
-  borderRadius: 18,
-  fontSize: 16,
-  lineHeight: 1.5,
-  whiteSpace: 'pre-wrap',
-},
+  messageRow: {
+    width: '100%',
+    display: 'flex',
+    marginBottom: 22,
+  },
 
-assistantBubble: {
-  maxWidth: '88%',
-  color: '#172033',
-  padding: '4px 2px',
-  fontSize: 16,
-  lineHeight: 1.6,
-  whiteSpace: 'pre-wrap',
-},
+  userBubble: {
+    maxWidth: '72%',
+    background: '#e7edf2',
+    color: '#172033',
+    padding: '12px 16px',
+    borderRadius: 18,
+    fontSize: 16,
+    lineHeight: 1.5,
+    whiteSpace: 'pre-wrap',
+  },
+
+  assistantBubble: {
+    maxWidth: 880,
+    width: 'min(880px, 92%)',
+    background: '#ffffff',
+    border: '1px solid #e7eaec',
+    borderRadius: 18,
+    boxShadow: '0 4px 18px rgba(15,23,42,0.045)',
+    color: '#172033',
+    padding: '18px 20px',
+    fontSize: 16,
+    lineHeight: 1.62,
+    whiteSpace: 'pre-wrap',
+  },
+
   composerArea: {
     position: 'fixed',
     left: 0,
     right: 0,
     bottom: 0,
-    padding: '14px 14px 12px',
+    padding: '16px 18px 12px',
     background:
-      'linear-gradient(to top, #f7f7f5 72%, rgba(247,247,245,0))',
+      'linear-gradient(to top, #f7f7f5 74%, rgba(247,247,245,0))',
   },
 
   composerWrap: {
     width: '100%',
-    maxWidth: 820,
+    maxWidth: 1040,
     margin: '0 auto',
     position: 'relative',
   },
 
   composer: {
-    minHeight: 62,
+    minHeight: 64,
     background: '#ffffff',
-    border: '1px solid #e2e8f0',
+    border: '1px solid #dfe5e9',
     borderRadius: 24,
     display: 'flex',
     alignItems: 'flex-end',
-    gap: 7,
+    gap: 8,
     padding: '9px',
     boxShadow:
-      '0 6px 24px rgba(15,23,42,0.08)',
+      '0 8px 30px rgba(15,23,42,0.09)',
   },
 
   plusButton: {
@@ -930,7 +952,7 @@ assistantBubble: {
     height: 44,
     flex: '0 0 44px',
     borderRadius: '50%',
-    border: '1px solid #e2e8f0',
+    border: '1px solid #dfe5e9',
     background: '#f8fafc',
     fontSize: 28,
     lineHeight: 1,
@@ -947,7 +969,7 @@ assistantBubble: {
     outline: 'none',
     background: 'transparent',
     fontSize: 16,
-    padding: '11px 4px 8px',
+    padding: '11px 6px 8px',
     fontFamily: 'inherit',
     color: '#171717',
   },
@@ -956,10 +978,15 @@ assistantBubble: {
     width: 44,
     height: 44,
     flex: '0 0 44px',
-    border: 'none',
-    background: 'transparent',
-    fontSize: 20,
+    borderRadius: '50%',
+    border: '1px solid #e2e8f0',
+    background: '#f8fafc',
+    color: '#475569',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
     cursor: 'pointer',
+    padding: 0,
   },
 
   sendButton: {
