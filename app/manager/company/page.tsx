@@ -194,6 +194,52 @@ export default function CompanyPage() {
     }
   }
 
+  const runPermanentDelete = async (member: CompanyMember) => {
+    if (lifecycleBusy) return
+
+    const confirmation = window.prompt(
+      `Permanent delete is only for mistakes, duplicates, or test accounts with no company history.\n\nType DELETE to permanently delete ${member.name}.`
+    )
+
+    if (confirmation !== 'DELETE') return
+
+    setLifecycleBusy(true)
+    setLifecycleStatus('')
+
+    try {
+      const session = await getSession()
+      if (!session) return window.location.replace('/login')
+
+      const response = await fetch(`/api/owner/employees/${member.profileId}/permanent-delete`, {
+        method: 'DELETE',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ confirmation: 'DELETE' }),
+      })
+      const result = await response.json()
+
+      if (response.status === 401) return window.location.replace('/login')
+      if (response.status === 403) return window.location.replace('/manager')
+
+      if (!response.ok) {
+        setLifecycleStatus(result.error || 'Could not permanently delete employee.')
+        return
+      }
+
+      setLifecycleStatus(`${member.name} permanently deleted.`)
+      setManagedProfileId(null)
+      await loadCompany()
+    } catch (deleteError) {
+      console.error('OWNER EMPLOYEE PERMANENT DELETE ERROR:', deleteError)
+      setLifecycleStatus('Could not permanently delete employee.')
+    } finally {
+      setLifecycleBusy(false)
+    }
+  }
+
   if (checkingAccess) return <main style={loadingPageStyle}>Checking owner access...</main>
 
   const owners = data?.members.filter((member) => member.role === 'owner') || []
@@ -265,6 +311,16 @@ export default function CompanyPage() {
                 </button>
               )}
             </div>
+
+            <div style={permanentDeleteSectionStyle}>
+              <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.5 }}>
+                Permanent delete is only for mistakes, duplicates, or test accounts. It is blocked if company history exists.
+              </div>
+              <button type="button" disabled={lifecycleBusy} onClick={() => void runPermanentDelete(member)} style={permanentDeleteButtonStyle}>
+                Permanent Delete
+              </button>
+            </div>
+
             {lifecycleStatus && <div style={lifecycleStatusStyle}>{lifecycleStatus}</div>}
           </div>
         )}
@@ -374,6 +430,8 @@ const manageButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', bo
 const managePanelStyle: React.CSSProperties = { display: 'grid', gap: 10, padding: '12px 14px 14px', borderTop: '1px solid #e5e7eb', background: '#ffffff' }
 const actionButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 9, padding: '8px 11px', background: '#ffffff', color: '#172033', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
 const dangerOutlineButtonStyle: React.CSSProperties = { ...actionButtonStyle, border: '1px solid #fecaca', color: '#991b1b', background: '#fffafa' }
+const permanentDeleteSectionStyle: React.CSSProperties = { marginTop: 2, paddingTop: 11, borderTop: '1px solid #fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }
+const permanentDeleteButtonStyle: React.CSSProperties = { border: '1px solid #991b1b', borderRadius: 9, padding: '8px 11px', background: '#991b1b', color: '#ffffff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
 const lifecycleStatusStyle: React.CSSProperties = { fontSize: 13, color: '#991b1b', lineHeight: 1.5 }
 const successNoticeStyle: React.CSSProperties = { marginTop: 12, display: 'inline-block', borderRadius: 10, padding: '8px 11px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', fontSize: 13, fontWeight: 600 }
 const inputStyle: React.CSSProperties = { flex: '1 1 280px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 11, padding: '11px 12px', fontSize: 15, outline: 'none' }
