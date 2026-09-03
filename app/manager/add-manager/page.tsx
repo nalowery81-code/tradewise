@@ -19,13 +19,20 @@ export default function AddManagerPage() {
         return
       }
 
-      const response = await fetch('/api/auth/role', {
+      // Verify against an owner-only server route instead of trusting a cached
+      // role lookup. A manager should never render the owner invite screen.
+      const response = await fetch('/api/owner/company', {
+        cache: 'no-store',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
-      const data = await response.json()
 
-      if (!response.ok || data.accountRole !== 'owner') {
-        window.location.replace(data.role === 'technician' ? '/technician' : '/manager')
+      if (response.status === 401) {
+        window.location.replace('/login')
+        return
+      }
+
+      if (!response.ok) {
+        window.location.replace('/manager')
         return
       }
 
@@ -55,6 +62,7 @@ export default function AddManagerPage() {
 
       const response = await fetch('/api/owner/managers/invite', {
         method: 'POST',
+        cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
@@ -62,6 +70,9 @@ export default function AddManagerPage() {
         body: JSON.stringify({ name: cleanName, email: cleanEmail }),
       })
       const data = await response.json()
+
+      if (response.status === 401) return window.location.replace('/login')
+      if (response.status === 403) return window.location.replace('/manager')
 
       if (!response.ok) {
         setError(data.error || 'Could not invite manager.')
@@ -79,7 +90,7 @@ export default function AddManagerPage() {
     }
   }
 
-  if (checkingAccess) return <main style={pageStyle}><div>Loading owner access...</div></main>
+  if (checkingAccess) return <main style={pageStyle}><div>Checking owner access...</div></main>
 
   return (
     <main style={pageStyle}>
