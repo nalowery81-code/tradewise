@@ -25,7 +25,7 @@ const DOCUMENTS: Array<{
     },
   },
   {
-    url: 'https://www.in.gov/legislative/iac/20121024-IR-675110448FRA.xml.pdf',
+   url: 'https://iar.iga.in.gov/code/2026/675/16#675-16-1.4',
     filename: '2012-Indiana-Plumbing-Code-Amendments.pdf',
     attributes: {
       authority_lane: 'indiana_code',
