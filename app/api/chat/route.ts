@@ -15,7 +15,12 @@ export async function POST(req: Request) {
     const { data: { user }, error: userError } = await supabaseServer.auth.getUser(accessToken)
     if (userError || !user) return Response.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: technician, error: technicianError } = await supabaseServer.from('Technicians').select('id').eq('auth_user_id', user.id).single()
+    const { data: technician, error: technicianError } = await supabaseServer
+      .from('Technicians')
+      .select('id, canonical_name')
+      .eq('auth_user_id', user.id)
+      .single()
+
     if (technicianError || !technician) return Response.json({ error: 'Technician not found' }, { status: 404 })
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
 
@@ -24,27 +29,73 @@ export async function POST(req: Request) {
     const isPhotoStartedConversation = isNewConversation && !message?.trim() && !!image
 
     if (activeConversationId) {
-      const { data: existingConversation, error: conversationError } = await supabaseServer.from('Conversations').select('id').eq('id', activeConversationId).eq('technician_id', technician.id).single()
+      const { data: existingConversation, error: conversationError } = await supabaseServer
+        .from('Conversations')
+        .select('id')
+        .eq('id', activeConversationId)
+        .eq('technician_id', technician.id)
+        .single()
+
       if (conversationError || !existingConversation) return Response.json({ error: 'Conversation not found' }, { status: 404 })
     }
 
     if (!activeConversationId) {
-      const { data: conversation, error: conversationError } = await supabaseServer.from('Conversations').insert({ title: message?.trim()?.slice(0, 80) || 'New conversation', status: 'active', technician_id: technician.id }).select('id').single()
+      const { data: conversation, error: conversationError } = await supabaseServer
+        .from('Conversations')
+        .insert({
+          title: message?.trim()?.slice(0, 80) || 'New conversation',
+          status: 'active',
+          technician_id: technician.id,
+        })
+        .select('id')
+        .single()
+
       if (conversationError) throw conversationError
       activeConversationId = conversation.id
     }
 
-    const { error: userMessageError } = await supabaseServer.from('Messages').insert({ conversation_id: activeConversationId, role: 'user', content: message?.trim() || '', image_url: image || null })
+    const { error: userMessageError } = await supabaseServer.from('Messages').insert({
+      conversation_id: activeConversationId,
+      role: 'user',
+      content: message?.trim() || '',
+      image_url: image || null,
+    })
     if (userMessageError) throw userMessageError
 
-    const conversationHistory: any[] = Array.isArray(history) ? history.filter((item: any) => item && (item.role === 'user' || item.role === 'assistant') && typeof item.text === 'string').map((item: any) => ({ role: item.role, content: [{ type: item.role === 'assistant' ? 'output_text' : 'input_text', text: item.text }] })) : []
-    const userContent: any[] = [{ type: 'input_text', text: message?.trim() || 'Look at this image and help me understand what I am working with.' }]
+    const conversationHistory: any[] = Array.isArray(history)
+      ? history
+          .filter(
+            (item: any) =>
+              item &&
+              (item.role === 'user' || item.role === 'assistant') &&
+              typeof item.text === 'string'
+          )
+          .map((item: any) => ({
+            role: item.role,
+            content: [
+              {
+                type: item.role === 'assistant' ? 'output_text' : 'input_text',
+                text: item.text,
+              },
+            ],
+          }))
+      : []
+
+    const userContent: any[] = [
+      {
+        type: 'input_text',
+        text: message?.trim() || 'Look at this image and help me understand what I am working with.',
+      },
+    ]
     if (image) userContent.push({ type: 'input_image', image_url: image })
 
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
       tools: [
-        { type: 'file_search', vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID] },
+        {
+          type: 'file_search',
+          vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID],
+        },
         { type: 'web_search' },
       ],
       instructions: `
@@ -144,12 +195,23 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
         if (contentItem.type !== 'output_text') continue
         for (const annotation of contentItem.annotations || []) {
           if (annotation.type === 'url_citation') {
-            const alreadyAdded = sources.some((source) => source.type === 'web' && source.url === annotation.url)
-            if (!alreadyAdded) sources.push({ title: annotation.title || annotation.url, url: annotation.url, type: 'web' })
+            const alreadyAdded = sources.some(
+              (source) => source.type === 'web' && source.url === annotation.url
+            )
+            if (!alreadyAdded) {
+              sources.push({
+                title: annotation.title || annotation.url,
+                url: annotation.url,
+                type: 'web',
+              })
+            }
           }
+
           if (annotation.type === 'file_citation') {
             const title = annotation.filename || 'Verified document'
-            const alreadyAdded = sources.some((source) => source.type === 'file' && source.title === title)
+            const alreadyAdded = sources.some(
+              (source) => source.type === 'file' && source.title === title
+            )
             if (!alreadyAdded) sources.push({ title, type: 'file' })
           }
         }
@@ -160,7 +222,8 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       try {
         const titleResponse = await openai.responses.create({
           model: 'gpt-5.6-luna',
-          instructions: 'Create a concise conversation title of 3 to 8 words. If equipment is identified, prioritize manufacturer and model. Return only the title with no punctuation or explanation. Do not invent any information.',
+          instructions:
+            'Create a concise conversation title of 3 to 8 words. If equipment is identified, prioritize manufacturer and model. Return only the title with no punctuation or explanation. Do not invent any information.',
           input: `Create a title from this verified assistant response:\n\n${reply}`,
         })
 
@@ -177,18 +240,141 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
             .eq('id', activeConversationId)
             .eq('technician_id', technician.id)
 
-          if (titleUpdateError) console.error('CONVERSATION TITLE UPDATE ERROR:', titleUpdateError)
+          if (titleUpdateError) {
+            console.error('CONVERSATION TITLE UPDATE ERROR:', titleUpdateError)
+          }
         }
       } catch (titleError) {
         console.error('CONVERSATION TITLE GENERATION ERROR:', titleError)
       }
     }
 
-    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({ conversation_id: activeConversationId, role: 'assistant', content: reply, image_url: null })
+    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({
+      conversation_id: activeConversationId,
+      role: 'assistant',
+      content: reply,
+      image_url: null,
+    })
     if (assistantMessageError) throw assistantMessageError
+
+    try {
+      const recentContext = Array.isArray(history)
+        ? history
+            .filter(
+              (item: any) =>
+                item &&
+                (item.role === 'user' || item.role === 'assistant') &&
+                typeof item.text === 'string'
+            )
+            .slice(-8)
+            .map((item: any) => `${item.role === 'user' ? 'Technician' : 'Tradewise'}: ${item.text}`)
+            .join('\n')
+        : ''
+
+      const reflectionResponse = await openai.responses.create({
+        model: 'gpt-5.6-luna',
+        instructions: `
+You decide whether a technician conversation contains NEW manager-relevant information worth carrying forward as a reflection.
+
+Capture only meaningful field signals such as:
+- a job problem or recurring friction
+- scheduling, workload, parts, dispatch, communication, customer, or process issues
+- a training, confidence, coaching, or support need
+- a safety concern
+- a meaningful positive win or strong behavior worth reinforcing
+- a technician explicitly asking for help or describing strain that affects the work
+
+Do NOT create a reflection for:
+- ordinary technical questions, specifications, manuals, code questions, troubleshooting steps, or equipment identification by themselves
+- small talk
+- information already present in the recent conversation unless this turn adds something materially new
+- assumptions or facts not stated or clearly supported by the conversation
+
+Return ONLY valid JSON using exactly this shape:
+{
+  "capture": true or false,
+  "job_type": "Service Call|Installation|Callback|Maintenance|Inspection|Warranty|Estimate|Emergency Call|Other",
+  "challenge": "short factual summary of the manager-relevant signal",
+  "what_went_well": "short factual positive signal or empty string",
+  "help_needed": "short factual support/training need or empty string",
+  "manager_insight": "one concise manager-facing observation and useful next step, without diagnosing or exaggerating"
+}
+
+If capture is false, return empty strings for every other field.
+      `.trim(),
+        input: `Recent conversation:\n${recentContext || 'No earlier messages.'}\n\nCurrent technician message:\n${message?.trim() || '[image-only message]'}\n\nCurrent Tradewise response:\n${reply}`,
+      })
+
+      const rawReflection = reflectionResponse.output_text?.trim() || ''
+      const jsonText = rawReflection
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/```$/i, '')
+        .trim()
+
+      const reflection = JSON.parse(jsonText)
+
+      if (reflection?.capture === true && typeof reflection.challenge === 'string' && reflection.challenge.trim()) {
+        const { data: recentReflections, error: recentReflectionError } = await supabaseServer
+          .from('Reflections')
+          .select('challenge, created_at')
+          .eq('technician_id', technician.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        if (recentReflectionError) {
+          console.error('RECENT REFLECTION CHECK ERROR:', recentReflectionError)
+        }
+
+        const normalizedNewChallenge = reflection.challenge.trim().toLowerCase()
+        const duplicate = (recentReflections || []).some((existing: any) => {
+          const normalizedExisting = String(existing.challenge || '').trim().toLowerCase()
+          return (
+            normalizedExisting === normalizedNewChallenge ||
+            (normalizedExisting.length > 20 &&
+              normalizedNewChallenge.length > 20 &&
+              (normalizedExisting.includes(normalizedNewChallenge) ||
+                normalizedNewChallenge.includes(normalizedExisting)))
+          )
+        })
+
+        if (!duplicate) {
+          const { error: reflectionInsertError } = await supabaseServer.from('Reflections').insert({
+            technician_id: technician.id,
+            technician_name: technician.canonical_name,
+            job_type: reflection.job_type || 'Other',
+            challenge: reflection.challenge.trim(),
+            what_went_well:
+              typeof reflection.what_went_well === 'string' && reflection.what_went_well.trim()
+                ? reflection.what_went_well.trim()
+                : null,
+            help_needed:
+              typeof reflection.help_needed === 'string' && reflection.help_needed.trim()
+                ? reflection.help_needed.trim()
+                : null,
+            ai_response: null,
+            manager_insight:
+              typeof reflection.manager_insight === 'string' && reflection.manager_insight.trim()
+                ? reflection.manager_insight.trim()
+                : null,
+            created_at: new Date().toISOString(),
+          })
+
+          if (reflectionInsertError) {
+            console.error('AUTO REFLECTION INSERT ERROR:', reflectionInsertError)
+          }
+        }
+      }
+    } catch (reflectionError) {
+      console.error('AUTO REFLECTION CAPTURE ERROR:', reflectionError)
+    }
+
     return Response.json({ reply, conversationId: activeConversationId, sources })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
-    return Response.json({ error: error?.message || 'Tradewise could not generate a response.' }, { status: 500 })
+    return Response.json(
+      { error: error?.message || 'Tradewise could not generate a response.' },
+      { status: 500 }
+    )
   }
 }
