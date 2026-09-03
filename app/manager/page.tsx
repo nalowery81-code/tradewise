@@ -1,18 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+
+type ManagerMessage = {
+  role: 'user' | 'assistant'
+  text: string
+}
 
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
+  const [messages, setMessages] = useState<ManagerMessage[]>([])
+  const [sending, setSending] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
-  const [selectedHistoryCategory, setSelectedHistoryCategory] =
-    useState<string | null>(null)
-  const [selectedConversation, setSelectedConversation] =
-    useState<string | null>(null)
+  const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
+  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const checkManagerAccess = async () => {
@@ -59,22 +65,22 @@ export default function ManagerPage() {
   useEffect(() => {
     const checkScreen = () => {
       const desktop = window.innerWidth >= 768
-
       setIsDesktop(desktop)
       setSidebarOpen(desktop)
     }
 
     checkScreen()
-
     window.addEventListener('resize', checkScreen)
-
-    return () => {
-      window.removeEventListener('resize', checkScreen)
-    }
+    return () => window.removeEventListener('resize', checkScreen)
   }, [])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, sending])
 
   const handleNewChat = () => {
     setMessage('')
+    setMessages([])
     setSelectedHistoryCategory(null)
     setSelectedConversation(null)
 
@@ -86,6 +92,66 @@ export default function ManagerPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.replace('/login')
+  }
+
+  const handleSend = async (questionOverride?: string) => {
+    const question = (questionOverride ?? message).trim()
+    if (!question || sending) return
+
+    setSelectedHistoryCategory(null)
+    setSelectedConversation(null)
+    setMessages((current) => [...current, { role: 'user', text: question }])
+    setMessage('')
+    setSending(true)
+
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        window.location.replace('/login')
+        return
+      }
+
+      const response = await fetch('/api/manager/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ message: question }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setMessages((current) => [
+          ...current,
+          {
+            role: 'assistant',
+            text: data.error || 'I had trouble reading the team data. Try that again.',
+          },
+        ])
+        return
+      }
+
+      setMessages((current) => [
+        ...current,
+        { role: 'assistant', text: data.reply },
+      ])
+    } catch (error) {
+      console.error('MANAGER CHAT ERROR:', error)
+      setMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          text: 'I could not connect to the manager assistant. Try that again.',
+        },
+      ])
+    } finally {
+      setSending(false)
+    }
   }
 
   const sidebarItems = [
@@ -109,10 +175,10 @@ export default function ManagerPage() {
   ]
 
   const starters = [
-    'Weekly Summary',
-    'Technician Summary',
-    'Team Trends',
-    'Training Opportunities',
+    'Give me a weekly summary of what the team is dealing with.',
+    'Who on the team may need a follow-up?',
+    'What recurring issues are showing up?',
+    'Where do you see training opportunities?',
   ]
 
   if (checkingAccess) {
@@ -166,14 +232,7 @@ export default function ManagerPage() {
             padding: '0 8px',
           }}
         >
-          <div
-            style={{
-              fontWeight: 700,
-              fontSize: 18,
-            }}
-          >
-            Tradewise Manager
-          </div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>Tradewise Manager</div>
 
           {!isDesktop && (
             <button
@@ -204,13 +263,8 @@ export default function ManagerPage() {
               <button
                 type="button"
                 onClick={() => {
-                  if (item === 'New chat') {
-                    handleNewChat()
-                  }
-
-                  if (item === 'History') {
-                    setHistoryOpen((current) => !current)
-                  }
+                  if (item === 'New chat') handleNewChat()
+                  if (item === 'History') setHistoryOpen((current) => !current)
                 }}
                 style={{
                   width: '100%',
@@ -227,13 +281,7 @@ export default function ManagerPage() {
               </button>
 
               {item === 'History' && historyOpen && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gap: 4,
-                    margin: '4px 0 8px 12px',
-                  }}
-                >
+                <div style={{ display: 'grid', gap: 4, margin: '4px 0 8px 12px' }}>
                   {historyCategories.map((category) => (
                     <button
                       key={category}
@@ -241,10 +289,7 @@ export default function ManagerPage() {
                       onClick={() => {
                         setSelectedHistoryCategory(category)
                         setSelectedConversation(null)
-
-                        if (!isDesktop) {
-                          setSidebarOpen(false)
-                        }
+                        if (!isDesktop) setSidebarOpen(false)
                       }}
                       style={{
                         border: 'none',
@@ -311,7 +356,6 @@ export default function ManagerPage() {
         >
           ☰
         </button>
-
         Tradewise
       </header>
 
@@ -319,20 +363,13 @@ export default function ManagerPage() {
         style={{
           maxWidth: 760,
           margin: '0 auto',
-          padding: 'clamp(40px, 8vw, 90px) 16px 150px',
-          transform:
-            isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
+          padding: 'clamp(34px, 7vw, 76px) 16px 160px',
+          transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
         }}
       >
         {selectedHistoryCategory ? (
           selectedConversation ? (
-            <div
-              style={{
-                maxWidth: 760,
-                margin: '0 auto',
-                width: '100%',
-              }}
-            >
+            <div>
               <button
                 type="button"
                 onClick={() => setSelectedConversation(null)}
@@ -348,36 +385,15 @@ export default function ManagerPage() {
               >
                 ← Back to History
               </button>
-
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 'clamp(28px, 4vw, 38px)',
-                  fontWeight: 700,
-                }}
-              >
+              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>
                 Coaching follow-up: customer communication
               </h1>
-
-              <p
-                style={{
-                  marginTop: 12,
-                  color: '#6b7280',
-                  fontSize: 15,
-                  lineHeight: 1.6,
-                }}
-              >
-                Saved manager conversation details will appear here.
+              <p style={{ marginTop: 12, color: '#6b7280', lineHeight: 1.6 }}>
+                Saved manager conversations will appear here as we build manager history.
               </p>
             </div>
           ) : (
-            <div
-              style={{
-                maxWidth: 760,
-                margin: '0 auto',
-                width: '100%',
-              }}
-            >
+            <div>
               <button
                 type="button"
                 onClick={() => setSelectedHistoryCategory(null)}
@@ -393,165 +409,56 @@ export default function ManagerPage() {
               >
                 ← Back
               </button>
-
-              <h1
-                style={{
-                  margin: 0,
-                  fontSize: 'clamp(28px, 4vw, 38px)',
-                  fontWeight: 700,
-                }}
-              >
+              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>
                 {selectedHistoryCategory}
               </h1>
-
-              <p
-                style={{
-                  marginTop: 10,
-                  color: '#6b7280',
-                  fontSize: 15,
-                  lineHeight: 1.6,
-                }}
-              >
-                Conversations and insights related to this area will appear
-                here.
+              <p style={{ marginTop: 10, color: '#6b7280', lineHeight: 1.6 }}>
+                Conversations and insights related to this area will appear here.
               </p>
-
-              <div
+              <button
+                type="button"
+                onClick={() => setSelectedConversation('coaching-follow-up')}
                 style={{
-                  marginTop: 32,
-                  display: 'grid',
-                  gap: 12,
+                  width: '100%',
+                  textAlign: 'left',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 16,
+                  padding: '18px 20px',
+                  background: '#ffffff',
+                  cursor: 'pointer',
+                  marginTop: 28,
                 }}
               >
-                <button
-                  type="button"
-                  onClick={() =>
-                    setSelectedConversation('coaching-follow-up')
-                  }
-                  style={{
-                    width: '100%',
-                    textAlign: 'left',
-                    border: '1px solid #e5e7eb',
-                    borderRadius: 16,
-                    padding: '18px 20px',
-                    background: '#ffffff',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 16,
-                      fontWeight: 600,
-                      marginBottom: 6,
-                    }}
-                  >
-                    Coaching follow-up: customer communication
-                  </div>
-
-                  <div
-                    style={{
-                      fontSize: 14,
-                      color: '#6b7280',
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    Discussed a recurring communication issue and identified a
-                    coaching opportunity for the team.
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 8,
-                      marginTop: 14,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: '#4b5563',
-                        background: '#f3f4f6',
-                        borderRadius: 999,
-                        padding: '5px 9px',
-                      }}
-                    >
-                      Technician: Mike R.
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: '#4b5563',
-                        background: '#f3f4f6',
-                        borderRadius: 999,
-                        padding: '5px 9px',
-                      }}
-                    >
-                      Communication
-                    </span>
-
-                    <span
-                      style={{
-                        fontSize: 12,
-                        color: '#4b5563',
-                        background: '#f3f4f6',
-                        borderRadius: 999,
-                        padding: '5px 9px',
-                      }}
-                    >
-                      Follow-Up
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 12,
-                      fontSize: 12,
-                      color: '#9ca3af',
-                    }}
-                  >
-                    August 21, 2026
-                  </div>
-                </button>
-              </div>
+                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 6 }}>
+                  Coaching follow-up: customer communication
+                </div>
+                <div style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.5 }}>
+                  Manager history is still being connected to saved conversations.
+                </div>
+              </button>
             </div>
           )
-        ) : (
+        ) : messages.length === 0 ? (
           <>
-            <div
-              style={{
-                textAlign: 'center',
-                marginBottom: 34,
-              }}
-            >
+            <div style={{ textAlign: 'center', marginBottom: 34 }}>
               <h1
                 style={{
                   margin: 0,
-                  fontSize: 'clamp(24px, 5vw, 30px)',
+                  fontSize: 'clamp(26px, 5vw, 34px)',
                   fontWeight: 700,
                 }}
               >
                 What would you like to know about your team?
               </h1>
-
-              <p
-                style={{
-                  marginTop: 12,
-                  color: '#6b7280',
-                  fontSize: 16,
-                }}
-              >
-                Ask Tradewise about technicians, trends, training, or team
-                performance.
+              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>
+                Ask Tradewise about technicians, trends, training, or team performance.
               </p>
             </div>
 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns:
-                  'repeat(auto-fit, minmax(240px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
                 gap: 12,
                 marginBottom: 28,
               }}
@@ -560,16 +467,18 @@ export default function ManagerPage() {
                 <button
                   key={starter}
                   type="button"
-                  onClick={() => setMessage(starter)}
+                  onClick={() => void handleSend(starter)}
+                  disabled={sending}
                   style={{
                     padding: 18,
                     borderRadius: 16,
                     border: '1px solid #d1d5db',
                     background: '#ffffff',
-                    cursor: 'pointer',
+                    cursor: sending ? 'default' : 'pointer',
                     fontSize: 15,
                     fontWeight: 600,
                     textAlign: 'left',
+                    lineHeight: 1.45,
                   }}
                 >
                   {starter}
@@ -577,6 +486,60 @@ export default function ManagerPage() {
               ))}
             </div>
           </>
+        ) : (
+          <div style={{ display: 'grid', gap: 18 }}>
+            {messages.map((item, index) => (
+              <div
+                key={`${item.role}-${index}`}
+                style={{
+                  display: 'flex',
+                  justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
+                }}
+              >
+                <div
+                  style={
+                    item.role === 'user'
+                      ? {
+                          maxWidth: '78%',
+                          background: '#e7edf2',
+                          borderRadius: 18,
+                          padding: '12px 16px',
+                          lineHeight: 1.5,
+                          whiteSpace: 'pre-wrap',
+                        }
+                      : {
+                          width: '100%',
+                          background: '#ffffff',
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 18,
+                          padding: '18px 20px',
+                          lineHeight: 1.62,
+                          whiteSpace: 'pre-wrap',
+                          boxShadow: '0 4px 18px rgba(0,0,0,0.04)',
+                        }
+                  }
+                >
+                  {item.text}
+                </div>
+              </div>
+            ))}
+
+            {sending && (
+              <div
+                style={{
+                  width: 'fit-content',
+                  background: '#ffffff',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: 16,
+                  padding: '12px 16px',
+                  color: '#6b7280',
+                }}
+              >
+                Reading the team data...
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
         )}
       </section>
 
@@ -586,10 +549,9 @@ export default function ManagerPage() {
           left: 0,
           right: 0,
           bottom: 0,
-          background: '#f7f7f8',
+          background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))',
           padding: '14px 20px 22px',
-          paddingLeft:
-            isDesktop && sidebarOpen ? 298 : 20,
+          paddingLeft: isDesktop && sidebarOpen ? 298 : 20,
         }}
       >
         <div
@@ -611,6 +573,13 @@ export default function ManagerPage() {
             onChange={(e) => setMessage(e.target.value)}
             placeholder="Ask Tradewise about your team..."
             rows={1}
+            disabled={sending}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                void handleSend()
+              }
+            }}
             style={{
               flex: 1,
               border: 'none',
@@ -619,11 +588,14 @@ export default function ManagerPage() {
               fontSize: 16,
               fontFamily: 'inherit',
               padding: '10px 8px',
+              background: 'transparent',
             }}
           />
 
           <button
             type="button"
+            onClick={() => void handleSend()}
+            disabled={sending || !message.trim()}
             style={{
               width: 40,
               height: 40,
@@ -631,8 +603,9 @@ export default function ManagerPage() {
               border: 'none',
               background: '#111827',
               color: '#ffffff',
-              cursor: 'pointer',
+              cursor: sending || !message.trim() ? 'default' : 'pointer',
               fontSize: 18,
+              opacity: sending || !message.trim() ? 0.45 : 1,
             }}
           >
             ↑
