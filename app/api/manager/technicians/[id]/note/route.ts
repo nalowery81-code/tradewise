@@ -1,36 +1,15 @@
 import { supabaseServer } from '../../../../../lib/supabase-server'
+import { requireManagementAccess } from '../../../../../lib/management-auth'
 
 export async function PUT(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const authHeader = request.headers.get('authorization')
+    const auth = await requireManagementAccess(request)
+    if ('error' in auth) return auth.error
 
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const accessToken = authHeader.replace('Bearer ', '')
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser(accessToken)
-
-    if (userError || !user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('UserProfiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (profileError || profile?.role !== 'manager') {
-      return Response.json({ error: 'Manager access required' }, { status: 403 })
-    }
-
+    const companyId = auth.profile.company_id
     const { id } = await params
     const body = await request.json()
     const note = typeof body?.note === 'string' ? body.note.trim() : ''
@@ -38,6 +17,7 @@ export async function PUT(
     const { data: technician, error: technicianError } = await supabaseServer
       .from('Technicians')
       .select('id, canonical_name')
+      .eq('company_id', companyId)
       .eq('id', id)
       .single()
 
@@ -52,12 +32,14 @@ export async function PUT(
       .upsert(
         [
           {
+            company_id: companyId,
+            technician_id: technician.id,
             technician_name: technician.canonical_name,
             note,
             updated_at: updatedAt,
           },
         ],
-        { onConflict: 'technician_name' }
+        { onConflict: 'company_id,technician_id' }
       )
 
     if (noteError) {
@@ -65,17 +47,9 @@ export async function PUT(
       return Response.json({ error: 'Could not save manager note.' }, { status: 500 })
     }
 
-    return Response.json({
-      managerNote: {
-        note,
-        updated_at: updatedAt,
-      },
-    })
+    return Response.json({ managerNote: { note, updated_at: updatedAt } })
   } catch (error: any) {
     console.error('MANAGER NOTE API ERROR:', error)
-    return Response.json(
-      { error: error?.message || 'Could not save manager note.' },
-      { status: 500 }
-    )
+    return Response.json({ error: error?.message || 'Could not save manager note.' }, { status: 500 })
   }
 }
