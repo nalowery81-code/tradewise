@@ -1,34 +1,14 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
+import { requireManagementAccess } from '../../../../lib/management-auth'
 
 export async function POST(request: Request) {
   let invitedUserId: string | null = null
 
   try {
-    const authHeader = request.headers.get('authorization')
-    if (!authHeader?.startsWith('Bearer ')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const auth = await requireManagementAccess(request)
+    if ('error' in auth) return auth.error
 
-    const accessToken = authHeader.replace('Bearer ', '')
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseServer.auth.getUser(accessToken)
-
-    if (userError || !user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const { data: profile, error: profileError } = await supabaseServer
-      .from('UserProfiles')
-      .select('role')
-      .eq('auth_user_id', user.id)
-      .single()
-
-    if (profileError || !profile || !['manager', 'owner'].includes(profile.role || '')) {
-      return Response.json({ error: 'Manager access required' }, { status: 403 })
-    }
-
+    const companyId = auth.profile.company_id
     const body = await request.json()
     const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
     const email = String(body?.email || '').trim().toLowerCase()
@@ -44,6 +24,7 @@ export async function POST(request: Request) {
     const { data: existingTechnician, error: existingTechnicianError } = await supabaseServer
       .from('Technicians')
       .select('id, canonical_name, auth_user_id')
+      .eq('company_id', companyId)
       .ilike('canonical_name', name)
       .maybeSingle()
 
@@ -61,7 +42,7 @@ export async function POST(request: Request) {
       email,
       {
         redirectTo: `${origin}/setup-account`,
-        data: { full_name: name },
+        data: { full_name: name, company_id: companyId, role: 'technician' },
       }
     )
 
@@ -78,6 +59,7 @@ export async function POST(request: Request) {
     const { error: userProfileError } = await supabaseServer.from('UserProfiles').insert({
       auth_user_id: invitedUserId,
       role: 'technician',
+      company_id: companyId,
     })
 
     if (userProfileError) throw userProfileError
@@ -87,10 +69,8 @@ export async function POST(request: Request) {
     if (existingTechnician) {
       const { data, error } = await supabaseServer
         .from('Technicians')
-        .update({
-          canonical_name: name,
-          auth_user_id: invitedUserId,
-        })
+        .update({ canonical_name: name, auth_user_id: invitedUserId, company_id: companyId })
+        .eq('company_id', companyId)
         .eq('id', existingTechnician.id)
         .select('id, canonical_name, auth_user_id')
         .single()
@@ -100,10 +80,7 @@ export async function POST(request: Request) {
     } else {
       const { data, error } = await supabaseServer
         .from('Technicians')
-        .insert({
-          canonical_name: name,
-          auth_user_id: invitedUserId,
-        })
+        .insert({ canonical_name: name, auth_user_id: invitedUserId, company_id: companyId })
         .select('id, canonical_name, auth_user_id')
         .single()
 
@@ -112,10 +89,7 @@ export async function POST(request: Request) {
     }
 
     return Response.json({
-      technician: {
-        id: technician.id,
-        name: technician.canonical_name,
-      },
+      technician: { id: technician.id, name: technician.canonical_name },
       email,
       invited: true,
     })
@@ -135,9 +109,6 @@ export async function POST(request: Request) {
       }
     }
 
-    return Response.json(
-      { error: error?.message || 'Could not invite technician.' },
-      { status: 500 }
-    )
+    return Response.json({ error: error?.message || 'Could not invite technician.' }, { status: 500 })
   }
 }
