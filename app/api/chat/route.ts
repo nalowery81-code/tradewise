@@ -294,9 +294,14 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
       ],
     })
 
-    const reply =
-      response.output_text ||
-      'I could not generate a response.'
+  const rawReply =
+  response.output_text ||
+  'I could not generate a response.'
+
+const reply = rawReply
+  .replace(/]+/g, '')
+  .replace(/\s{2,}/g, ' ')
+  .trim()
 
     const sources: {
   title: string
