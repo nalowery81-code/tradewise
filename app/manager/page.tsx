@@ -3,18 +3,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-type ManagerMessage = {
-  role: 'user' | 'assistant'
-  text: string
-}
-
+type ManagerMessage = { role: 'user' | 'assistant'; text: string }
 type TechnicianDirectoryItem = {
   id: string
   name: string
   reflectionCount: number
   latestReflectionAt: string | null
 }
-
 type TechnicianReflection = {
   job_type: string | null
   challenge: string | null
@@ -23,13 +18,11 @@ type TechnicianReflection = {
   manager_insight: string | null
   created_at: string
 }
-
 type TechnicianProfile = {
   technician: { id: string; name: string }
   reflections: TechnicianReflection[]
   managerNote: { note: string | null; updated_at: string | null } | null
 }
-
 type ManagerFollowUp = {
   id: string
   technician_id: string | null
@@ -40,58 +33,40 @@ type ManagerFollowUp = {
   completed_at: string | null
   updated_at: string
 }
-
-type ManagerSummarySection = {
-  title: string
-  body: string
-}
-
 type ManagerView = 'chat' | 'technicians' | 'technician-profile' | 'follow-ups'
+type ManagerSummarySection = { title: string; body: string }
 
 const splitManagerSummary = (text: string): ManagerSummarySection[] => {
-  const cleaned = text
-    .replace(/#{1,6}\s*/g, '')
-    .replace(/\*\*/g, '')
-    .replace(/\r/g, '')
-    .trim()
-
+  const cleaned = text.replace(/#{1,6}\s*/g, '').replace(/\*\*/g, '').replace(/\r/g, '').trim()
   if (!cleaned) return []
 
-  const parts = cleaned.split(
-    /\b(Recent issues|Strengths|Support needs|Follow up)\b\s*:?\s*/gi
-  )
-
+  const parts = cleaned.split(/\b(Recent issues|Strengths|Support needs|Follow up)\b\s*:?\s*/gi)
   const sections: ManagerSummarySection[] = []
 
-  for (let index = 1; index < parts.length; index += 2) {
-    const title = parts[index]?.trim()
-    const body = parts[index + 1]?.trim()
+  for (let i = 1; i < parts.length; i += 2) {
+    const title = parts[i]?.trim()
+    const body = parts[i + 1]?.trim()
     if (title && body) sections.push({ title, body })
   }
 
-  if (sections.length > 0) return sections
-  return [{ title: 'Manager read', body: cleaned }]
+  return sections.length ? sections : [{ title: 'Manager read', body: cleaned }]
 }
 
-const renderSummaryBody = (body: string) => {
-  const bulletParts = body
+const SummaryBody = ({ body }: { body: string }) => {
+  const items = body
     .split(/\n+/)
     .map((item) => item.replace(/^[-•]\s*/, '').trim())
     .filter(Boolean)
 
-  if (bulletParts.length > 1) {
-    return (
-      <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 7 }}>
-        {bulletParts.map((item, index) => (
-          <li key={`${item}-${index}`} style={{ lineHeight: 1.55 }}>
-            {item}
-          </li>
-        ))}
-      </ul>
-    )
-  }
+  if (items.length <= 1) return <div style={{ lineHeight: 1.6 }}>{body}</div>
 
-  return <div style={{ lineHeight: 1.6 }}>{body}</div>
+  return (
+    <ul style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 7 }}>
+      {items.map((item, index) => (
+        <li key={`${item}-${index}`} style={{ lineHeight: 1.55 }}>{item}</li>
+      ))}
+    </ul>
+  )
 }
 
 export default function ManagerPage() {
@@ -102,7 +77,6 @@ export default function ManagerPage() {
   const [isDesktop, setIsDesktop] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
-  const [selectedConversation, setSelectedConversation] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [managerView, setManagerView] = useState<ManagerView>('chat')
 
@@ -132,33 +106,23 @@ export default function ManagerPage() {
 
   useEffect(() => {
     const checkManagerAccess = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-
+      const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
         window.location.replace('/login')
         return
       }
 
       try {
-        const roleResponse = await fetch('/api/auth/role', {
+        const response = await fetch('/api/auth/role', {
           headers: { Authorization: `Bearer ${session.access_token}` },
         })
+        if (!response.ok) throw new Error('Could not verify manager access.')
 
-        if (!roleResponse.ok) {
-          await supabase.auth.signOut()
-          window.location.replace('/login')
-          return
-        }
-
-        const { role } = await roleResponse.json()
-
+        const { role } = await response.json()
         if (role !== 'manager') {
           window.location.replace('/technician')
           return
         }
-
         setCheckingAccess(false)
       } catch (error) {
         console.error('MANAGER ACCESS CHECK ERROR:', error)
@@ -167,7 +131,7 @@ export default function ManagerPage() {
       }
     }
 
-    checkManagerAccess()
+    void checkManagerAccess()
   }, [])
 
   useEffect(() => {
@@ -176,7 +140,6 @@ export default function ManagerPage() {
       setIsDesktop(desktop)
       setSidebarOpen(desktop)
     }
-
     checkScreen()
     window.addEventListener('resize', checkScreen)
     return () => window.removeEventListener('resize', checkScreen)
@@ -186,12 +149,7 @@ export default function ManagerPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, sending])
 
-  const getSession = async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    return session
-  }
+  const getSession = async () => (await supabase.auth.getSession()).data.session
 
   const resetProfileState = () => {
     setTechnicianProfile(null)
@@ -205,24 +163,15 @@ export default function ManagerPage() {
   const loadTechnicians = async () => {
     setTechniciansLoading(true)
     setTechniciansError('')
-
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const response = await fetch('/api/manager/technicians', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await response.json()
-
-      if (!response.ok) {
-        setTechniciansError(data.error || 'Could not load technicians.')
-        return
-      }
-
+      if (!response.ok) return setTechniciansError(data.error || 'Could not load technicians.')
       setTechnicians(data.technicians || [])
     } catch (error) {
       console.error('MANAGER TECHNICIAN DIRECTORY ERROR:', error)
@@ -235,24 +184,15 @@ export default function ManagerPage() {
   const loadFollowUps = async () => {
     setFollowUpsLoading(true)
     setFollowUpsError('')
-
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const response = await fetch('/api/manager/follow-ups', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
       const data = await response.json()
-
-      if (!response.ok) {
-        setFollowUpsError(data.error || 'Could not load follow-ups.')
-        return
-      }
-
+      if (!response.ok) return setFollowUpsError(data.error || 'Could not load follow-ups.')
       setFollowUps(data.followUps || [])
     } catch (error) {
       console.error('MANAGER FOLLOW-UP LOAD ERROR:', error)
@@ -264,24 +204,23 @@ export default function ManagerPage() {
 
   const openTechnicians = () => {
     setManagerView('technicians')
-    resetProfileState()
     setSelectedHistoryCategory(null)
-    setSelectedConversation(null)
+    resetProfileState()
     void loadTechnicians()
     if (!isDesktop) setSidebarOpen(false)
   }
 
-  const openFollowUps = () => {
+  const openFollowUpsView = () => {
     setManagerView('follow-ups')
-    resetProfileState()
     setSelectedHistoryCategory(null)
-    setSelectedConversation(null)
+    resetProfileState()
     void loadFollowUps()
     if (!isDesktop) setSidebarOpen(false)
   }
 
   const loadTechnicianProfile = async (technician: TechnicianDirectoryItem) => {
     setManagerView('technician-profile')
+    setSelectedHistoryCategory(null)
     setProfileLoading(true)
     setProfileError('')
     setProfileSummary('')
@@ -294,10 +233,7 @@ export default function ManagerPage() {
 
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const [profileResponse, summaryResponse] = await Promise.all([
         fetch(`/api/manager/technicians/${technician.id}`, {
@@ -318,16 +254,13 @@ export default function ManagerPage() {
       const profileData = await profileResponse.json()
       const summaryData = await summaryResponse.json()
 
-      if (!profileResponse.ok) {
-        setProfileError(profileData.error || 'Could not load technician profile.')
-      } else {
+      if (!profileResponse.ok) setProfileError(profileData.error || 'Could not load technician profile.')
+      else {
         setTechnicianProfile(profileData)
         setManagerNoteDraft(profileData.managerNote?.note || '')
       }
 
-      if (summaryResponse.ok) {
-        setProfileSummary(summaryData.reply || '')
-      }
+      if (summaryResponse.ok) setProfileSummary(summaryData.reply || '')
     } catch (error) {
       console.error('MANAGER TECHNICIAN PROFILE ERROR:', error)
       setProfileError('Could not load technician profile.')
@@ -339,38 +272,25 @@ export default function ManagerPage() {
 
   const saveManagerNote = async () => {
     if (!technicianProfile || managerNoteSaving) return
-
     setManagerNoteSaving(true)
     setManagerNoteStatus('')
 
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
-      const response = await fetch(
-        `/api/manager/technicians/${technicianProfile.technician.id}/note`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ note: managerNoteDraft }),
-        }
-      )
+      const response = await fetch(`/api/manager/technicians/${technicianProfile.technician.id}/note`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ note: managerNoteDraft }),
+      })
       const data = await response.json()
+      if (!response.ok) return setManagerNoteStatus(data.error || 'Could not save note.')
 
-      if (!response.ok) {
-        setManagerNoteStatus(data.error || 'Could not save note.')
-        return
-      }
-
-      setTechnicianProfile((current) =>
-        current ? { ...current, managerNote: data.managerNote } : current
-      )
+      setTechnicianProfile((current) => current ? { ...current, managerNote: data.managerNote } : current)
       setManagerNoteDraft(data.managerNote?.note || '')
       setManagerNoteStatus('Saved')
     } catch (error) {
@@ -384,16 +304,12 @@ export default function ManagerPage() {
   const createFollowUp = async () => {
     const note = followUpDraft.trim()
     if (!technicianProfile || !note || followUpSaving) return
-
     setFollowUpSaving(true)
     setFollowUpStatus('')
 
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const response = await fetch('/api/manager/follow-ups', {
         method: 'POST',
@@ -401,17 +317,10 @@ export default function ManagerPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({
-          technicianId: technicianProfile.technician.id,
-          note,
-        }),
+        body: JSON.stringify({ technicianId: technicianProfile.technician.id, note }),
       })
       const data = await response.json()
-
-      if (!response.ok) {
-        setFollowUpStatus(data.error || 'Could not create follow-up.')
-        return
-      }
+      if (!response.ok) return setFollowUpStatus(data.error || 'Could not create follow-up.')
 
       setFollowUps((current) => [data.followUp, ...current])
       setFollowUpDraft('')
@@ -431,10 +340,7 @@ export default function ManagerPage() {
 
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const response = await fetch(`/api/manager/follow-ups/${followUp.id}`, {
         method: 'PATCH',
@@ -445,15 +351,9 @@ export default function ManagerPage() {
         body: JSON.stringify({ status }),
       })
       const data = await response.json()
+      if (!response.ok) return setFollowUpsError(data.error || 'Could not update follow-up.')
 
-      if (!response.ok) {
-        setFollowUpsError(data.error || 'Could not update follow-up.')
-        return
-      }
-
-      setFollowUps((current) =>
-        current.map((item) => (item.id === followUp.id ? data.followUp : item))
-      )
+      setFollowUps((current) => current.map((item) => item.id === followUp.id ? data.followUp : item))
     } catch (error) {
       console.error('MANAGER FOLLOW-UP UPDATE ERROR:', error)
       setFollowUpsError('Could not update follow-up.')
@@ -476,9 +376,8 @@ export default function ManagerPage() {
     setMessage('')
     setMessages([])
     setManagerView('chat')
-    resetProfileState()
     setSelectedHistoryCategory(null)
-    setSelectedConversation(null)
+    resetProfileState()
     if (!isDesktop) setSidebarOpen(false)
   }
 
@@ -493,17 +392,13 @@ export default function ManagerPage() {
 
     setManagerView('chat')
     setSelectedHistoryCategory(null)
-    setSelectedConversation(null)
     setMessages((current) => [...current, { role: 'user', text: question }])
     setMessage('')
     setSending(true)
 
     try {
       const session = await getSession()
-      if (!session) {
-        window.location.replace('/login')
-        return
-      }
+      if (!session) return window.location.replace('/login')
 
       const response = await fetch('/api/manager/chat', {
         method: 'POST',
@@ -513,24 +408,18 @@ export default function ManagerPage() {
         },
         body: JSON.stringify({ message: question }),
       })
-
       const data = await response.json()
 
       setMessages((current) => [
         ...current,
         {
           role: 'assistant',
-          text: response.ok
-            ? data.reply
-            : data.error || 'I had trouble reading the team data. Try that again.',
+          text: response.ok ? data.reply : data.error || 'I had trouble reading the team data. Try that again.',
         },
       ])
     } catch (error) {
       console.error('MANAGER CHAT ERROR:', error)
-      setMessages((current) => [
-        ...current,
-        { role: 'assistant', text: 'I could not connect to the manager assistant. Try that again.' },
-      ])
+      setMessages((current) => [...current, { role: 'assistant', text: 'I could not connect to the manager assistant. Try that again.' }])
     } finally {
       setSending(false)
     }
@@ -544,14 +433,8 @@ export default function ManagerPage() {
 
   const sidebarItems = ['New chat', 'Search', 'History', 'Follow-up', 'Technicians', 'Manager Notes']
   const historyCategories = [
-    'Weekly Team Review',
-    'Technician Development',
-    'Training & Coaching',
-    'Recurring Job Issues',
-    'Team Performance Trends',
-    'Customer Experience',
-    'Safety & Risk',
-    'Operations Follow-Up',
+    'Weekly Team Review', 'Technician Development', 'Training & Coaching', 'Recurring Job Issues',
+    'Team Performance Trends', 'Customer Experience', 'Safety & Risk', 'Operations Follow-Up',
   ]
   const starters = [
     'Give me a weekly summary of what the team is dealing with.',
@@ -561,28 +444,17 @@ export default function ManagerPage() {
   ]
 
   const managerSummarySections = splitManagerSummary(profileSummary)
-  const openFollowUps = followUps.filter((item) => item.status === 'open')
-  const completedFollowUps = followUps.filter((item) => item.status === 'done')
-  const showComposer = managerView === 'chat' || managerView === 'technician-profile'
+  const openFollowUpItems = followUps.filter((item) => item.status === 'open')
+  const completedFollowUpItems = followUps.filter((item) => item.status === 'done')
+  const showComposer = managerView === 'chat' && !selectedHistoryCategory || managerView === 'technician-profile'
 
-  if (checkingAccess) {
-    return (
-      <main style={loadingPageStyle}>
-        <div>Loading manager workspace...</div>
-      </main>
-    )
-  }
+  if (checkingAccess) return <main style={loadingPageStyle}>Loading manager workspace...</main>
 
   const renderFollowUpCard = (followUp: ManagerFollowUp) => (
     <div key={followUp.id} style={followUpCardStyle}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start' }}>
         <div style={{ minWidth: 0 }}>
-          <button
-            type="button"
-            onClick={() => openFollowUpTechnician(followUp)}
-            disabled={!followUp.technician_id}
-            style={followUpTechnicianButtonStyle}
-          >
+          <button type="button" onClick={() => openFollowUpTechnician(followUp)} disabled={!followUp.technician_id} style={followUpTechnicianButtonStyle}>
             {followUp.technician_name}
           </button>
           <div style={{ marginTop: 7, lineHeight: 1.55 }}>{followUp.note}</div>
@@ -591,18 +463,13 @@ export default function ManagerPage() {
             {followUp.completed_at ? ` · Completed ${new Date(followUp.completed_at).toLocaleDateString()}` : ''}
           </div>
         </div>
-
         <button
           type="button"
           onClick={() => void updateFollowUpStatus(followUp, followUp.status === 'open' ? 'done' : 'open')}
           disabled={updatingFollowUpId === followUp.id}
           style={followUpActionButtonStyle}
         >
-          {updatingFollowUpId === followUp.id
-            ? 'Saving...'
-            : followUp.status === 'open'
-              ? 'Mark done'
-              : 'Reopen'}
+          {updatingFollowUpId === followUp.id ? 'Saving...' : followUp.status === 'open' ? 'Mark done' : 'Reopen'}
         </button>
       </div>
     </div>
@@ -613,15 +480,13 @@ export default function ManagerPage() {
       <aside style={{ ...sidebarStyle, display: sidebarOpen ? 'flex' : 'none' }}>
         <div style={sidebarHeaderStyle}>
           <div style={{ fontWeight: 700, fontSize: 18 }}>Tradewise Manager</div>
-          {!isDesktop && (
-            <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>×</button>
-          )}
+          {!isDesktop && <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>×</button>}
         </div>
 
         <div style={{ display: 'grid', gap: 6, flex: 1, alignContent: 'start' }}>
           {sidebarItems.map((item) => {
             const active =
-              (item === 'Technicians' && (managerView === 'technicians' || managerView === 'technician-profile')) ||
+              (item === 'Technicians' && ['technicians', 'technician-profile'].includes(managerView)) ||
               (item === 'Follow-up' && managerView === 'follow-ups')
 
             return (
@@ -632,13 +497,9 @@ export default function ManagerPage() {
                     if (item === 'New chat') handleNewChat()
                     if (item === 'History') setHistoryOpen((current) => !current)
                     if (item === 'Technicians') openTechnicians()
-                    if (item === 'Follow-up') openFollowUps()
+                    if (item === 'Follow-up') openFollowUpsView()
                   }}
-                  style={{
-                    ...sidebarButtonStyle,
-                    background: active ? '#eef2f5' : 'transparent',
-                    fontWeight: active ? 700 : 400,
-                  }}
+                  style={{ ...sidebarButtonStyle, background: active ? '#eef2f5' : 'transparent', fontWeight: active ? 700 : 400 }}
                 >
                   {item}
                 </button>
@@ -652,7 +513,6 @@ export default function ManagerPage() {
                         onClick={() => {
                           setManagerView('chat')
                           setSelectedHistoryCategory(category)
-                          setSelectedConversation(null)
                           if (!isDesktop) setSidebarOpen(false)
                         }}
                         style={historyButtonStyle}
@@ -666,7 +526,6 @@ export default function ManagerPage() {
             )
           })}
         </div>
-
         <button type="button" onClick={handleSignOut} style={signOutStyle}>Sign out</button>
       </aside>
 
@@ -675,16 +534,12 @@ export default function ManagerPage() {
         Tradewise
       </header>
 
-      <section
-        style={{
-          maxWidth: 760,
-          margin: '0 auto',
-          padding: showComposer
-            ? 'clamp(34px, 7vw, 76px) 16px 160px'
-            : 'clamp(34px, 7vw, 76px) 16px 60px',
-          transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
-        }}
-      >
+      <section style={{
+        maxWidth: 760,
+        margin: '0 auto',
+        padding: showComposer ? 'clamp(34px, 7vw, 76px) 16px 160px' : 'clamp(34px, 7vw, 76px) 16px 60px',
+        transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
+      }}>
         {managerView === 'follow-ups' ? (
           <div>
             <div style={{ marginBottom: 28 }}>
@@ -693,39 +548,30 @@ export default function ManagerPage() {
               <p style={subtleTextStyle}>Keep the things that need a manager action from getting lost.</p>
             </div>
 
-            {followUpsLoading ? (
-              <div style={statusCardStyle}>Loading follow-ups...</div>
-            ) : followUpsError ? (
-              <div style={statusCardStyle}>{followUpsError}</div>
-            ) : (
+            {followUpsLoading ? <div style={statusCardStyle}>Loading follow-ups...</div> :
+             followUpsError ? <div style={statusCardStyle}>{followUpsError}</div> : (
               <>
                 <section style={{ marginBottom: 30 }}>
                   <div style={followUpSectionHeaderStyle}>
                     <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Open</h2>
-                    <span style={countBadgeStyle}>{openFollowUps.length}</span>
+                    <span style={countBadgeStyle}>{openFollowUpItems.length}</span>
                   </div>
-
-                  {openFollowUps.length === 0 ? (
+                  {openFollowUpItems.length === 0 ? (
                     <div style={{ ...statusCardStyle, marginTop: 12 }}>Nothing needs follow-up right now.</div>
                   ) : (
-                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-                      {openFollowUps.map(renderFollowUpCard)}
-                    </div>
+                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>{openFollowUpItems.map(renderFollowUpCard)}</div>
                   )}
                 </section>
 
                 <section>
                   <div style={followUpSectionHeaderStyle}>
                     <h2 style={{ ...sectionTitleStyle, margin: 0 }}>Completed</h2>
-                    <span style={countBadgeStyle}>{completedFollowUps.length}</span>
+                    <span style={countBadgeStyle}>{completedFollowUpItems.length}</span>
                   </div>
-
-                  {completedFollowUps.length === 0 ? (
+                  {completedFollowUpItems.length === 0 ? (
                     <div style={{ ...statusCardStyle, marginTop: 12 }}>Completed follow-ups will appear here.</div>
                   ) : (
-                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>
-                      {completedFollowUps.map(renderFollowUpCard)}
-                    </div>
+                    <div style={{ display: 'grid', gap: 12, marginTop: 12 }}>{completedFollowUpItems.map(renderFollowUpCard)}</div>
                   )}
                 </section>
               </>
@@ -738,14 +584,9 @@ export default function ManagerPage() {
               <h1 style={pageTitleStyle}>Technicians</h1>
               <p style={subtleTextStyle}>Open a technician to review their recent history, manager context, and coaching needs.</p>
             </div>
-
-            {techniciansLoading ? (
-              <div style={statusCardStyle}>Loading technicians...</div>
-            ) : techniciansError ? (
-              <div style={statusCardStyle}>{techniciansError}</div>
-            ) : technicians.length === 0 ? (
-              <div style={statusCardStyle}>No technicians found yet.</div>
-            ) : (
+            {techniciansLoading ? <div style={statusCardStyle}>Loading technicians...</div> :
+             techniciansError ? <div style={statusCardStyle}>{techniciansError}</div> :
+             technicians.length === 0 ? <div style={statusCardStyle}>No technicians found yet.</div> : (
               <div style={{ display: 'grid', gap: 12 }}>
                 {technicians.map((technician) => (
                   <button key={technician.id} type="button" onClick={() => void loadTechnicianProfile(technician)} style={technicianCardStyle}>
@@ -765,50 +606,36 @@ export default function ManagerPage() {
         ) : managerView === 'technician-profile' ? (
           <div>
             <button type="button" onClick={openTechnicians} style={backButtonStyle}>← Back to Technicians</button>
-
-            {profileLoading && !technicianProfile ? (
-              <div style={statusCardStyle}>Loading technician profile...</div>
-            ) : profileError ? (
-              <div style={statusCardStyle}>{profileError}</div>
-            ) : technicianProfile ? (
+            {profileLoading && !technicianProfile ? <div style={statusCardStyle}>Loading technician profile...</div> :
+             profileError ? <div style={statusCardStyle}>{profileError}</div> : technicianProfile ? (
               <>
                 <div style={{ marginBottom: 28 }}>
                   <div style={eyebrowStyle}>Technician profile</div>
                   <h1 style={pageTitleStyle}>{technicianProfile.technician.name}</h1>
-                  <p style={subtleTextStyle}>
-                    {technicianProfile.reflections.length} recent reflection{technicianProfile.reflections.length === 1 ? '' : 's'} loaded
-                  </p>
+                  <p style={subtleTextStyle}>{technicianProfile.reflections.length} recent reflection{technicianProfile.reflections.length === 1 ? '' : 's'} loaded</p>
                 </div>
 
                 <section style={profileSectionStyle}>
                   <h2 style={sectionTitleStyle}>Manager read</h2>
-                  {profileSummaryLoading ? (
-                    <div style={{ color: '#64748b' }}>Reading recent team data...</div>
-                  ) : managerSummarySections.length > 0 ? (
+                  {profileSummaryLoading ? <div style={{ color: '#64748b' }}>Reading recent team data...</div> :
+                   managerSummarySections.length ? (
                     <div style={{ display: 'grid', gap: 12 }}>
                       {managerSummarySections.map((section) => (
                         <div key={section.title} style={summarySectionStyle}>
                           <div style={summarySectionTitleStyle}>{section.title}</div>
-                          <div style={{ marginTop: 7 }}>{renderSummaryBody(section.body)}</div>
+                          <div style={{ marginTop: 7 }}><SummaryBody body={section.body} /></div>
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div style={{ color: '#64748b' }}>No summary available yet.</div>
-                  )}
+                  ) : <div style={{ color: '#64748b' }}>No summary available yet.</div>}
                 </section>
 
                 <section style={profileSectionStyle}>
                   <h2 style={sectionTitleStyle}>Add follow-up</h2>
-                  <p style={{ ...subtleTextStyle, marginTop: -5 }}>
-                    Add something you want to make sure gets handled for {technicianProfile.technician.name}.
-                  </p>
+                  <p style={{ ...subtleTextStyle, marginTop: -5 }}>Add something you want to make sure gets handled for {technicianProfile.technician.name}.</p>
                   <textarea
                     value={followUpDraft}
-                    onChange={(event) => {
-                      setFollowUpDraft(event.target.value)
-                      if (followUpStatus) setFollowUpStatus('')
-                    }}
+                    onChange={(event) => { setFollowUpDraft(event.target.value); if (followUpStatus) setFollowUpStatus('') }}
                     placeholder="Example: Check whether a helper is being assigned to the next large install."
                     rows={3}
                     style={managerNoteInputStyle}
@@ -818,64 +645,37 @@ export default function ManagerPage() {
                       type="button"
                       onClick={() => void createFollowUp()}
                       disabled={followUpSaving || !followUpDraft.trim()}
-                      style={{
-                        ...saveNoteButtonStyle,
-                        opacity: followUpSaving || !followUpDraft.trim() ? 0.5 : 1,
-                      }}
+                      style={{ ...saveNoteButtonStyle, opacity: followUpSaving || !followUpDraft.trim() ? 0.5 : 1 }}
                     >
                       {followUpSaving ? 'Adding...' : 'Add follow-up'}
                     </button>
-                    {followUpStatus && (
-                      <div style={{ fontSize: 13, color: followUpStatus === 'Added to Follow-up' ? '#475569' : '#991b1b' }}>
-                        {followUpStatus}
-                      </div>
-                    )}
+                    {followUpStatus && <div style={{ fontSize: 13, color: followUpStatus === 'Added to Follow-up' ? '#475569' : '#991b1b' }}>{followUpStatus}</div>}
                   </div>
                 </section>
 
                 <section style={profileSectionStyle}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 }}>
                     <h2 style={sectionTitleStyle}>Manager note</h2>
-                    {technicianProfile.managerNote?.updated_at && (
-                      <div style={{ fontSize: 12, color: '#94a3b8' }}>
-                        Updated {new Date(technicianProfile.managerNote.updated_at).toLocaleDateString()}
-                      </div>
-                    )}
+                    {technicianProfile.managerNote?.updated_at && <div style={{ fontSize: 12, color: '#94a3b8' }}>Updated {new Date(technicianProfile.managerNote.updated_at).toLocaleDateString()}</div>}
                   </div>
-
                   <textarea
                     value={managerNoteDraft}
-                    onChange={(event) => {
-                      setManagerNoteDraft(event.target.value)
-                      if (managerNoteStatus) setManagerNoteStatus('')
-                    }}
+                    onChange={(event) => { setManagerNoteDraft(event.target.value); if (managerNoteStatus) setManagerNoteStatus('') }}
                     placeholder={`Add a private manager note about ${technicianProfile.technician.name}...`}
                     rows={4}
                     style={managerNoteInputStyle}
                   />
-
                   <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <button
-                      type="button"
-                      onClick={() => void saveManagerNote()}
-                      disabled={managerNoteSaving}
-                      style={{ ...saveNoteButtonStyle, opacity: managerNoteSaving ? 0.6 : 1 }}
-                    >
+                    <button type="button" onClick={() => void saveManagerNote()} disabled={managerNoteSaving} style={{ ...saveNoteButtonStyle, opacity: managerNoteSaving ? 0.6 : 1 }}>
                       {managerNoteSaving ? 'Saving...' : 'Save note'}
                     </button>
-                    {managerNoteStatus && (
-                      <div style={{ fontSize: 13, color: managerNoteStatus === 'Saved' ? '#475569' : '#991b1b' }}>
-                        {managerNoteStatus}
-                      </div>
-                    )}
+                    {managerNoteStatus && <div style={{ fontSize: 13, color: managerNoteStatus === 'Saved' ? '#475569' : '#991b1b' }}>{managerNoteStatus}</div>}
                   </div>
                 </section>
 
                 <section style={{ marginTop: 26 }}>
                   <h2 style={sectionTitleStyle}>Recent reflections</h2>
-                  {technicianProfile.reflections.length === 0 ? (
-                    <div style={statusCardStyle}>No reflections found for this technician.</div>
-                  ) : (
+                  {technicianProfile.reflections.length === 0 ? <div style={statusCardStyle}>No reflections found for this technician.</div> : (
                     <div style={{ display: 'grid', gap: 12 }}>
                       {technicianProfile.reflections.map((reflection, index) => (
                         <div key={`${reflection.created_at}-${index}`} style={reflectionCardStyle}>
@@ -884,11 +684,7 @@ export default function ManagerPage() {
                             <div style={{ fontSize: 12, color: '#94a3b8' }}>{new Date(reflection.created_at).toLocaleDateString()}</div>
                           </div>
                           <div style={{ marginTop: 10, lineHeight: 1.55 }}>{reflection.challenge || 'No challenge recorded.'}</div>
-                          {reflection.manager_insight && (
-                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f5', color: '#475569', lineHeight: 1.55 }}>
-                              {reflection.manager_insight}
-                            </div>
-                          )}
+                          {reflection.manager_insight && <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f5', color: '#475569', lineHeight: 1.55 }}>{reflection.manager_insight}</div>}
                         </div>
                       ))}
                     </div>
@@ -898,19 +694,11 @@ export default function ManagerPage() {
             ) : null}
           </div>
         ) : selectedHistoryCategory ? (
-          selectedConversation ? (
-            <div>
-              <button type="button" onClick={() => setSelectedConversation(null)} style={backButtonStyle}>← Back to History</button>
-              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>Coaching follow-up: customer communication</h1>
-              <p style={subtleTextStyle}>Saved manager conversations will appear here as we build manager history.</p>
-            </div>
-          ) : (
-            <div>
-              <button type="button" onClick={() => setSelectedHistoryCategory(null)} style={backButtonStyle}>← Back</button>
-              <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>{selectedHistoryCategory}</h1>
-              <p style={subtleTextStyle}>Conversations and insights related to this area will appear here.</p>
-            </div>
-          )
+          <div>
+            <button type="button" onClick={() => setSelectedHistoryCategory(null)} style={backButtonStyle}>← Back</button>
+            <h1 style={{ margin: 0, fontSize: 'clamp(28px, 4vw, 38px)' }}>{selectedHistoryCategory}</h1>
+            <p style={subtleTextStyle}>Conversations and insights related to this area will appear here.</p>
+          </div>
         ) : messages.length === 0 ? (
           <>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
@@ -918,9 +706,7 @@ export default function ManagerPage() {
               <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask Tradewise about technicians, trends, training, or team performance.</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
-              {starters.map((starter) => (
-                <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>{starter}</button>
-              ))}
+              {starters.map((starter) => <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>{starter}</button>)}
             </div>
           </>
         ) : (
@@ -937,17 +723,7 @@ export default function ManagerPage() {
       </section>
 
       {showComposer && (
-        <div
-          style={{
-            position: 'fixed',
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))',
-            padding: '14px 20px 22px',
-            paddingLeft: isDesktop && sidebarOpen ? 298 : 20,
-          }}
-        >
+        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))', padding: '14px 20px 22px', paddingLeft: isDesktop && sidebarOpen ? 298 : 20 }}>
           <div style={composerStyle}>
             <textarea
               value={message}
@@ -964,14 +740,7 @@ export default function ManagerPage() {
               }}
               style={inputStyle}
             />
-            <button
-              type="button"
-              onClick={() => managerView === 'technician-profile' ? askAboutProfile() : void handleSend()}
-              disabled={sending || !message.trim()}
-              style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}
-            >
-              ↑
-            </button>
+            <button type="button" onClick={() => managerView === 'technician-profile' ? askAboutProfile() : void handleSend()} disabled={sending || !message.trim()} style={{ ...sendButtonStyle, opacity: sending || !message.trim() ? 0.45 : 1 }}>↑</button>
           </div>
         </div>
       )}
