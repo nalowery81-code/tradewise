@@ -14,17 +14,13 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-
     setLoading(true)
     setError('')
 
     const {
       data: { session },
       error,
-    } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
+    } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError(error.message)
@@ -33,9 +29,7 @@ export default function LoginPage() {
     }
 
     const roleResponse = await fetch('/api/auth/role', {
-      headers: {
-        Authorization: `Bearer ${session?.access_token || ''}`,
-      },
+      headers: { Authorization: `Bearer ${session?.access_token || ''}` },
     })
 
     if (!roleResponse.ok) {
@@ -46,7 +40,7 @@ export default function LoginPage() {
 
     const { role } = await roleResponse.json()
 
-    if (role === 'manager') {
+    if (role === 'manager' || role === 'owner') {
       router.replace('/manager')
       return
     }
@@ -55,25 +49,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: 24,
-      }}
-    >
-      <form
-        onSubmit={handleLogin}
-        style={{
-          width: '100%',
-          maxWidth: 360,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 14,
-        }}
-      >
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <h1 style={{ fontSize: 36, marginBottom: 8 }}>Tradewise</h1>
 
         <input
@@ -83,12 +60,7 @@ export default function LoginPage() {
           onChange={(e) => setEmail(e.target.value)}
           required
           autoComplete="email"
-          style={{
-            padding: 12,
-            fontSize: 16,
-            borderRadius: 8,
-            border: '1px solid #ccc',
-          }}
+          style={{ padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc' }}
         />
 
         <input
@@ -98,37 +70,16 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
           autoComplete="current-password"
-          style={{
-            padding: 12,
-            fontSize: 16,
-            borderRadius: 8,
-            border: '1px solid #ccc',
-          }}
+          style={{ padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc' }}
         />
 
         {error && <div style={{ fontSize: 14 }}>{error}</div>}
 
-        <button
-          type="submit"
-          disabled={loading}
-          style={{
-            padding: 12,
-            fontSize: 16,
-            borderRadius: 8,
-            cursor: loading ? 'default' : 'pointer',
-          }}
-        >
+        <button type="submit" disabled={loading} style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}>
           {loading ? 'Signing in...' : 'Sign in'}
         </button>
 
-        <div
-          style={{
-            marginTop: 4,
-            fontSize: 13,
-            lineHeight: 1.5,
-            color: '#6b7280',
-          }}
-        >
+        <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.5, color: '#6b7280' }}>
           Signing in here will switch Tradewise to the account and role you enter.
         </div>
       </form>
