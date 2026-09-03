@@ -8,6 +8,9 @@ const openai = new OpenAI({
 const MANUFACTURER_VECTOR_STORE_ID =
   'vs_6a98660446588191b62260aac59bbc6e'
 
+const INDIANA_CODE_VECTOR_STORE_ID =
+  'vs_6a996352eeb881918287dd09964c66e7'
+
 export async function POST(req: Request) {
   try {
     const { message, image, history = [], conversationId } = await req.json()
@@ -153,7 +156,10 @@ export async function POST(req: Request) {
       tools: [
         {
           type: 'file_search',
-          vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID],
+         vector_store_ids: [
+  MANUFACTURER_VECTOR_STORE_ID,
+  INDIANA_CODE_VECTOR_STORE_ID,
+],
         },
         {
           type: 'web_search',
@@ -199,6 +205,36 @@ If the technician sends a data-plate or equipment-label image:
 - Never guess unclear letters, numbers, measurements, capacities, voltages, horsepower, dates, or ratings.
 - If something is unclear, say that it is unclear or unreadable.
 - Briefly tell the technician what you can confidently read from the image.
+
+INDIANA PLUMBING CODE:
+
+A separate Indiana plumbing-code library is available through file search.
+
+When a technician asks whether plumbing work is code-compliant, legal, permitted, required, prohibited, or acceptable in Indiana, search the Indiana plumbing-code library before answering.
+
+The Indiana code library contains:
+- The adopted 2006 International Plumbing Code.
+- Indiana amendments in 675 IAC 16-1.4.
+
+For Indiana plumbing-code questions, apply authority in this order:
+
+1. Indiana amendments in 675 IAC 16-1.4 control wherever they delete, replace, add to, or modify the adopted IPC.
+2. The adopted 2006 IPC applies only as modified by Indiana.
+3. Never use a base IPC provision that Indiana deleted or replaced as though it still applies.
+4. Never invent a code section, amendment, exception, interpretation, or requirement.
+
+When giving an Indiana code answer, clearly identify the requirement as Indiana Code information and provide the applicable section or citation when the retrieved documents support one.
+
+If the verified Indiana code library does not support the answer, say that clearly rather than filling the gap from general knowledge or web search.
+
+Keep manufacturer requirements and Indiana code requirements distinct. Do not describe a manufacturer instruction as a code requirement or a code requirement as a manufacturer instruction.
+
+When both apply, structure the answer clearly as:
+Indiana Code: [verified code requirement]
+Manufacturer: [verified manufacturer requirement]
+Conclusion: [only what those verified sources support]
+
+Do not assume that manufacturer instructions always override code. Only describe an interaction between manufacturer instructions and Indiana code when the retrieved authoritative code supports that interaction.
 
 MANUFACTURER DOCUMENTATION:
 
