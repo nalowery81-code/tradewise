@@ -32,13 +32,19 @@ export async function requireManagementAccess(
 
   const { data: profile, error: profileError } = await supabaseServer
     .from('UserProfiles')
-    .select('id, role, company_id')
+    .select('id, role, company_id, is_active')
     .eq('auth_user_id', user.id)
     .single()
 
+  if (profileError || !profile) {
+    return { error: Response.json({ error: 'Manager access required' }, { status: 403 }) }
+  }
+
+  if (profile.is_active === false) {
+    return { error: Response.json({ error: 'Account inactive' }, { status: 403 }) }
+  }
+
   if (
-    profileError ||
-    !profile ||
     !profile.company_id ||
     !['owner', 'manager'].includes(profile.role || '')
   ) {
