@@ -16,7 +16,7 @@ export async function GET(request: Request) {
         .single(),
       supabaseServer
         .from('UserProfiles')
-        .select('id, auth_user_id, role, created_at')
+        .select('id, auth_user_id, role, created_at, is_active, deactivated_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: true }),
       supabaseServer
@@ -63,6 +63,8 @@ export async function GET(request: Request) {
       const email = user?.email || ''
       const metadataName = String(user?.user_metadata?.full_name || '').trim()
       const fallbackName = email ? email.split('@')[0] : 'Tradewise user'
+      const bannedUntil = user?.banned_until ? new Date(user.banned_until).getTime() : 0
+      const authBanned = bannedUntil > Date.now()
 
       return {
         profileId: profile.id,
@@ -72,7 +74,8 @@ export async function GET(request: Request) {
         email,
         technicianId: technician?.id || null,
         createdAt: profile.created_at,
-        accountStatus: 'active' as const,
+        accountStatus: profile.is_active === false || authBanned ? 'inactive' as const : 'active' as const,
+        deactivatedAt: profile.deactivated_at || null,
       }
     })
 
@@ -90,6 +93,7 @@ export async function GET(request: Request) {
         technicianId: technician.id,
         createdAt: technician.created_at,
         accountStatus: 'no_login' as const,
+        deactivatedAt: null,
       }))
 
     const members = [...profileMembers, ...rosterOnlyTechnicians]
