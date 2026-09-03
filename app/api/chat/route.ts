@@ -339,7 +339,8 @@ Your goal is to make Tradewise effortless, technically trustworthy, and effectiv
   }
 }    
       }
-      
+    }
+    
     const { error: assistantMessageError } = await supabaseServer
       .from('Messages')
       .insert({
