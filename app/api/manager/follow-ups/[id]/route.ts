@@ -1,41 +1,12 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
-
-async function requireManager(request: Request) {
-  const authHeader = request.headers.get('authorization')
-
-  if (!authHeader?.startsWith('Bearer ')) {
-    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-
-  const accessToken = authHeader.replace('Bearer ', '')
-  const {
-    data: { user },
-    error: userError,
-  } = await supabaseServer.auth.getUser(accessToken)
-
-  if (userError || !user) {
-    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) }
-  }
-
-  const { data: profile, error: profileError } = await supabaseServer
-    .from('UserProfiles')
-    .select('role')
-    .eq('auth_user_id', user.id)
-    .single()
-
-  if (profileError || profile?.role !== 'manager') {
-    return { error: Response.json({ error: 'Manager access required' }, { status: 403 }) }
-  }
-
-  return { user }
-}
+import { requireManagementAccess } from '../../../../lib/management-auth'
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const auth = await requireManager(request)
+    const auth = await requireManagementAccess(request)
     if ('error' in auth) return auth.error
 
     const { id } = await params
@@ -51,11 +22,8 @@ export async function PATCH(
 
     const { data, error } = await supabaseServer
       .from('ManagerFollowUps')
-      .update({
-        status,
-        completed_at: completedAt,
-        updated_at: updatedAt,
-      })
+      .update({ status, completed_at: completedAt, updated_at: updatedAt })
+      .eq('company_id', auth.profile.company_id)
       .eq('id', id)
       .select('id, technician_id, technician_name, note, status, created_at, completed_at, updated_at')
       .single()
@@ -68,9 +36,6 @@ export async function PATCH(
     return Response.json({ followUp: data })
   } catch (error: any) {
     console.error('MANAGER FOLLOW-UP UPDATE API ERROR:', error)
-    return Response.json(
-      { error: error?.message || 'Could not update follow-up.' },
-      { status: 500 }
-    )
+    return Response.json({ error: error?.message || 'Could not update follow-up.' }, { status: 500 })
   }
 }
