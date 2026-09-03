@@ -6,7 +6,11 @@ const openai = new OpenAI({
 
 const VECTOR_STORE_NAME = 'Tradewise Indiana Plumbing Code'
 
-const DOCUMENTS = [
+const DOCUMENTS: Array<{
+  url: string
+  filename: string
+  attributes: Record<string, string | number | boolean>
+}> = [
   {
     url: 'https://archive.org/download/gov.law.icc.ipc.2006/icc.ipc.2006.pdf',
     filename: 'icc.ipc.2006.pdf',
