@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { supabaseServer } from '../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../lib/management-auth'
+import { getManagerTechnicianScope, technicianIsInScope } from '../../../lib/manager-technician-scope'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
@@ -34,6 +35,9 @@ export async function POST(request: Request) {
     if ('error' in auth) return auth.error
 
     const companyId = auth.profile.company_id
+    const scope = await getManagerTechnicianScope(auth.profile)
+    if ('error' in scope) return scope.error
+
     const body = await request.json()
     const message = typeof body?.message === 'string' ? body.message.trim() : ''
     const requestedTechnicianId =
@@ -48,6 +52,10 @@ export async function POST(request: Request) {
     let technicianScope: TechnicianScope | null = null
 
     if (requestedTechnicianId) {
+      if (!technicianIsInScope(scope.technicianIds, requestedTechnicianId)) {
+        return Response.json({ error: 'Technician not found.' }, { status: 404 })
+      }
+
       const { data: technician, error: technicianError } = await supabaseServer
         .from('Technicians')
         .select('id, canonical_name')
@@ -64,10 +72,19 @@ export async function POST(request: Request) {
       const legacyProfileName = getLegacyProfileName(message)
 
       if (legacyProfileName) {
-        const { data: technicians, error: technicianError } = await supabaseServer
+        let technicianQuery = supabaseServer
           .from('Technicians')
           .select('id, canonical_name')
           .eq('company_id', companyId)
+
+        if (scope.technicianIds !== null) {
+          if (scope.technicianIds.length === 0) {
+            return Response.json({ error: 'Technician not found.' }, { status: 404 })
+          }
+          technicianQuery = technicianQuery.in('id', scope.technicianIds)
+        }
+
+        const { data: technicians, error: technicianError } = await technicianQuery
 
         if (technicianError) {
           console.error('MANAGER TECHNICIAN SCOPE LOAD ERROR:', technicianError)
@@ -129,12 +146,25 @@ export async function POST(request: Request) {
         })
       }
     } else {
-      const { data, error: reflectionsError } = await supabaseServer
+      if (scope.technicianIds !== null && scope.technicianIds.length === 0) {
+        return Response.json({
+          reply: 'No technicians are assigned to you yet, so I do not have technician data in your manager scope to answer from.',
+          scope: { assignedTechnicians: 0 },
+        })
+      }
+
+      let reflectionQuery = supabaseServer
         .from('Reflections')
         .select('technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (scope.technicianIds !== null) {
+        reflectionQuery = reflectionQuery.in('technician_id', scope.technicianIds)
+      }
+
+      const { data, error: reflectionsError } = await reflectionQuery
 
       if (reflectionsError) {
         console.error('MANAGER REFLECTION LOAD ERROR:', reflectionsError)
@@ -156,7 +186,9 @@ Created at: ${reflection.created_at || 'Unknown'}`)
 
     const scopeInstruction = technicianScope
       ? `This request is scoped ONLY to ${technicianScope.name}. Every reflection below belongs to that technician. Do not mention, compare, or infer anything about any other technician.`
-      : 'This is a company-wide manager request. Use only the verified company reflection data below.'
+      : auth.profile.role === 'owner'
+        ? 'This is a company-wide owner request. Use only the verified company reflection data below.'
+        : 'This is a manager request. Use only the verified reflection data for technicians assigned to this manager.'
 
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
@@ -192,7 +224,9 @@ Rules:
       reply,
       scope: technicianScope
         ? { technicianId: technicianScope.id, technicianName: technicianScope.name }
-        : { company: true },
+        : auth.profile.role === 'owner'
+          ? { company: true }
+          : { assignedTechnicians: scope.technicianIds?.length || 0 },
     })
   } catch (error: any) {
     console.error('MANAGER CHAT API ERROR:', error)
