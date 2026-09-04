@@ -21,6 +21,11 @@ export default function PlatformAdminPage() {
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
+  const [inviteCompany, setInviteCompany] = useState<Company | null>(null)
+  const [ownerName, setOwnerName] = useState('')
+  const [ownerEmail, setOwnerEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteStatus, setInviteStatus] = useState('')
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -92,6 +97,67 @@ export default function PlatformAdminPage() {
     setCreating(false)
   }
 
+  const inviteOwner = async () => {
+    if (!inviteCompany || !ownerName.trim() || !ownerEmail.trim()) return
+
+    setInviting(true)
+    setError('')
+    setInviteStatus('')
+
+    const token = await getToken()
+    const response = await fetch(`/api/platform-admin/companies/${inviteCompany.id}/invite-owner`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name: ownerName, email: ownerEmail }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setError(data.error || 'Could not invite owner.')
+      setInviting(false)
+      return
+    }
+
+    setCompanies((currentCompanies) =>
+      currentCompanies.map((company) =>
+        company.id === inviteCompany.id
+          ? { ...company, users: company.users + 1, owners: company.owners + 1 }
+          : company
+      )
+    )
+    setInviteStatus(`Invite sent to ${ownerEmail.trim().toLowerCase()}.`)
+    setOwnerName('')
+    setOwnerEmail('')
+    setInviting(false)
+  }
+
+  const enterWorkspace = async (company: Company) => {
+    setError('')
+    const token = await getToken()
+    const response = await fetch('/api/platform-admin/workspace', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ companyId: company.id }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      setError(data.error || 'Could not enter company workspace.')
+      return
+    }
+
+    window.location.href = '/manager/company'
+  }
+
   const activeDemos = companies.filter((company) => company.account_type === 'demo' && company.status === 'active').length
   const totalUsers = companies.reduce((total, company) => total + company.users, 0)
   const totalTechnicians = companies.reduce((total, company) => total + company.technicians, 0)
@@ -124,7 +190,7 @@ export default function PlatformAdminPage() {
             overflow-x: auto !important;
           }
           .platform-admin-table > div {
-            min-width: 660px;
+            min-width: 850px;
           }
           .platform-admin-create {
             width: 100%;
@@ -196,6 +262,7 @@ export default function PlatformAdminPage() {
               <span>Users</span>
               <span>Techs</span>
               <span>Status</span>
+              <span>Actions</span>
             </div>
 
             {loading ? (
@@ -215,16 +282,86 @@ export default function PlatformAdminPage() {
                   <div style={numberStyle}>{company.users}</div>
                   <div style={numberStyle}>{company.technicians}</div>
                   <div><Badge text={company.status} /></div>
+                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                    {company.owners === 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setInviteCompany(company)
+                          setInviteStatus('')
+                          setError('')
+                        }}
+                        style={secondaryButtonStyle}
+                      >
+                        Invite Owner
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void enterWorkspace(company)}
+                      style={secondaryButtonStyle}
+                    >
+                      Enter Workspace
+                    </button>
+                  </div>
                 </div>
               ))
             )}
           </div>
 
-          <div style={{ marginTop: 16, color: '#94a3b8', fontSize: 12 }}>
-            Next admin step: invite an owner into a demo company and add safe “enter workspace” support.
-          </div>
         </div>
       </section>
+
+      {inviteCompany && (
+        <div style={modalBackdropStyle} onClick={() => setInviteCompany(null)}>
+          <div style={modalCardStyle} onClick={(event) => event.stopPropagation()}>
+            <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              {inviteCompany.name}
+            </div>
+            <h2 style={{ margin: '7px 0 8px', fontSize: 26 }}>Invite company owner</h2>
+            <p style={{ margin: '0 0 20px', color: '#64748b', lineHeight: 1.5 }}>
+              The owner will receive an email invitation and create their own Tradewise password.
+            </p>
+
+            <label style={labelStyle}>
+              Owner name
+              <input
+                value={ownerName}
+                onChange={(event) => setOwnerName(event.target.value)}
+                placeholder="Owner name"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Email address
+              <input
+                type="email"
+                value={ownerEmail}
+                onChange={(event) => setOwnerEmail(event.target.value)}
+                placeholder="owner@company.com"
+                style={inputStyle}
+              />
+            </label>
+
+            {inviteStatus && <div style={successStyle}>{inviteStatus}</div>}
+
+            <div style={{ display: 'flex', gap: 9, marginTop: 18 }}>
+              <button type="button" onClick={() => setInviteCompany(null)} style={secondaryButtonStyle}>
+                Close
+              </button>
+              <button
+                type="button"
+                onClick={() => void inviteOwner()}
+                disabled={inviting || !ownerName.trim() || !ownerEmail.trim()}
+                style={{ ...primaryButtonStyle, opacity: inviting || !ownerName.trim() || !ownerEmail.trim() ? 0.55 : 1 }}
+              >
+                {inviting ? 'Sending…' : 'Send Invite'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   )
 }
@@ -342,7 +479,7 @@ const tableCardStyle: React.CSSProperties = {
 
 const tableHeaderStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 2fr) 120px 90px 90px 110px',
+  gridTemplateColumns: 'minmax(220px, 2fr) 100px 70px 70px 100px 210px',
   gap: 12,
   padding: '12px 18px',
   background: '#f8fafc',
@@ -356,7 +493,7 @@ const tableHeaderStyle: React.CSSProperties = {
 
 const tableRowStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 2fr) 120px 90px 90px 110px',
+  gridTemplateColumns: 'minmax(220px, 2fr) 100px 70px 70px 100px 210px',
   alignItems: 'center',
   gap: 12,
   padding: '16px 18px',
@@ -367,3 +504,53 @@ const tableRowStyle: React.CSSProperties = {
 const numberStyle: React.CSSProperties = { fontWeight: 800, color: '#334155' }
 const emptyStyle: React.CSSProperties = { padding: 28, color: '#64748b', fontSize: 14 }
 const errorStyle: React.CSSProperties = { marginTop: 16, padding: 12, borderRadius: 10, background: '#fff7ed', color: '#9a3412', fontSize: 13 }
+
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  padding: '8px 10px',
+  background: '#ffffff',
+  color: '#334155',
+  fontSize: 12,
+  fontWeight: 800,
+  cursor: 'pointer',
+}
+
+const modalBackdropStyle: React.CSSProperties = {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 300,
+  display: 'grid',
+  placeItems: 'center',
+  padding: 18,
+  background: 'rgba(15, 23, 42, 0.45)',
+}
+
+const modalCardStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: 440,
+  borderRadius: 18,
+  padding: 24,
+  background: '#ffffff',
+  boxShadow: '0 24px 70px rgba(15,23,42,0.22)',
+}
+
+const labelStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 7,
+  marginTop: 14,
+  color: '#334155',
+  fontSize: 13,
+  fontWeight: 800,
+}
+
+const successStyle: React.CSSProperties = {
+  marginTop: 14,
+  borderRadius: 10,
+  padding: 11,
+  background: '#f0fdf4',
+  color: '#166534',
+  fontSize: 13,
+  fontWeight: 700,
+}
