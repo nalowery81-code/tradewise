@@ -1,16 +1,27 @@
 import { supabaseServer } from '../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../lib/management-auth'
+import { getManagerTechnicianScope, technicianIsInScope } from '../../../lib/manager-technician-scope'
 
 export async function GET(request: Request) {
   try {
     const auth = await requireManagementAccess(request)
     if ('error' in auth) return auth.error
 
-    const { data, error } = await supabaseServer
+    const scope = await getManagerTechnicianScope(auth.profile)
+    if ('error' in scope) return scope.error
+
+    let query = supabaseServer
       .from('ManagerFollowUps')
       .select('id, technician_id, technician_name, note, status, created_at, completed_at, updated_at')
       .eq('company_id', auth.profile.company_id)
       .order('created_at', { ascending: false })
+
+    if (scope.technicianIds !== null) {
+      if (scope.technicianIds.length === 0) return Response.json({ followUps: [] })
+      query = query.in('technician_id', scope.technicianIds)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       console.error('MANAGER FOLLOW-UP LOAD ERROR:', error)
@@ -36,6 +47,13 @@ export async function POST(request: Request) {
 
     if (!technicianId || !note) {
       return Response.json({ error: 'Technician and follow-up note are required.' }, { status: 400 })
+    }
+
+    const scope = await getManagerTechnicianScope(auth.profile)
+    if ('error' in scope) return scope.error
+
+    if (!technicianIsInScope(scope.technicianIds, technicianId)) {
+      return Response.json({ error: 'Technician not found.' }, { status: 404 })
     }
 
     const { data: technician, error: technicianError } = await supabaseServer
