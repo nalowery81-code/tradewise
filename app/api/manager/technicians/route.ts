@@ -7,28 +7,56 @@ export async function GET(request: Request) {
     if ('error' in auth) return auth.error
 
     const companyId = auth.profile.company_id
+    let allowedTechnicianIds: string[] | null = null
 
-    const { data: technicians, error: technicianError } = await supabaseServer
+    if (auth.profile.role === 'manager') {
+      const { data: assignments, error: assignmentError } = await supabaseServer
+        .from('ManagerTechnicians')
+        .select('technician_id')
+        .eq('company_id', companyId)
+        .eq('manager_profile_id', auth.profile.id)
+
+      if (assignmentError) {
+        console.error('MANAGER ASSIGNMENT LOAD ERROR:', assignmentError)
+        return Response.json({ error: 'Could not load assigned technicians.' }, { status: 500 })
+      }
+
+      allowedTechnicianIds = (assignments || []).map((assignment) => assignment.technician_id)
+    }
+
+    let technicianQuery = supabaseServer
       .from('Technicians')
       .select('id, canonical_name')
       .eq('company_id', companyId)
       .order('canonical_name', { ascending: true })
+
+    if (allowedTechnicianIds) {
+      if (allowedTechnicianIds.length === 0) return Response.json({ technicians: [] })
+      technicianQuery = technicianQuery.in('id', allowedTechnicianIds)
+    }
+
+    const { data: technicians, error: technicianError } = await technicianQuery
 
     if (technicianError) {
       console.error('MANAGER TECHNICIAN LOAD ERROR:', technicianError)
       return Response.json({ error: 'Could not load technicians.' }, { status: 500 })
     }
 
+    const technicianIds = (technicians || []).map((technician) => technician.id)
+    if (technicianIds.length === 0) return Response.json({ technicians: [] })
+
     const [{ data: reflections, error: reflectionError }, { data: conversations, error: conversationError }] = await Promise.all([
       supabaseServer
         .from('Reflections')
         .select('technician_id, technician_name, created_at')
         .eq('company_id', companyId)
+        .in('technician_id', technicianIds)
         .order('created_at', { ascending: false }),
       supabaseServer
         .from('Conversations')
         .select('technician_id, created_at, updated_at')
         .eq('company_id', companyId)
+        .in('technician_id', technicianIds)
         .order('created_at', { ascending: false }),
     ])
 
