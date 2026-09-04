@@ -7,6 +7,7 @@ import { supabase } from '../lib/supabase'
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isOwner, setIsOwner] = useState(false)
+  const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -22,6 +23,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
         if (!response.ok) return
         const data = await response.json()
         setIsOwner(data.accountRole === 'owner')
+        setIsPlatformAdmin(data.isPlatformAdmin === true)
       } catch (error) {
         console.error('OWNER NAV ROLE ERROR:', error)
       }
@@ -72,7 +74,11 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
               ))}
             </nav>
 
-            <a href="/manager" style={backToManagerStyle}>← Manager Workspace</a>
+            {isPlatformAdmin ? (
+              <a href="/platform-admin/return" style={backToManagerStyle}>← Platform Admin</a>
+            ) : (
+              <a href="/manager" style={backToManagerStyle}>← Manager Workspace</a>
+            )}
           </aside>
         ) : (
           <div style={mobileNavStyle}>
@@ -86,7 +92,11 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
                 {link.label}
               </a>
             ))}
-            <a href="/manager" style={mobileLinkStyle}>Manager</a>
+            {isPlatformAdmin ? (
+              <a href="/platform-admin/return" style={mobileLinkStyle}>Platform Admin</a>
+            ) : (
+              <a href="/manager" style={mobileLinkStyle}>Manager</a>
+            )}
           </div>
         )}
 
