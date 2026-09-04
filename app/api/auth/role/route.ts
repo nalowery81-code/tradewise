@@ -30,7 +30,7 @@ export async function GET(request: Request) {
 
     const { data: profile, error: profileError } = await supabaseServer
       .from('UserProfiles')
-      .select('role, company_id, is_active')
+      .select('role, company_id, is_active, is_platform_admin')
       .eq('auth_user_id', user.id)
       .single()
 
@@ -48,6 +48,7 @@ export async function GET(request: Request) {
       role: profile.role === 'owner' ? 'manager' : profile.role,
       accountRole: profile.role,
       companyId: profile.company_id,
+      isPlatformAdmin: profile.is_platform_admin === true,
     })
   } catch (error) {
     console.error('USER ROLE API ERROR:', error)
