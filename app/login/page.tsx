@@ -29,6 +29,7 @@ export default function LoginPage() {
     }
 
     const roleResponse = await fetch('/api/auth/role', {
+      cache: 'no-store',
       headers: { Authorization: `Bearer ${session?.access_token || ''}` },
     })
 
@@ -38,7 +39,12 @@ export default function LoginPage() {
       return
     }
 
-    const { role } = await roleResponse.json()
+    const { role, isPlatformAdmin } = await roleResponse.json()
+
+    if (isPlatformAdmin) {
+      router.replace('/platform-admin')
+      return
+    }
 
     if (role === 'manager' || role === 'owner') {
       router.replace('/manager')
