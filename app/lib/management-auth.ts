@@ -32,7 +32,7 @@ export async function requireManagementAccess(
 
   const { data: profile, error: profileError } = await supabaseServer
     .from('UserProfiles')
-    .select('id, role, company_id, is_active')
+    .select('id, role, company_id, is_active, is_platform_admin')
     .eq('auth_user_id', user.id)
     .single()
 
@@ -55,8 +55,38 @@ export async function requireManagementAccess(
     return { error: Response.json({ error: 'Owner access required' }, { status: 403 }) }
   }
 
+  let effectiveCompanyId = profile.company_id
+
+  if (profile.is_platform_admin === true) {
+    const cookieHeader = request.headers.get('cookie') || ''
+    const platformCompanyCookie = cookieHeader
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith('tradewise_platform_company='))
+
+    const requestedCompanyId = platformCompanyCookie
+      ? decodeURIComponent(platformCompanyCookie.split('=').slice(1).join('='))
+      : ''
+
+    if (requestedCompanyId) {
+      const { data: targetCompany } = await supabaseServer
+        .from('Companies')
+        .select('id, status')
+        .eq('id', requestedCompanyId)
+        .single()
+
+      if (targetCompany?.id && targetCompany.status !== 'disabled') {
+        effectiveCompanyId = targetCompany.id
+      }
+    }
+  }
+
   return {
     userId: user.id,
-    profile: profile as ManagementProfile,
+    profile: {
+      id: profile.id,
+      role: profile.role as 'owner' | 'manager',
+      company_id: effectiveCompanyId,
+    },
   }
 }
