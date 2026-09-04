@@ -1,5 +1,6 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../../lib/management-auth'
+import { getManagerTechnicianScope, technicianIsInScope } from '../../../../lib/manager-technician-scope'
 
 export async function GET(
   request: Request,
@@ -11,6 +12,12 @@ export async function GET(
 
     const companyId = auth.profile.company_id
     const { id } = await params
+    const scope = await getManagerTechnicianScope(auth.profile)
+    if ('error' in scope) return scope.error
+
+    if (!technicianIsInScope(scope.technicianIds, id)) {
+      return Response.json({ error: 'Technician not found.' }, { status: 404 })
+    }
 
     const { data: technician, error: technicianError } = await supabaseServer
       .from('Technicians')
