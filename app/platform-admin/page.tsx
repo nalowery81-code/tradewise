@@ -98,7 +98,45 @@ export default function PlatformAdminPage() {
 
   return (
     <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <aside style={sidebarStyle}>
+      <style>{`
+        @media (max-width: 760px) {
+          .platform-admin-sidebar {
+            position: static !important;
+            width: auto !important;
+            min-height: auto !important;
+            padding: 18px 16px !important;
+          }
+          .platform-admin-sidebar nav {
+            margin-top: 16px !important;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+          }
+          .platform-admin-sidebar .owner-back {
+            margin-top: 14px !important;
+          }
+          .platform-admin-content {
+            margin-left: 0 !important;
+            padding: 26px 16px 50px !important;
+          }
+          .platform-admin-metrics {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+          .platform-admin-table {
+            overflow-x: auto !important;
+          }
+          .platform-admin-table > div {
+            min-width: 660px;
+          }
+          .platform-admin-create {
+            width: 100%;
+          }
+          .platform-admin-create input {
+            min-width: 0 !important;
+            flex: 1 1 190px;
+          }
+        }
+      `}</style>
+
+      <aside className="platform-admin-sidebar" style={sidebarStyle}>
         <div>
           <div style={{ fontSize: 23, fontWeight: 800 }}>Tradewise</div>
           <div style={{ marginTop: 5, color: '#64748b', fontSize: 11, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase' }}>
@@ -112,10 +150,10 @@ export default function PlatformAdminPage() {
           <div style={futureNavStyle}>System</div>
         </nav>
 
-        <a href="/manager" style={backStyle}>← Owner Workspace</a>
+        <a className="owner-back" href="/manager" style={backStyle}>← Owner Workspace</a>
       </aside>
 
-      <section style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>
+      <section className="platform-admin-content" style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>
         <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
             <div>
@@ -128,7 +166,7 @@ export default function PlatformAdminPage() {
               </p>
             </div>
 
-            <form onSubmit={createCompany} style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
+            <form className="platform-admin-create" onSubmit={createCompany} style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
               <input
                 value={companyName}
                 onChange={(event) => setCompanyName(event.target.value)}
@@ -142,7 +180,7 @@ export default function PlatformAdminPage() {
             </form>
           </div>
 
-          <div style={metricsGridStyle}>
+          <div className="platform-admin-metrics" style={metricsGridStyle}>
             <Metric label="Companies" value={companies.length} />
             <Metric label="Active demos" value={activeDemos} />
             <Metric label="Users" value={totalUsers} />
@@ -151,7 +189,7 @@ export default function PlatformAdminPage() {
 
           {error && <div style={errorStyle}>{error}</div>}
 
-          <div style={tableCardStyle}>
+          <div className="platform-admin-table" style={tableCardStyle}>
             <div style={tableHeaderStyle}>
               <span>Company</span>
               <span>Type</span>
