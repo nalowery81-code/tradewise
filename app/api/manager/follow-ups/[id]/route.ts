@@ -1,5 +1,6 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../../lib/management-auth'
+import { getManagerTechnicianScope, technicianIsInScope } from '../../../../lib/manager-technician-scope'
 
 export async function PATCH(
   request: Request,
@@ -15,6 +16,24 @@ export async function PATCH(
 
     if (!status) {
       return Response.json({ error: 'Status must be open or done.' }, { status: 400 })
+    }
+
+    const { data: existing, error: existingError } = await supabaseServer
+      .from('ManagerFollowUps')
+      .select('id, technician_id')
+      .eq('company_id', auth.profile.company_id)
+      .eq('id', id)
+      .single()
+
+    if (existingError || !existing) {
+      return Response.json({ error: 'Follow-up not found.' }, { status: 404 })
+    }
+
+    const scope = await getManagerTechnicianScope(auth.profile)
+    if ('error' in scope) return scope.error
+
+    if (existing.technician_id && !technicianIsInScope(scope.technicianIds, existing.technician_id)) {
+      return Response.json({ error: 'Follow-up not found.' }, { status: 404 })
     }
 
     const updatedAt = new Date().toISOString()
