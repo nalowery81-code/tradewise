@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 export default function LoginPage() {
@@ -45,6 +46,32 @@ export default function LoginPage() {
 
     const checkSession = async () => {
       try {
+        const params = new URLSearchParams(window.location.search)
+        const tokenHash = params.get('token_hash')
+        const type = params.get('type') as EmailOtpType | null
+
+        if (tokenHash && type) {
+          const { data, error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type,
+          })
+
+          if (verifyError) {
+            if (active) setError(verifyError.message || 'This sign-in link is invalid or has expired.')
+            return
+          }
+
+          const cleanUrl = new URL(window.location.href)
+          cleanUrl.searchParams.delete('token_hash')
+          cleanUrl.searchParams.delete('type')
+          window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+
+          if (data.session?.access_token) {
+            await routeSession(data.session.access_token)
+            return
+          }
+        }
+
         const { data: { session } } = await supabase.auth.getSession()
         if (!active) return
         if (session?.access_token) {
@@ -52,6 +79,7 @@ export default function LoginPage() {
         }
       } catch (sessionError) {
         console.error('LOGIN SESSION CHECK ERROR:', sessionError)
+        if (active) setError('Could not complete sign-in. Try a new magic link.')
       } finally {
         if (active) setCheckingSession(false)
       }
