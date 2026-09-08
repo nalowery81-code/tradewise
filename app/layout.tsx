@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Tradewise",
+  title: "CraftCompass AI",
   description: "AI support for skilled trade teams",
 };
 
@@ -30,7 +30,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         {children}
         <div
-          aria-label="Tradewise"
+          aria-label="CraftCompass AI"
           style={{
             position: "fixed",
             right: 12,
@@ -49,7 +49,7 @@ export default function RootLayout({
             pointerEvents: "none",
           }}
         >
-          Tradewise
+          CraftCompass AI
         </div>
       </body>
     </html>
