@@ -93,7 +93,7 @@ export default function AddTechnicianPage() {
         <div style={eyebrowStyle}>Team setup</div>
         <h1 style={titleStyle}>Add technician</h1>
         <p style={textStyle}>
-          Enter the technician's name and email. Tradewise will create or connect the technician record and email them an invitation to finish setting up their login.
+          Enter the technician's name and email. CraftCompass AI will create or connect the technician record and email them an invitation to finish setting up their login.
         </p>
 
         <label style={labelStyle}>
@@ -135,7 +135,7 @@ export default function AddTechnicianPage() {
         </button>
 
         <div style={helpStyle}>
-          If a technician with the same name already exists without a login, Tradewise connects the invite to that existing record instead of creating a duplicate.
+          If a technician with the same name already exists without a login, CraftCompass AI connects the invite to that existing record instead of creating a duplicate.
         </div>
       </div>
     </main>
