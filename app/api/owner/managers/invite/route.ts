@@ -4,7 +4,7 @@ import { requireManagementAccess } from '../../../../lib/management-auth'
 const getInviteRedirectUrl = () => {
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    'https://tradewise-git-technician-mvp-nalowery81-2073s-projects.vercel.app'
+    'https://app.craftcompassai.com'
 
   return `${baseUrl.replace(/\/+$/, '')}/setup-account`
 }
@@ -40,7 +40,7 @@ export async function POST(request: Request) {
     if (inviteError || !inviteData.user) {
       console.error('MANAGER INVITE AUTH ERROR:', inviteError)
       const message = inviteError?.message?.toLowerCase().includes('already')
-        ? 'That email already has a Tradewise account.'
+        ? 'That email already has a CraftCompass AI account.'
         : inviteError?.message || 'Could not send the manager invite.'
       return Response.json({ error: message }, { status: 400 })
     }
