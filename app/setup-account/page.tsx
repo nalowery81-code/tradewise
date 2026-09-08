@@ -1,22 +1,56 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 
 export default function SetupAccountPage() {
   const [ready, setReady] = useState(false)
+  const [checkingLink, setCheckingLink] = useState(true)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      setReady(Boolean(session))
+    const establishSession = async () => {
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const tokenHash = params.get('token_hash')
+        const type = params.get('type') as EmailOtpType | null
+
+        if (tokenHash && type) {
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            token_hash: tokenHash,
+            type,
+          })
+
+          if (verifyError) {
+            setError('This setup link is invalid or has expired. Ask your manager to send a new setup email.')
+            setReady(false)
+            return
+          }
+
+          const cleanUrl = new URL(window.location.href)
+          cleanUrl.searchParams.delete('token_hash')
+          cleanUrl.searchParams.delete('type')
+          window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+          setReady(true)
+          return
+        }
+
+        const { data: { session } } = await supabase.auth.getSession()
+        setReady(Boolean(session))
+      } catch (sessionError) {
+        console.error('ACCOUNT SETUP SESSION ERROR:', sessionError)
+        setError('Could not verify this setup link. Ask your manager to send a new setup email.')
+        setReady(false)
+      } finally {
+        setCheckingLink(false)
+      }
     }
 
-    void checkSession()
+    void establishSession()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) setReady(true)
@@ -49,7 +83,7 @@ export default function SetupAccountPage() {
 
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
-        setError('Your invite session expired. Open the invite email again.')
+        setError('Your setup session expired. Open the setup email again.')
         return
       }
 
@@ -66,7 +100,7 @@ export default function SetupAccountPage() {
       window.location.replace(data.role === 'technician' ? '/technician' : '/manager')
     } catch (setupError) {
       console.error('ACCOUNT SETUP ERROR:', setupError)
-      setError('Could not finish account setup. Try the invite link again.')
+      setError('Could not finish account setup. Try the setup link again.')
     } finally {
       setSaving(false)
     }
@@ -77,11 +111,13 @@ export default function SetupAccountPage() {
       <div style={cardStyle}>
         <div style={brandStyle}>CraftCompass AI</div>
         <h1 style={titleStyle}>Finish setting up your account</h1>
-        <p style={textStyle}>Choose the password you will use to sign in to CraftCompass AI.</p>
+        <p style={textStyle}>Choose the password you will use to sign in to CraftCompass.</p>
 
-        {!ready ? (
+        {checkingLink ? (
+          <div style={noticeStyle}>Verifying your setup link...</div>
+        ) : !ready ? (
           <div style={noticeStyle}>
-            Open this page from the invitation link in your email. If the link has expired, ask your manager to send a new invite.
+            {error || 'Open this page from the setup link in your email. If the link has expired, ask your manager to send a new setup email.'}
           </div>
         ) : (
           <>
