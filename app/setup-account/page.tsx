@@ -19,28 +19,28 @@ export default function SetupAccountPage() {
         const tokenHash = params.get('token_hash')
         const type = params.get('type') as EmailOtpType | null
 
-        if (tokenHash && type) {
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            token_hash: tokenHash,
-            type,
-          })
-
-          if (verifyError) {
-            setError('This setup link is invalid or has expired. Ask your manager to send a new setup email.')
-            setReady(false)
-            return
-          }
-
-          const cleanUrl = new URL(window.location.href)
-          cleanUrl.searchParams.delete('token_hash')
-          cleanUrl.searchParams.delete('type')
-          window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
-          setReady(true)
+        if (!tokenHash || !type) {
+          setError('Open this page from the newest setup email. A valid setup link is required before changing a password.')
+          setReady(false)
           return
         }
 
-        const { data: { session } } = await supabase.auth.getSession()
-        setReady(Boolean(session))
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          token_hash: tokenHash,
+          type,
+        })
+
+        if (verifyError) {
+          setError('This setup link is invalid or has expired. Ask your manager to send a new setup email.')
+          setReady(false)
+          return
+        }
+
+        const cleanUrl = new URL(window.location.href)
+        cleanUrl.searchParams.delete('token_hash')
+        cleanUrl.searchParams.delete('type')
+        window.history.replaceState({}, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`)
+        setReady(true)
       } catch (sessionError) {
         console.error('ACCOUNT SETUP SESSION ERROR:', sessionError)
         setError('Could not verify this setup link. Ask your manager to send a new setup email.')
@@ -51,16 +51,15 @@ export default function SetupAccountPage() {
     }
 
     void establishSession()
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) setReady(true)
-    })
-
-    return () => listener.subscription.unsubscribe()
   }, [])
 
   const finishSetup = async () => {
     setError('')
+
+    if (!ready) {
+      setError('Open the newest setup email before setting a password.')
+      return
+    }
 
     if (password.length < 8) {
       setError('Use at least 8 characters for your password.')
@@ -117,7 +116,7 @@ export default function SetupAccountPage() {
           <div style={noticeStyle}>Verifying your setup link...</div>
         ) : !ready ? (
           <div style={noticeStyle}>
-            {error || 'Open this page from the setup link in your email. If the link has expired, ask your manager to send a new setup email.'}
+            {error || 'Open this page from the newest setup link in your email.'}
           </div>
         ) : (
           <>
