@@ -52,7 +52,7 @@ export async function POST(
     if (inviteError || !inviteData.user) {
       console.error('PLATFORM OWNER INVITE AUTH ERROR:', inviteError)
       const message = inviteError?.message?.toLowerCase().includes('already')
-        ? 'That email already has a Tradewise account.'
+        ? 'That email already has a CraftCompass AI account.'
         : inviteError?.message || 'Could not send the owner invite.'
       return Response.json({ error: message }, { status: 400 })
     }
