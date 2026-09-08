@@ -8,6 +8,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname()
   const [isOwner, setIsOwner] = useState(false)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
+  const [companyName, setCompanyName] = useState('')
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -24,6 +25,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
         const data = await response.json()
         setIsOwner(data.accountRole === 'owner')
         setIsPlatformAdmin(data.isPlatformAdmin === true)
+        setCompanyName(data.companyName || '')
       } catch (error) {
         console.error('OWNER NAV ROLE ERROR:', error)
       }
@@ -60,6 +62,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
             <div>
               <div style={brandStyle}>CraftCompass AI</div>
               <div style={workspaceLabelStyle}>Owner Workspace</div>
+              {companyName && <div style={companySidebarStyle}>{companyName}</div>}
             </div>
 
             <nav style={navStyle} aria-label="Owner workspace navigation">
@@ -82,7 +85,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
           </aside>
         ) : (
           <div style={mobileNavStyle}>
-            <div style={{ minWidth: 'max-content', fontWeight: 800 }}>Owner</div>
+            <div style={{ minWidth: 'max-content', fontWeight: 800 }}>{companyName || 'Owner'}</div>
             {ownerLinks.map((link) => (
               <a
                 key={link.href}
@@ -110,8 +113,12 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
   return (
     <>
       {children}
-      {isOwner && (
-        <a href="/manager/company" style={ownerLinkStyle}>Company</a>
+      {companyName && (
+        isOwner ? (
+          <a href="/manager/company" style={ownerLinkStyle}>{companyName}</a>
+        ) : (
+          <div style={ownerLinkStyle}>{companyName}</div>
+        )
       )}
     </>
   )
@@ -145,6 +152,14 @@ const workspaceLabelStyle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: 'uppercase',
   letterSpacing: '0.08em',
+}
+
+const companySidebarStyle: React.CSSProperties = {
+  marginTop: 9,
+  color: '#172033',
+  fontSize: 15,
+  fontWeight: 800,
+  lineHeight: 1.3,
 }
 
 const navStyle: React.CSSProperties = {
