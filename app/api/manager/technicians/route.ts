@@ -7,6 +7,25 @@ export async function GET(request: Request) {
     if ('error' in auth) return auth.error
 
     const companyId = auth.profile.company_id
+
+    const { data: managerHistory, error: managerHistoryError } = await supabaseServer
+      .from('UserProfiles')
+      .select('technician_id')
+      .eq('company_id', companyId)
+      .eq('role', 'manager')
+      .not('technician_id', 'is', null)
+
+    if (managerHistoryError) {
+      console.error('MANAGER TECHNICIAN HISTORY LOAD ERROR:', managerHistoryError)
+      return Response.json({ error: 'Could not load technicians.' }, { status: 500 })
+    }
+
+    const historicalManagerTechnicianIds = new Set(
+      (managerHistory || [])
+        .map((profile) => profile.technician_id)
+        .filter((id): id is string => Boolean(id))
+    )
+
     let allowedTechnicianIds: string[] | null = null
 
     if (auth.profile.role === 'manager') {
@@ -21,7 +40,9 @@ export async function GET(request: Request) {
         return Response.json({ error: 'Could not load assigned technicians.' }, { status: 500 })
       }
 
-      allowedTechnicianIds = (assignments || []).map((assignment) => assignment.technician_id)
+      allowedTechnicianIds = (assignments || [])
+        .map((assignment) => assignment.technician_id)
+        .filter((technicianId) => !historicalManagerTechnicianIds.has(technicianId))
     }
 
     let technicianQuery = supabaseServer
@@ -42,7 +63,11 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Could not load technicians.' }, { status: 500 })
     }
 
-    const technicianIds = (technicians || []).map((technician) => technician.id)
+    const currentTechnicians = (technicians || []).filter(
+      (technician) => !historicalManagerTechnicianIds.has(technician.id)
+    )
+
+    const technicianIds = currentTechnicians.map((technician) => technician.id)
     if (technicianIds.length === 0) return Response.json({ technicians: [] })
 
     const [{ data: reflections, error: reflectionError }, { data: conversations, error: conversationError }] = await Promise.all([
@@ -92,7 +117,7 @@ export async function GET(request: Request) {
       conversationActivity.set(conversation.technician_id, current)
     }
 
-    const directory = (technicians || []).map((technician) => {
+    const directory = currentTechnicians.map((technician) => {
       const reflectionById = reflectionActivity.get(technician.id)
       const reflectionByName = reflectionActivity.get(technician.canonical_name)
       const reflectionSummary = reflectionById || reflectionByName || { count: 0, latest: null }
