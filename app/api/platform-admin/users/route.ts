@@ -64,27 +64,186 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}))
   const profileId = String(body?.profileId || '')
-  const isActive = body?.isActive
+  const isProfileEdit = ['name', 'email', 'companyId', 'role'].some((key) => body?.[key] !== undefined)
 
-  if (!profileId || typeof isActive !== 'boolean') {
-    return jsonNoStore({ error: 'Invalid user update.' }, { status: 400 })
+  if (!profileId) {
+    return jsonNoStore({ error: 'User is required.' }, { status: 400 })
   }
 
   const { data: target, error: targetError } = await supabaseServer
     .from('UserProfiles')
-    .select('id, auth_user_id, is_platform_admin')
+    .select('id, auth_user_id, company_id, role, is_active, is_platform_admin')
     .eq('id', profileId)
     .single()
 
   if (targetError || !target) return jsonNoStore({ error: 'User not found.' }, { status: 404 })
-  if (target.is_platform_admin && !isActive) {
-    return jsonNoStore({ error: 'Platform administrator cannot be deactivated here.' }, { status: 400 })
+
+  // Keep the existing lightweight active/inactive toggle behavior.
+  if (!isProfileEdit) {
+    const isActive = body?.isActive
+    if (typeof isActive !== 'boolean') {
+      return jsonNoStore({ error: 'Invalid user update.' }, { status: 400 })
+    }
+
+    if (target.is_platform_admin && !isActive) {
+      return jsonNoStore({ error: 'Platform administrator cannot be deactivated here.' }, { status: 400 })
+    }
+
+    const { error } = await supabaseServer.from('UserProfiles').update({ is_active: isActive }).eq('id', profileId)
+    if (error) return jsonNoStore({ error: 'Could not update user.' }, { status: 500 })
+
+    return jsonNoStore({ updated: true })
   }
 
-  const { error } = await supabaseServer.from('UserProfiles').update({ is_active: isActive }).eq('id', profileId)
-  if (error) return jsonNoStore({ error: 'Could not update user.' }, { status: 500 })
+  if (target.is_platform_admin) {
+    return jsonNoStore({ error: 'Edit the platform administrator account separately.' }, { status: 400 })
+  }
 
-  return jsonNoStore({ updated: true })
+  const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+  const email = String(body?.email || '').trim().toLowerCase()
+  const companyId = String(body?.companyId || '').trim()
+  const role = String(body?.role || '').trim().toLowerCase()
+  const isActive = body?.isActive !== false
+
+  if (!name || name.length < 2 || name.length > 120) {
+    return jsonNoStore({ error: 'Name must be between 2 and 120 characters.' }, { status: 400 })
+  }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return jsonNoStore({ error: 'Enter a valid email address.' }, { status: 400 })
+  }
+  if (!companyId) {
+    return jsonNoStore({ error: 'Choose a company.' }, { status: 400 })
+  }
+  if (!['owner', 'manager', 'technician'].includes(role)) {
+    return jsonNoStore({ error: 'Choose owner, manager, or technician.' }, { status: 400 })
+  }
+
+  const [{ data: company, error: companyError }, authUserResult] = await Promise.all([
+    supabaseServer.from('Companies').select('id, name, status').eq('id', companyId).single(),
+    supabaseServer.auth.admin.getUserById(target.auth_user_id),
+  ])
+
+  if (companyError || !company) return jsonNoStore({ error: 'Company not found.' }, { status: 404 })
+  if (company.status === 'disabled') {
+    return jsonNoStore({ error: 'You cannot move a user into a disabled company.' }, { status: 400 })
+  }
+
+  const authUser = authUserResult.data?.user
+  if (authUserResult.error || !authUser) {
+    return jsonNoStore({ error: 'Could not load the authentication account.' }, { status: 500 })
+  }
+
+  const oldCompanyId = target.company_id
+  const oldRole = target.role
+  const companyChanged = oldCompanyId !== companyId
+  const roleChanged = oldRole !== role
+
+  const { data: linkedTechnician, error: linkedTechnicianError } = await supabaseServer
+    .from('Technicians')
+    .select('id, company_id, canonical_name, auth_user_id')
+    .eq('auth_user_id', target.auth_user_id)
+    .maybeSingle()
+
+  if (linkedTechnicianError) {
+    return jsonNoStore({ error: 'Could not load the technician record.' }, { status: 500 })
+  }
+
+  try {
+    // If a manager changes company or role, old manager-to-technician assignments
+    // should not travel with that person into the new context.
+    if (oldRole === 'manager' && (companyChanged || roleChanged)) {
+      const { error: assignmentError } = await supabaseServer
+        .from('ManagerTechnicians')
+        .delete()
+        .eq('manager_profile_id', profileId)
+      if (assignmentError) throw assignmentError
+    }
+
+    // Preserve historical technician data when someone leaves the technician role
+    // or moves to another company. The old technician record stays with its company,
+    // but is detached from the login.
+    if (linkedTechnician && (role !== 'technician' || companyChanged)) {
+      const { error: detachError } = await supabaseServer
+        .from('Technicians')
+        .update({ auth_user_id: null })
+        .eq('id', linkedTechnician.id)
+        .eq('auth_user_id', target.auth_user_id)
+      if (detachError) throw detachError
+    }
+
+    // A technician who remains in the same company keeps the existing technician
+    // identity and history; only the displayed name changes.
+    if (role === 'technician' && linkedTechnician && !companyChanged) {
+      const { error: techUpdateError } = await supabaseServer
+        .from('Technicians')
+        .update({ canonical_name: name })
+        .eq('id', linkedTechnician.id)
+      if (techUpdateError) throw techUpdateError
+    }
+
+    // New technician role, or a technician moving companies: connect to an existing
+    // unclaimed technician record with the same name when possible, otherwise create one.
+    if (role === 'technician' && (!linkedTechnician || companyChanged)) {
+      const { data: existingDestination, error: destinationError } = await supabaseServer
+        .from('Technicians')
+        .select('id, canonical_name')
+        .eq('company_id', companyId)
+        .is('auth_user_id', null)
+        .ilike('canonical_name', name)
+        .limit(1)
+        .maybeSingle()
+
+      if (destinationError) throw destinationError
+
+      if (existingDestination) {
+        const { error: connectError } = await supabaseServer
+          .from('Technicians')
+          .update({ canonical_name: name, auth_user_id: target.auth_user_id })
+          .eq('id', existingDestination.id)
+        if (connectError) throw connectError
+      } else {
+        const { error: createTechnicianError } = await supabaseServer
+          .from('Technicians')
+          .insert({ canonical_name: name, auth_user_id: target.auth_user_id, company_id: companyId })
+        if (createTechnicianError) throw createTechnicianError
+      }
+    }
+
+    const { error: profileError } = await supabaseServer
+      .from('UserProfiles')
+      .update({ company_id: companyId, role, is_active: isActive })
+      .eq('id', profileId)
+    if (profileError) throw profileError
+
+    const { error: authError } = await supabaseServer.auth.admin.updateUserById(target.auth_user_id, {
+      email,
+      email_confirm: true,
+      user_metadata: {
+        ...(authUser.user_metadata || {}),
+        full_name: name,
+        company_id: companyId,
+        role,
+      },
+    })
+    if (authError) throw authError
+
+    return jsonNoStore({
+      updated: true,
+      user: {
+        id: profileId,
+        name,
+        email,
+        companyId,
+        companyName: company.name,
+        role,
+        isActive,
+        isPlatformAdmin: false,
+      },
+    })
+  } catch (error: any) {
+    console.error('PLATFORM USER PROFILE UPDATE ERROR:', error)
+    return jsonNoStore({ error: error?.message || 'Could not update user profile.' }, { status: 500 })
+  }
 }
 
 export async function DELETE(request: Request) {
@@ -143,9 +302,6 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin
-  // Existing Auth users cannot be invited again. Send them through Supabase's
-  // password recovery flow instead, which lets an already-created demo user
-  // establish/reset a password at our setup-account page.
   const { error: inviteError } = await supabaseServer.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/setup-account`,
   })
