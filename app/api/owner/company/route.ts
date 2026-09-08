@@ -68,7 +68,7 @@ export async function GET(request: Request) {
 
       const email = user?.email || ''
       const metadataName = String(user?.user_metadata?.full_name || '').trim()
-      const fallbackName = email ? email.split('@')[0] : 'Tradewise user'
+      const fallbackName = email ? email.split('@')[0] : 'CraftCompass AI user'
       const bannedUntil = user?.banned_until ? new Date(user.banned_until).getTime() : 0
       const authBanned = bannedUntil > Date.now()
 
@@ -85,7 +85,7 @@ export async function GET(request: Request) {
       }
     })
 
-    // A technician can exist before they receive a Tradewise login. Owners should
+    // A technician can exist before they receive a CraftCompass AI login. Owners should
     // still see that person as part of the company roster instead of making the
     // company look like it has fewer technicians than it actually does.
     const rosterOnlyTechnicians = (technicians || [])
