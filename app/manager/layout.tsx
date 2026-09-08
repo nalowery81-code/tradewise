@@ -42,12 +42,14 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
   }, [])
 
   const inOwnerWorkspace =
+    pathname.startsWith('/manager/overview') ||
     pathname.startsWith('/manager/company') ||
     pathname.startsWith('/manager/assignments') ||
     pathname.startsWith('/manager/add-manager') ||
     pathname.startsWith('/manager/add-technician')
 
   const ownerLinks = [
+    { label: 'Overview', href: '/manager/overview', active: pathname.startsWith('/manager/overview') },
     { label: 'Company', href: '/manager/company', active: pathname.startsWith('/manager/company') },
     { label: 'Assignments', href: '/manager/assignments', active: pathname.startsWith('/manager/assignments') },
     { label: 'Add Manager', href: '/manager/add-manager', active: pathname.startsWith('/manager/add-manager') },
@@ -115,7 +117,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
       {children}
       {companyName && (
         isOwner ? (
-          <a href="/manager/company" style={ownerLinkStyle}>{companyName}</a>
+          <a href="/manager/overview" style={ownerLinkStyle}>{companyName}</a>
         ) : (
           <div style={ownerLinkStyle}>{companyName}</div>
         )
