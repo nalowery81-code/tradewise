@@ -99,7 +99,7 @@ export default function AddManagerPage() {
         <div style={eyebrowStyle}>Owner setup</div>
         <h1 style={titleStyle}>Add manager</h1>
         <p style={textStyle}>
-          Invite another manager into your Tradewise company. Managers can use the management workspace and see this company's technician data, but they cannot manage owners or other companies.
+          Invite another manager into your CraftCompass AI company. Managers can use the management workspace and see this company's technician data, but they cannot manage owners or other companies.
         </p>
 
         <label style={labelStyle}>
