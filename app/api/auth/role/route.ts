@@ -9,6 +9,16 @@ const jsonNoStore = (body: unknown, init?: ResponseInit) =>
     },
   })
 
+const getCookie = (request: Request, name: string) => {
+  const cookieHeader = request.headers.get('cookie') || ''
+  const match = cookieHeader
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+
+  return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : ''
+}
+
 export async function GET(request: Request) {
   try {
     const authHeader = request.headers.get('authorization')
@@ -30,7 +40,7 @@ export async function GET(request: Request) {
 
     const { data: profile, error: profileError } = await supabaseServer
       .from('UserProfiles')
-      .select('role, company_id, is_active, is_platform_admin')
+      .select('id, role, company_id, is_active, is_platform_admin')
       .eq('auth_user_id', user.id)
       .single()
 
@@ -42,20 +52,49 @@ export async function GET(request: Request) {
       return jsonNoStore({ error: 'Account inactive' }, { status: 403 })
     }
 
+    let effectiveProfile = profile
+    let isImpersonating = false
+    let impersonatedEmail: string | null = null
+
+    if (profile.is_platform_admin === true) {
+      const targetProfileId = getCookie(request, 'tradewise_platform_user')
+
+      if (targetProfileId) {
+        const { data: target } = await supabaseServer
+          .from('UserProfiles')
+          .select('id, auth_user_id, role, company_id, is_active, is_platform_admin')
+          .eq('id', targetProfileId)
+          .maybeSingle()
+
+        if (
+          target &&
+          target.is_active !== false &&
+          target.is_platform_admin !== true &&
+          ['owner', 'manager'].includes(target.role || '')
+        ) {
+          effectiveProfile = target
+          isImpersonating = true
+
+          const { data: targetAuth } = await supabaseServer.auth.admin.getUserById(target.auth_user_id)
+          impersonatedEmail = targetAuth?.user?.email || null
+        }
+      }
+    }
+
     const { data: company } = await supabaseServer
       .from('Companies')
       .select('name')
-      .eq('id', profile.company_id)
+      .eq('id', effectiveProfile.company_id)
       .maybeSingle()
 
     return jsonNoStore({
-      // Existing manager UI checks role === 'manager'. Keep that contract while
-      // exposing the true accountRole for owner-only screens and future routing.
-      role: profile.role === 'owner' ? 'manager' : profile.role,
-      accountRole: profile.role,
-      companyId: profile.company_id,
+      role: effectiveProfile.role === 'owner' ? 'manager' : effectiveProfile.role,
+      accountRole: effectiveProfile.role,
+      companyId: effectiveProfile.company_id,
       companyName: company?.name || null,
       isPlatformAdmin: profile.is_platform_admin === true,
+      isImpersonating,
+      impersonatedEmail,
     })
   } catch (error) {
     console.error('USER ROLE API ERROR:', error)
