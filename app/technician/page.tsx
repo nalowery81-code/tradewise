@@ -402,7 +402,7 @@ export default function TechnicianPage() {
         },
       ])
     } catch (error) {
-      console.error('Tradewise chat error:', error)
+      console.error('CraftCompass AI chat error:', error)
 
       setMessages((prev) => [
         ...prev,
@@ -427,7 +427,7 @@ export default function TechnicianPage() {
         }}
       >
         <div style={styles.drawerHeader}>
-          <div style={styles.drawerBrand}>Tradewise</div>
+          <div style={styles.drawerBrand}>CraftCompass AI</div>
 
           <button
             type="button"
@@ -499,7 +499,7 @@ export default function TechnicianPage() {
           ☰
         </button>
 
-        <div style={styles.headerBrand}>Tradewise</div>
+        <div style={styles.headerBrand}>CraftCompass AI</div>
         <div style={{ width: 42 }} />
       </header>
 
@@ -507,7 +507,7 @@ export default function TechnicianPage() {
         {messages.length === 0 && (
           <div style={styles.hero}>
             <div style={styles.brandBlock}>
-              <div style={styles.brandName}>Tradewise</div>
+              <div style={styles.brandName}>CraftCompass AI</div>
               <div style={styles.brandTagline}>Your AI partner in the trades</div>
             </div>
 
@@ -670,7 +670,7 @@ export default function TechnicianPage() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder={isListening ? 'Listening…' : 'Ask Tradewise…'}
+              placeholder={isListening ? 'Listening…' : 'Ask CraftCompass AI…'}
               rows={1}
               style={styles.input}
               onKeyDown={(e) => {
@@ -725,7 +725,7 @@ export default function TechnicianPage() {
           <div style={styles.footerText}>
             {isListening
               ? 'Listening — tap the microphone again to stop.'
-              : 'Tradewise can make mistakes. Verify important field information.'}
+              : 'CraftCompass AI can make mistakes. Verify important field information.'}
           </div>
         </div>
       </div>
