@@ -212,7 +212,7 @@ export default function PlatformAdminPage() {
 
         <nav style={{ display: 'grid', gap: 7, marginTop: 32 }}>
           <a href="/platform-admin" style={activeNavStyle}>Companies</a>
-          <div style={futureNavStyle}>Users</div>
+          <a href="/platform-admin/users" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Users</a>
           <div style={futureNavStyle}>System</div>
         </nav>
 
