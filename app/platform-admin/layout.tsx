@@ -178,7 +178,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
     </button>
   )
 
-  const showControlButton = pathname !== '/platform-admin/return'
+  const showControlButton = pathname === '/platform-admin'
 
   return (
     <>
@@ -186,7 +186,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
       {showControlButton && (
         <button type="button" onClick={() => void openControls()} style={floatingButtonStyle}>
-          Feature Controls
+          Features
         </button>
       )}
 
@@ -263,18 +263,20 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
 const floatingButtonStyle: React.CSSProperties = {
   position: 'fixed',
-  right: 22,
-  bottom: 22,
+  left: 20,
+  top: 272,
   zIndex: 700,
+  width: 204,
+  boxSizing: 'border-box',
   border: 'none',
-  borderRadius: 999,
-  padding: '11px 16px',
-  background: '#172033',
-  color: '#ffffff',
-  fontSize: 13,
-  fontWeight: 800,
+  borderRadius: 9,
+  padding: '11px 12px',
+  background: 'transparent',
+  color: '#94a3b8',
+  textAlign: 'left',
+  fontSize: 14,
+  fontWeight: 700,
   cursor: 'pointer',
-  boxShadow: '0 8px 24px rgba(15,23,42,0.22)',
 }
 
 const backdropStyle: React.CSSProperties = {
