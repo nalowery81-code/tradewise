@@ -16,6 +16,7 @@ export default function PlatformAdminUsersPage() {
   const [users, setUsers] = useState<UserRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [status, setStatus] = useState('')
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
@@ -41,6 +42,20 @@ export default function PlatformAdminUsersPage() {
     const data = await response.json().catch(() => ({}))
     if (!response.ok) return setError(data.error || 'Could not update user.')
     setUsers((rows) => rows.map((row) => row.id === user.id ? { ...row, isActive: !row.isActive } : row))
+  }
+
+  const resendSetup = async (user: UserRow) => {
+    setError('')
+    setStatus('')
+    const accessToken = await token()
+    const response = await fetch('/api/platform-admin/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ profileId: user.id }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return setError(data.error || 'Could not resend setup invite.')
+    setStatus(`Setup invite sent to ${user.email}.`)
   }
 
   const remove = async (user: UserRow) => {
@@ -71,6 +86,7 @@ export default function PlatformAdminUsersPage() {
         <h1 style={{ margin: 0, fontSize: 34 }}>Users</h1>
         <p style={{ color: '#64748b' }}>Manage company access across Tradewise.</p>
         {error && <div style={{ padding: 12, background: '#fff7ed', color: '#9a3412', borderRadius: 10 }}>{error}</div>}
+        {status && <div style={{ marginTop: 10, padding: 12, background: '#f0fdf4', color: '#166534', borderRadius: 10 }}>{status}</div>}
 
         <div style={{ display: 'grid', gap: 10, marginTop: 24 }}>
           {loading ? <div>Loading users…</div> : users.map((user) => (
@@ -84,6 +100,7 @@ export default function PlatformAdminUsersPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {!user.isPlatformAdmin && (
                   <>
+                    <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
                     <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
                     <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
                   </>
