@@ -71,6 +71,7 @@ export async function GET(request: Request) {
           target &&
           target.is_active !== false &&
           target.is_platform_admin !== true &&
+          target.company_id &&
           ['owner', 'manager'].includes(target.role || '')
         ) {
           effectiveProfile = target
@@ -79,19 +80,51 @@ export async function GET(request: Request) {
           const { data: targetAuth } = await supabaseServer.auth.admin.getUserById(target.auth_user_id)
           impersonatedEmail = targetAuth?.user?.email || null
         }
+      } else {
+        const requestedCompanyId = getCookie(request, 'tradewise_platform_company')
+
+        if (requestedCompanyId) {
+          const { data: targetCompany } = await supabaseServer
+            .from('Companies')
+            .select('id, status')
+            .eq('id', requestedCompanyId)
+            .maybeSingle()
+
+          if (targetCompany?.id && targetCompany.status !== 'disabled') {
+            effectiveProfile = {
+              ...profile,
+              role: 'owner',
+              company_id: targetCompany.id,
+            }
+          }
+        }
       }
     }
 
-    const { data: company } = await supabaseServer
-      .from('Companies')
-      .select('name, feature_flags')
-      .eq('id', effectiveProfile.company_id)
-      .maybeSingle()
+    let company: { name: string; feature_flags: unknown } | null = null
+
+    if (effectiveProfile.company_id) {
+      const { data } = await supabaseServer
+        .from('Companies')
+        .select('name, feature_flags')
+        .eq('id', effectiveProfile.company_id)
+        .maybeSingle()
+      company = data || null
+    }
+
+    const isStandalonePlatformAdmin =
+      profile.is_platform_admin === true &&
+      !isImpersonating &&
+      !effectiveProfile.company_id
 
     return jsonNoStore({
-      role: effectiveProfile.role === 'owner' ? 'manager' : effectiveProfile.role,
-      accountRole: effectiveProfile.role,
-      companyId: effectiveProfile.company_id,
+      role: isStandalonePlatformAdmin
+        ? 'platform_admin'
+        : effectiveProfile.role === 'owner'
+          ? 'manager'
+          : effectiveProfile.role,
+      accountRole: isStandalonePlatformAdmin ? 'platform_admin' : effectiveProfile.role,
+      companyId: effectiveProfile.company_id || null,
       companyName: company?.name || null,
       featureFlags: normalizeCompanyFeatureFlags(company?.feature_flags),
       isPlatformAdmin: profile.is_platform_admin === true,
