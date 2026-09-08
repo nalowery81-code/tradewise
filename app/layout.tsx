@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BrandLanguage from "./components/brand-language";
+import ImpersonationBanner from "./components/impersonation-banner";
 import SessionControls from "./components/session-controls";
 import "./globals.css";
 
@@ -31,6 +32,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <BrandLanguage />
+        <ImpersonationBanner />
         <SessionControls />
         {children}
         <div
