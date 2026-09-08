@@ -31,6 +31,7 @@ export async function GET(request: Request) {
       isActive: profile.is_active !== false,
       isPlatformAdmin: profile.is_platform_admin === true,
       createdAt: profile.created_at,
+      hasPassword: Boolean(authUser?.user_metadata?.password_set),
     }
   })
 
@@ -94,4 +95,43 @@ export async function DELETE(request: Request) {
   }
 
   return jsonNoStore({ deleted: true })
+}
+
+
+export async function POST(request: Request) {
+  const access = await requirePlatformAdmin(request)
+  if ('error' in access) return access.error
+
+  const body = await request.json().catch(() => ({}))
+  const profileId = String(body?.profileId || '')
+
+  const { data: target, error: targetError } = await supabaseServer
+    .from('UserProfiles')
+    .select('id, auth_user_id, is_active')
+    .eq('id', profileId)
+    .single()
+
+  if (targetError || !target || target.is_active === false) {
+    return jsonNoStore({ error: 'Active user not found.' }, { status: 404 })
+  }
+
+  const { data: authUserResult, error: userError } =
+    await supabaseServer.auth.admin.getUserById(target.auth_user_id)
+
+  const email = authUserResult?.user?.email
+  if (userError || !email) {
+    return jsonNoStore({ error: 'Could not load the user email.' }, { status: 500 })
+  }
+
+  const origin = new URL(request.url).origin
+  const { error: inviteError } = await supabaseServer.auth.admin.inviteUserByEmail(email, {
+    redirectTo: `${origin}/setup-account`,
+  })
+
+  if (inviteError) {
+    console.error('PLATFORM RESEND SETUP INVITE ERROR:', inviteError)
+    return jsonNoStore({ error: inviteError.message || 'Could not resend setup invite.' }, { status: 400 })
+  }
+
+  return jsonNoStore({ sent: true, email })
 }
