@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         .single(),
       supabaseServer
         .from('UserProfiles')
-        .select('id, auth_user_id, is_active')
+        .select('id, auth_user_id, is_active, technician_id')
         .eq('company_id', companyId)
         .eq('role', 'manager')
         .order('created_at', { ascending: true }),
@@ -69,7 +69,20 @@ export async function GET(request: Request) {
       return jsonNoStore({ error: 'Could not load owner overview.' }, { status: 500 })
     }
 
-    const techRows = technicians || []
+    // When a technician is promoted to manager, we intentionally keep their old
+    // technician row linked through UserProfiles.technician_id so their historical
+    // conversations/reflections are preserved. That historical identity should not
+    // still count as a current technician in the owner dashboard.
+    const historicalManagerTechnicianIds = new Set(
+      (managerProfiles || [])
+        .map((profile) => profile.technician_id)
+        .filter((id): id is string => Boolean(id))
+    )
+
+    const techRows = (technicians || []).filter(
+      (technician) => !historicalManagerTechnicianIds.has(technician.id)
+    )
+    const currentTechIds = new Set(techRows.map((technician) => technician.id))
     const techById = new Map(techRows.map((technician) => [technician.id, technician]))
     const techIdByName = new Map(
       techRows.map((technician) => [String(technician.canonical_name || '').trim().toLowerCase(), technician.id])
@@ -81,6 +94,7 @@ export async function GET(request: Request) {
 
     for (const assignment of assignments || []) {
       if (!assignment.manager_profile_id || !assignment.technician_id) continue
+      if (!currentTechIds.has(assignment.technician_id)) continue
       assignedTechIds.add(assignment.technician_id)
       const current = managerTechIds.get(assignment.manager_profile_id) || new Set<string>()
       current.add(assignment.technician_id)
