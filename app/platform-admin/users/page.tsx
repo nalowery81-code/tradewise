@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 
 type UserRow = {
   id: string
+  name: string
   email: string
   companyName: string
   role: string
@@ -292,7 +293,14 @@ export default function PlatformAdminUsersPage() {
           {loading ? <div>Loading users…</div> : users.map((user) => (
             <div key={user.id} style={cardStyle}>
               <div style={{ minWidth: 0 }}>
-                <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
+                {user.name ? (
+                  <>
+                    <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
+                    <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
+                  </>
+                ) : (
+                  <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
+                )}
                 <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
                   {user.companyName} · {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
                 </div>
