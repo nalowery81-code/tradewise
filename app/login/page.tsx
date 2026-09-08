@@ -34,7 +34,7 @@ export default function LoginPage() {
     })
 
     if (!roleResponse.ok) {
-      setError('Could not determine your Tradewise role.')
+      setError('Could not determine your CraftCompass AI role.')
       setLoading(false)
       return
     }
@@ -57,7 +57,7 @@ export default function LoginPage() {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h1 style={{ fontSize: 36, marginBottom: 8 }}>Tradewise</h1>
+        <h1 style={{ fontSize: 36, marginBottom: 8 }}>CraftCompass AI</h1>
 
         <input
           type="email"
@@ -86,7 +86,7 @@ export default function LoginPage() {
         </button>
 
         <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.5, color: '#6b7280' }}>
-          Signing in here will switch Tradewise to the account and role you enter.
+          Signing in here will switch CraftCompass AI to the account and role you enter.
         </div>
       </form>
     </main>
