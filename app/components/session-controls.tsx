@@ -91,7 +91,7 @@ export default function SessionControls() {
         </div>
 
         {managerAccess.isOwner && (
-          <a href="/manager/company" style={managerNavLinkStyle}>
+          <a href="/manager/overview" style={managerNavLinkStyle}>
             Owner Workspace
           </a>
         )}
