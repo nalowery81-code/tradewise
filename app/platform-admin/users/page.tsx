@@ -17,6 +17,7 @@ export default function PlatformAdminUsersPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [switchingUserId, setSwitchingUserId] = useState('')
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
@@ -56,6 +57,31 @@ export default function PlatformAdminUsersPage() {
     const data = await response.json().catch(() => ({}))
     if (!response.ok) return setError(data.error || 'Could not resend setup invite.')
     setStatus(`Setup invite sent to ${user.email}.`)
+  }
+
+  const switchUser = async (user: UserRow) => {
+    if (!window.confirm(`Switch into ${user.email} at ${user.companyName}?`)) return
+
+    setError('')
+    setStatus('')
+    setSwitchingUserId(user.id)
+
+    const accessToken = await token()
+    const response = await fetch('/api/platform-admin/impersonate', {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ profileId: user.id }),
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setError(data.error || 'Could not switch user.')
+      setSwitchingUserId('')
+      return
+    }
+
+    window.location.href = '/manager'
   }
 
   const remove = async (user: UserRow) => {
@@ -100,6 +126,15 @@ export default function PlatformAdminUsersPage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {!user.isPlatformAdmin && (
                   <>
+                    {user.isActive && ['owner', 'manager'].includes(user.role) && (
+                      <button
+                        onClick={() => void switchUser(user)}
+                        disabled={Boolean(switchingUserId)}
+                        style={{ ...buttonStyle, background: '#172033', color: '#fff', borderColor: '#172033', opacity: switchingUserId ? 0.6 : 1 }}
+                      >
+                        {switchingUserId === user.id ? 'Switching…' : 'Switch User'}
+                      </button>
+                    )}
                     <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
                     <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
                     <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
