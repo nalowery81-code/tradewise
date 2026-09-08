@@ -8,9 +8,15 @@ export async function GET(request: Request) {
   const access = await requirePlatformAdmin(request)
   if ('error' in access) return access.error
 
-  const [{ data: profiles, error }, { data: companies }, authResult] = await Promise.all([
+  const [
+    { data: profiles, error },
+    { data: companies },
+    { data: technicians },
+    authResult,
+  ] = await Promise.all([
     supabaseServer.from('UserProfiles').select('id, auth_user_id, company_id, role, is_active, is_platform_admin, created_at'),
     supabaseServer.from('Companies').select('id, name'),
+    supabaseServer.from('Technicians').select('auth_user_id, canonical_name').not('auth_user_id', 'is', null),
     supabaseServer.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ])
 
@@ -18,12 +24,26 @@ export async function GET(request: Request) {
 
   const authById = new Map(authResult.data.users.map((user) => [user.id, user]))
   const companyById = new Map((companies || []).map((company) => [company.id, company.name]))
+  const technicianNameByAuthId = new Map(
+    (technicians || [])
+      .filter((technician) => technician.auth_user_id)
+      .map((technician) => [technician.auth_user_id as string, technician.canonical_name])
+  )
 
   const users = (profiles || []).map((profile) => {
     const authUser = authById.get(profile.auth_user_id)
+    const metadataName =
+      typeof authUser?.user_metadata?.full_name === 'string'
+        ? authUser.user_metadata.full_name.trim()
+        : typeof authUser?.user_metadata?.name === 'string'
+          ? authUser.user_metadata.name.trim()
+          : ''
+    const technicianName = technicianNameByAuthId.get(profile.auth_user_id) || ''
+
     return {
       id: profile.id,
       authUserId: profile.auth_user_id,
+      name: metadataName || technicianName,
       email: authUser?.email || 'Unknown email',
       companyId: profile.company_id,
       companyName: companyById.get(profile.company_id) || 'Unknown company',
@@ -96,7 +116,6 @@ export async function DELETE(request: Request) {
 
   return jsonNoStore({ deleted: true })
 }
-
 
 export async function POST(request: Request) {
   const access = await requirePlatformAdmin(request)
