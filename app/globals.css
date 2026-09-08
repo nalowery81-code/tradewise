@@ -52,3 +52,19 @@ body {
     left: 330px !important;
   }
 }
+
+/* Manager landing page: keep the empty-chat composer connected to the
+   starter prompts instead of pinning it to the bottom of a tall screen.
+   Once a conversation starts, the existing fixed-bottom composer returns. */
+@media (min-width: 768px) {
+  main:has(> section > div:nth-child(2):last-child > button:nth-child(4)):has(textarea[placeholder*="about your team"]) > section {
+    padding-bottom: 0 !important;
+  }
+
+  main:has(> section > div:nth-child(2):last-child > button:nth-child(4)):has(textarea[placeholder*="about your team"]) > div:has(> div > textarea[placeholder*="about your team"]) {
+    position: static !important;
+    background: transparent !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+  }
+}
