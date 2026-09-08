@@ -87,7 +87,7 @@ export default function PlatformAdminPage() {
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      setError(data.error || 'Could not create demo company.')
+      setError(data.error || 'Could not create company.')
       setCreating(false)
       return
     }
@@ -236,12 +236,12 @@ export default function PlatformAdminPage() {
               <input
                 value={companyName}
                 onChange={(event) => setCompanyName(event.target.value)}
-                placeholder="Demo company name"
+                placeholder="Company name"
                 maxLength={120}
                 style={inputStyle}
               />
               <button type="submit" disabled={creating} style={primaryButtonStyle}>
-                {creating ? 'Creating…' : '+ New Demo Company'}
+                {creating ? 'Creating…' : '+ New Company'}
               </button>
             </form>
           </div>
