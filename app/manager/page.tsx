@@ -495,7 +495,7 @@ export default function ManagerPage() {
     <main style={pageStyle}>
       <aside style={{ ...sidebarStyle, display: sidebarOpen ? 'flex' : 'none' }}>
         <div style={sidebarHeaderStyle}>
-          <div style={{ fontWeight: 700, fontSize: 18 }}>Tradewise Manager</div>
+          <div style={{ fontWeight: 700, fontSize: 18 }}>CraftCompass AI Manager</div>
           {!isDesktop && <button type="button" onClick={() => setSidebarOpen(false)} style={iconButtonStyle}>×</button>}
         </div>
 
@@ -547,7 +547,7 @@ export default function ManagerPage() {
 
       <header style={{ ...headerStyle, marginLeft: isDesktop && sidebarOpen ? 278 : 0 }}>
         <button type="button" onClick={() => setSidebarOpen((current) => !current)} style={menuButtonStyle}>☰</button>
-        Tradewise
+        CraftCompass AI
       </header>
 
       <section style={{
@@ -736,7 +736,7 @@ export default function ManagerPage() {
           <>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
               <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>What would you like to know about your team?</h1>
-              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask Tradewise about technicians, trends, training, or team performance.</p>
+              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask CraftCompass AI about technicians, trends, training, or team performance.</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
               {starters.map((starter) => <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>{starter}</button>)}
@@ -761,7 +761,7 @@ export default function ManagerPage() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder={managerView === 'technician-profile' && technicianProfile ? `Ask Tradewise about ${technicianProfile.technician.name}...` : 'Ask Tradewise about your team...'}
+              placeholder={managerView === 'technician-profile' && technicianProfile ? `Ask CraftCompass AI about ${technicianProfile.technician.name}...` : 'Ask CraftCompass AI about your team...'}
               rows={1}
               disabled={sending}
               onKeyDown={(e) => {
