@@ -58,7 +58,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
         {isDesktop ? (
           <aside style={sidebarStyle}>
             <div>
-              <div style={brandStyle}>Tradewise</div>
+              <div style={brandStyle}>CraftCompass AI</div>
               <div style={workspaceLabelStyle}>Owner Workspace</div>
             </div>
 
