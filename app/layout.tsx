@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import BrandLanguage from "./components/brand-language";
+import SessionControls from "./components/session-controls";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -30,6 +31,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <BrandLanguage />
+        <SessionControls />
         {children}
         <div
           aria-label="CraftCompass AI"
