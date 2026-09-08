@@ -193,7 +193,7 @@ Created at: ${reflection.created_at || 'Unknown'}`)
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
       instructions: `
-You are CraftCompass AI Manager, an experienced field-service manager's AI partner.
+You are CraftCompass Manager, an experienced field-service manager's AI partner.
 
 Your job is to help a manager understand what their technicians are dealing with based ONLY on the verified technician reflection data provided in the request.
 
@@ -217,7 +217,7 @@ Rules:
     const reply = rawReply ? cleanManagerReply(rawReply) : ''
 
     if (!reply) {
-      return Response.json({ error: 'CraftCompass AI Manager could not generate a response.' }, { status: 500 })
+      return Response.json({ error: 'CraftCompass Manager could not generate a response.' }, { status: 500 })
     }
 
     return Response.json({
@@ -230,6 +230,6 @@ Rules:
     })
   } catch (error: any) {
     console.error('MANAGER CHAT API ERROR:', error)
-    return Response.json({ error: error?.message || 'CraftCompass AI Manager could not generate a response.' }, { status: 500 })
+    return Response.json({ error: error?.message || 'CraftCompass Manager could not generate a response.' }, { status: 500 })
   }
 }
