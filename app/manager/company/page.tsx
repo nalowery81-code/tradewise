@@ -144,7 +144,7 @@ export default function CompanyPage() {
       : action === 'demote'
         ? `Change ${member.name} to Technician? Their prior history will be preserved.`
         : action === 'deactivate'
-          ? `Deactivate ${member.name}? They will lose Tradewise access, but their history will be preserved.`
+          ? `Deactivate ${member.name}? They will lose CraftCompass AI access, but their history will be preserved.`
           : ''
 
     if (prompt && !window.confirm(prompt)) return
@@ -258,7 +258,7 @@ export default function CompanyPage() {
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 700, color: '#172033' }}>{member.name}</div>
             <div style={{ marginTop: 4, fontSize: 13, color: '#64748b', overflowWrap: 'anywhere' }}>
-              {needsLogin ? 'No Tradewise login yet' : member.email || 'No email available'}
+              {needsLogin ? 'No CraftCompass AI login yet' : member.email || 'No email available'}
             </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
