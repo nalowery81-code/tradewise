@@ -1,5 +1,10 @@
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../lib/supabase-server'
+import {
+  COMPANY_FEATURE_KEYS,
+  DEFAULT_COMPANY_FEATURES,
+  normalizeCompanyFeatureFlags,
+} from '../../../lib/company-features'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
@@ -18,7 +23,7 @@ export async function GET(request: Request) {
     await Promise.all([
       supabaseServer
         .from('Companies')
-        .select('id, name, account_type, status, created_at')
+        .select('id, name, account_type, status, created_at, feature_flags')
         .order('created_at', { ascending: true }),
       supabaseServer
         .from('UserProfiles')
@@ -50,6 +55,7 @@ export async function GET(request: Request) {
 
     return {
       ...company,
+      feature_flags: normalizeCompanyFeatureFlags(company.feature_flags),
       users: companyProfiles.length,
       owners: companyProfiles.filter((profile) => profile.role === 'owner' && profile.is_active !== false).length,
       managers: companyProfiles.filter((profile) => profile.role === 'manager' && profile.is_active !== false).length,
@@ -73,8 +79,8 @@ export async function POST(request: Request) {
 
   const { data, error } = await supabaseServer
     .from('Companies')
-    .insert({ name, account_type: 'demo', status: 'active' })
-    .select('id, name, account_type, status, created_at')
+    .insert({ name, account_type: 'demo', status: 'active', feature_flags: DEFAULT_COMPANY_FEATURES })
+    .select('id, name, account_type, status, created_at, feature_flags')
     .single()
 
   if (error) {
@@ -82,5 +88,80 @@ export async function POST(request: Request) {
     return jsonNoStore({ error: 'Could not create demo company.' }, { status: 500 })
   }
 
-  return jsonNoStore({ company: { ...data, users: 0, owners: 0, managers: 0, technicians: 0 } }, { status: 201 })
+  return jsonNoStore({
+    company: {
+      ...data,
+      feature_flags: normalizeCompanyFeatureFlags(data.feature_flags),
+      users: 0,
+      owners: 0,
+      managers: 0,
+      technicians: 0,
+    },
+  }, { status: 201 })
+}
+
+export async function PATCH(request: Request) {
+  const access = await requirePlatformAdmin(request)
+  if ('error' in access) return access.error
+
+  const body = await request.json().catch(() => ({}))
+  const companyId = String(body?.companyId || '').trim()
+  const requestedFlags = body?.featureFlags
+
+  if (!companyId) {
+    return jsonNoStore({ error: 'Company is required.' }, { status: 400 })
+  }
+
+  if (!requestedFlags || typeof requestedFlags !== 'object' || Array.isArray(requestedFlags)) {
+    return jsonNoStore({ error: 'Feature settings are required.' }, { status: 400 })
+  }
+
+  const rawFlags = requestedFlags as Record<string, unknown>
+  const hasUnknownKey = Object.keys(rawFlags).some(
+    (key) => !COMPANY_FEATURE_KEYS.includes(key as (typeof COMPANY_FEATURE_KEYS)[number])
+  )
+
+  if (hasUnknownKey) {
+    return jsonNoStore({ error: 'Unknown company feature setting.' }, { status: 400 })
+  }
+
+  const { data: existingCompany, error: companyError } = await supabaseServer
+    .from('Companies')
+    .select('id, feature_flags')
+    .eq('id', companyId)
+    .single()
+
+  if (companyError || !existingCompany) {
+    return jsonNoStore({ error: 'Company not found.' }, { status: 404 })
+  }
+
+  const currentFlags = normalizeCompanyFeatureFlags(existingCompany.feature_flags)
+  const nextFlags = { ...currentFlags }
+
+  for (const key of COMPANY_FEATURE_KEYS) {
+    if (rawFlags[key] !== undefined) {
+      if (typeof rawFlags[key] !== 'boolean') {
+        return jsonNoStore({ error: `Feature ${key} must be true or false.` }, { status: 400 })
+      }
+      nextFlags[key] = rawFlags[key] as boolean
+    }
+  }
+
+  const { data, error } = await supabaseServer
+    .from('Companies')
+    .update({ feature_flags: nextFlags })
+    .eq('id', companyId)
+    .select('id, feature_flags')
+    .single()
+
+  if (error || !data) {
+    console.error('UPDATE COMPANY FEATURES ERROR:', error)
+    return jsonNoStore({ error: 'Could not update company feature settings.' }, { status: 500 })
+  }
+
+  return jsonNoStore({
+    updated: true,
+    companyId: data.id,
+    featureFlags: normalizeCompanyFeatureFlags(data.feature_flags),
+  })
 }
