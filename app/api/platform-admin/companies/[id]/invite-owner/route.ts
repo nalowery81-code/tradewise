@@ -1,12 +1,9 @@
 import { requirePlatformAdmin } from '../../../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../../../lib/supabase-server'
 
-const getInviteRedirectUrl = () => {
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    'https://tradewise-git-main-nalowery81-2073s-projects.vercel.app'
-
-  return `${baseUrl.replace(/\/+$/, '')}/setup-account`
+const getInviteRedirectUrl = (request: Request) => {
+  const origin = new URL(request.url).origin
+  return `${origin}/setup-account`
 }
 
 export async function POST(
