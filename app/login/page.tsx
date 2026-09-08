@@ -10,6 +10,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [otp, setOtp] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
@@ -80,7 +81,7 @@ export default function LoginPage() {
         }
       } catch (sessionError) {
         console.error('LOGIN SESSION CHECK ERROR:', sessionError)
-        if (active) setError('Could not complete sign-in. Try a new magic link.')
+        if (active) setError('Could not complete sign-in. Try a new sign-in code.')
       } finally {
         if (active) setCheckingSession(false)
       }
@@ -124,6 +125,32 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  const handleOtpLogin = async () => {
+    setLoading(true)
+    setError('')
+
+    const { data, error: otpError } = await supabase.auth.verifyOtp({
+      email,
+      token: otp,
+      type: 'email',
+    })
+
+    if (otpError) {
+      setError(otpError.message || 'That sign-in code is invalid or expired.')
+      setLoading(false)
+      return
+    }
+
+    if (!data.session?.access_token) {
+      setError('CraftCompass AI did not receive a login session.')
+      setLoading(false)
+      return
+    }
+
+    await routeSession(data.session.access_token)
+    setLoading(false)
+  }
+
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -148,16 +175,36 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
               autoComplete="current-password"
               style={{ padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc' }}
             />
 
-            {error && <div style={{ fontSize: 14 }}>{error}</div>}
-
-            <button type="submit" disabled={loading} style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}>
+            <button type="submit" disabled={loading || !email || !password} style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}>
               {loading ? 'Signing in...' : 'Sign in'}
             </button>
+
+            <div style={{ margin: '4px 0', textAlign: 'center', fontSize: 13, color: '#6b7280' }}>or use an email sign-in code</div>
+
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Email code"
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.trim())}
+              autoComplete="one-time-code"
+              style={{ padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc' }}
+            />
+
+            <button
+              type="button"
+              onClick={() => void handleOtpLogin()}
+              disabled={loading || !email || !otp}
+              style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}
+            >
+              Sign in with email code
+            </button>
+
+            {error && <div style={{ fontSize: 14 }}>{error}</div>}
 
             <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.5, color: '#6b7280' }}>
               Signing in here will switch CraftCompass AI to the account and role you enter.
