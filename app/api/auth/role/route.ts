@@ -42,12 +42,19 @@ export async function GET(request: Request) {
       return jsonNoStore({ error: 'Account inactive' }, { status: 403 })
     }
 
+    const { data: company } = await supabaseServer
+      .from('Companies')
+      .select('name')
+      .eq('id', profile.company_id)
+      .maybeSingle()
+
     return jsonNoStore({
       // Existing manager UI checks role === 'manager'. Keep that contract while
       // exposing the true accountRole for owner-only screens and future routing.
       role: profile.role === 'owner' ? 'manager' : profile.role,
       accountRole: profile.role,
       companyId: profile.company_id,
+      companyName: company?.name || null,
       isPlatformAdmin: profile.is_platform_admin === true,
     })
   } catch (error) {
