@@ -15,14 +15,14 @@ export default function ReturnToPlatformAdminPage() {
         return
       }
 
-      const response = await fetch('/api/platform-admin/workspace', {
+      const response = await fetch('/api/platform-admin/impersonate', {
         method: 'DELETE',
         cache: 'no-store',
         headers: { Authorization: `Bearer ${session.access_token}` },
       })
 
       if (!response.ok) {
-        setMessage('Could not exit the demo workspace. Please sign out and back in.')
+        setMessage('Could not exit the temporary workspace. Please sign out and back in.')
         return
       }
 
