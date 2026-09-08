@@ -54,18 +54,25 @@ export async function requireManagementAccess(
     return { error: Response.json({ error: 'Account inactive' }, { status: 403 }) }
   }
 
-  if (!profile.company_id || !['owner', 'manager'].includes(profile.role || '')) {
+  const isPlatformAdmin = profile.is_platform_admin === true
+
+  if (!isPlatformAdmin && (!profile.company_id || !['owner', 'manager'].includes(profile.role || ''))) {
     return { error: Response.json({ error: 'Manager access required' }, { status: 403 }) }
   }
 
-  let effectiveProfile = {
+  let effectiveProfile: {
+    id: string
+    auth_user_id: string
+    role: 'owner' | 'manager'
+    company_id: string | null
+  } = {
     id: profile.id,
     auth_user_id: profile.auth_user_id,
-    role: profile.role as 'owner' | 'manager',
-    company_id: profile.company_id,
+    role: profile.role === 'manager' ? 'manager' : 'owner',
+    company_id: profile.company_id || null,
   }
 
-  if (profile.is_platform_admin === true) {
+  if (isPlatformAdmin) {
     const impersonatedProfileId = getCookie(request, 'tradewise_platform_user')
 
     if (impersonatedProfileId) {
@@ -109,9 +116,14 @@ export async function requireManagementAccess(
 
         if (targetCompany?.id && targetCompany.status !== 'disabled') {
           effectiveProfile.company_id = targetCompany.id
+          effectiveProfile.role = 'owner'
         }
       }
     }
+  }
+
+  if (!effectiveProfile.company_id) {
+    return { error: Response.json({ error: 'Choose a company workspace first.' }, { status: 403 }) }
   }
 
   if (options?.ownerOnly && effectiveProfile.role !== 'owner') {
