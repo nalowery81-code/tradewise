@@ -56,7 +56,7 @@ export async function POST(request: Request) {
   const email = authUserResult?.user?.email || 'Unknown user'
 
   await supabaseServer.from('PlatformImpersonationAudit').insert({
-    admin_profile_id: access.profile.id,
+    admin_profile_id: access.profileId,
     target_profile_id: target.id,
     target_company_id: target.company_id,
     action: 'start',
@@ -91,7 +91,7 @@ export async function DELETE(request: Request) {
 
     if (target) {
       await supabaseServer.from('PlatformImpersonationAudit').insert({
-        admin_profile_id: access.profile.id,
+        admin_profile_id: access.profileId,
         target_profile_id: target.id,
         target_company_id: target.company_id,
         action: 'stop',
