@@ -29,7 +29,7 @@ Created At: ${r.created_at || 'Unknown'}`
     const response = await client.responses.create({
       model: 'gpt-4.1-mini',
       instructions: `
-You are the manager insight layer for TradeWise, a human-first reflection and support system for the trades.
+You are the manager insight layer for CraftCompass AI, a human-first reflection and support system for the trades.
 
 Rules:
 - Sound grounded, human, practical, and contractor-friendly.
