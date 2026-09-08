@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 
 type UserRow = {
@@ -18,6 +18,12 @@ type CompanyRow = {
   id: string
   name: string
   status: string
+}
+
+const roleOrder: Record<string, number> = {
+  owner: 0,
+  manager: 1,
+  technician: 2,
 }
 
 export default function PlatformAdminUsersPage() {
@@ -78,6 +84,22 @@ export default function PlatformAdminUsersPage() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const groupedCompanies = useMemo(() => {
+    return companies
+      .map((company) => ({
+        company,
+        users: users
+          .filter((user) => user.companyId === company.id)
+          .sort((a, b) => {
+            const roleDifference = (roleOrder[a.role] ?? 99) - (roleOrder[b.role] ?? 99)
+            if (roleDifference !== 0) return roleDifference
+            return (a.name || a.email).localeCompare(b.name || b.email)
+          }),
+      }))
+      .filter((group) => group.users.length > 0)
+      .sort((a, b) => a.company.name.localeCompare(b.company.name))
+  }, [companies, users])
 
   const createUser = async (sendSetup: boolean) => {
     const name = newName.replace(/\s+/g, ' ').trim()
@@ -270,6 +292,117 @@ export default function PlatformAdminUsersPage() {
     setUsers((rows) => rows.filter((row) => row.id !== user.id))
   }
 
+  const renderUser = (user: UserRow) => {
+    const isEditing = editingUserId === user.id
+
+    return (
+      <div key={user.id} style={{ ...cardStyle, alignItems: isEditing ? 'stretch' : 'center' }}>
+        {isEditing ? (
+          <div style={{ width: '100%', display: 'grid', gap: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>Edit user</div>
+                <div style={{ marginTop: 3, color: '#64748b', fontSize: 13 }}>{user.email}</div>
+              </div>
+              <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
+            </div>
+
+            <div style={formGridStyle}>
+              <label style={labelStyle}>
+                Name
+                <input value={editName} onChange={(event) => setEditName(event.target.value)} style={inputStyle} />
+              </label>
+
+              <label style={labelStyle}>
+                Email
+                <input type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} style={inputStyle} />
+              </label>
+
+              <label style={labelStyle}>
+                Company
+                <select value={editCompanyId} onChange={(event) => setEditCompanyId(event.target.value)} style={inputStyle}>
+                  <option value="">Choose a company</option>
+                  {companies.map((company) => (
+                    <option key={company.id} value={company.id} disabled={company.status === 'disabled'}>
+                      {company.name}{company.status === 'disabled' ? ' (disabled)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={labelStyle}>
+                Role
+                <select value={editRole} onChange={(event) => setEditRole(event.target.value as 'owner' | 'manager' | 'technician')} style={inputStyle}>
+                  <option value="owner">Owner</option>
+                  <option value="manager">Manager</option>
+                  <option value="technician">Technician</option>
+                </select>
+              </label>
+            </div>
+
+            <label style={checkboxStyle}>
+              <input type="checkbox" checked={editActive} onChange={(event) => setEditActive(event.target.checked)} />
+              Active user
+            </label>
+
+            {(editCompanyId !== user.companyId || editRole !== user.role) && (
+              <div style={{ padding: 11, borderRadius: 9, background: '#fffbeb', color: '#92400e', fontSize: 13, lineHeight: 1.45 }}>
+                Changing a user's company or role can also change manager assignments or technician access. Existing technician history stays with the original company.
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => void saveEdit(user)}
+                disabled={savingEdit}
+                style={{ ...primaryButtonStyle, opacity: savingEdit ? 0.6 : 1 }}
+              >
+                {savingEdit ? 'Saving…' : 'Save Changes'}
+              </button>
+              <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ minWidth: 0 }}>
+              {user.name ? (
+                <>
+                  <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
+                  <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
+                </>
+              ) : (
+                <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
+              )}
+              <div style={{ marginTop: 4, color: '#64748b', fontSize: 13, textTransform: 'capitalize' }}>
+                {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {!user.isPlatformAdmin && (
+                <>
+                  {user.isActive && ['owner', 'manager'].includes(user.role) && (
+                    <button
+                      onClick={() => void switchUser(user)}
+                      disabled={Boolean(switchingUserId)}
+                      style={{ ...buttonStyle, background: '#172033', color: '#fff', borderColor: '#172033', opacity: switchingUserId ? 0.6 : 1 }}
+                    >
+                      {switchingUserId === user.id ? 'Switching…' : 'Switch User'}
+                    </button>
+                  )}
+                  <button onClick={() => startEdit(user)} style={buttonStyle}>Edit</button>
+                  <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
+                  <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
+                  <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
+                </>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    )
+  }
+
   return (
     <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <header style={{ background: '#111827', color: '#fff', padding: '18px 20px' }}>
@@ -372,117 +505,29 @@ export default function PlatformAdminUsersPage() {
         {error && <div style={{ marginTop: 14, padding: 12, background: '#fff7ed', color: '#9a3412', borderRadius: 10 }}>{error}</div>}
         {status && <div style={{ marginTop: 14, padding: 12, background: '#f0fdf4', color: '#166534', borderRadius: 10 }}>{status}</div>}
 
-        <div style={{ display: 'grid', gap: 10, marginTop: 24 }}>
-          {loading ? <div>Loading users…</div> : users.map((user) => {
-            const isEditing = editingUserId === user.id
-
-            return (
-              <div key={user.id} style={{ ...cardStyle, alignItems: isEditing ? 'stretch' : 'center' }}>
-                {isEditing ? (
-                  <div style={{ width: '100%', display: 'grid', gap: 16 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <div>
-                        <div style={{ fontSize: 18, fontWeight: 800 }}>Edit user</div>
-                        <div style={{ marginTop: 3, color: '#64748b', fontSize: 13 }}>{user.email}</div>
-                      </div>
-                      <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
-                    </div>
-
-                    <div style={formGridStyle}>
-                      <label style={labelStyle}>
-                        Name
-                        <input value={editName} onChange={(event) => setEditName(event.target.value)} style={inputStyle} />
-                      </label>
-
-                      <label style={labelStyle}>
-                        Email
-                        <input type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} style={inputStyle} />
-                      </label>
-
-                      <label style={labelStyle}>
-                        Company
-                        <select value={editCompanyId} onChange={(event) => setEditCompanyId(event.target.value)} style={inputStyle}>
-                          <option value="">Choose a company</option>
-                          {companies.map((company) => (
-                            <option key={company.id} value={company.id} disabled={company.status === 'disabled'}>
-                              {company.name}{company.status === 'disabled' ? ' (disabled)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-
-                      <label style={labelStyle}>
-                        Role
-                        <select value={editRole} onChange={(event) => setEditRole(event.target.value as 'owner' | 'manager' | 'technician')} style={inputStyle}>
-                          <option value="owner">Owner</option>
-                          <option value="manager">Manager</option>
-                          <option value="technician">Technician</option>
-                        </select>
-                      </label>
-                    </div>
-
-                    <label style={checkboxStyle}>
-                      <input type="checkbox" checked={editActive} onChange={(event) => setEditActive(event.target.checked)} />
-                      Active user
-                    </label>
-
-                    {(editCompanyId !== user.companyId || editRole !== user.role) && (
-                      <div style={{ padding: 11, borderRadius: 9, background: '#fffbeb', color: '#92400e', fontSize: 13, lineHeight: 1.45 }}>
-                        Changing a user's company or role can also change manager assignments or technician access. Existing technician history stays with the original company.
-                      </div>
-                    )}
-
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => void saveEdit(user)}
-                        disabled={savingEdit}
-                        style={{ ...primaryButtonStyle, opacity: savingEdit ? 0.6 : 1 }}
-                      >
-                        {savingEdit ? 'Saving…' : 'Save Changes'}
-                      </button>
-                      <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
+        <div style={{ display: 'grid', gap: 24, marginTop: 24 }}>
+          {loading ? (
+            <div>Loading users…</div>
+          ) : groupedCompanies.length === 0 ? (
+            <div style={{ color: '#64748b' }}>No users found.</div>
+          ) : (
+            groupedCompanies.map(({ company, users: companyUsers }) => (
+              <section key={company.id} style={companyGroupStyle}>
+                <div style={companyHeaderStyle}>
+                  <div>
+                    <div style={{ fontSize: 19, fontWeight: 850 }}>{company.name}</div>
+                    <div style={{ marginTop: 3, color: '#64748b', fontSize: 12 }}>
+                      {companyUsers.length} user{companyUsers.length === 1 ? '' : 's'}
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div style={{ minWidth: 0 }}>
-                      {user.name ? (
-                        <>
-                          <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
-                          <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
-                        </>
-                      ) : (
-                        <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
-                      )}
-                      <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
-                        {user.companyName} · {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {!user.isPlatformAdmin && (
-                        <>
-                          {user.isActive && ['owner', 'manager'].includes(user.role) && (
-                            <button
-                              onClick={() => void switchUser(user)}
-                              disabled={Boolean(switchingUserId)}
-                              style={{ ...buttonStyle, background: '#172033', color: '#fff', borderColor: '#172033', opacity: switchingUserId ? 0.6 : 1 }}
-                            >
-                              {switchingUserId === user.id ? 'Switching…' : 'Switch User'}
-                            </button>
-                          )}
-                          <button onClick={() => startEdit(user)} style={buttonStyle}>Edit</button>
-                          <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
-                          <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
-                          <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
-                        </>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
-          })}
+                  {company.status === 'disabled' && <span style={disabledBadgeStyle}>Disabled</span>}
+                </div>
+                <div style={{ display: 'grid', gap: 9 }}>
+                  {companyUsers.map(renderUser)}
+                </div>
+              </section>
+            ))
+          )}
         </div>
       </section>
     </main>
@@ -490,6 +535,9 @@ export default function PlatformAdminUsersPage() {
 }
 
 const navStyle: React.CSSProperties = { color: '#fff', textDecoration: 'none', padding: '8px 10px', borderRadius: 8, fontSize: 13, fontWeight: 800 }
+const companyGroupStyle: React.CSSProperties = { display: 'grid', gap: 10 }
+const companyHeaderStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '0 4px 2px' }
+const disabledBadgeStyle: React.CSSProperties = { padding: '5px 9px', borderRadius: 999, background: '#fee2e2', color: '#991b1b', fontSize: 11, fontWeight: 800 }
 const cardStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap', padding: 16, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 12 }
 const buttonStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 8, background: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }
 const primaryButtonStyle: React.CSSProperties = { padding: '10px 14px', border: '1px solid #172033', borderRadius: 9, background: '#172033', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }
