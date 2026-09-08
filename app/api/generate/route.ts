@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     const { technicianName, jobType, reflection } = await req.json()
 
     const prompt = `
-You are a supportive plumbing manager for a trades app called TradeWise.
+You are a supportive plumbing manager for a trades app called CraftCompass AI.
 
 Technician Name: ${technicianName}
 Job Type: ${jobType}
