@@ -7,6 +7,7 @@ type UserRow = {
   id: string
   name: string
   email: string
+  companyId: string
   companyName: string
   role: string
   isActive: boolean
@@ -34,6 +35,14 @@ export default function PlatformAdminUsersPage() {
   const [newRole, setNewRole] = useState<'owner' | 'manager' | 'technician'>('technician')
   const [newActive, setNewActive] = useState(true)
   const [creating, setCreating] = useState(false)
+
+  const [editingUserId, setEditingUserId] = useState('')
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editCompanyId, setEditCompanyId] = useState('')
+  const [editRole, setEditRole] = useState<'owner' | 'manager' | 'technician'>('technician')
+  const [editActive, setEditActive] = useState(true)
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
@@ -128,6 +137,75 @@ export default function PlatformAdminUsersPage() {
     }
   }
 
+  const startEdit = (user: UserRow) => {
+    setError('')
+    setStatus('')
+    setShowAddUser(false)
+    setEditingUserId(user.id)
+    setEditName(user.name || '')
+    setEditEmail(user.email)
+    setEditCompanyId(user.companyId)
+    setEditRole(user.role as 'owner' | 'manager' | 'technician')
+    setEditActive(user.isActive)
+  }
+
+  const cancelEdit = () => {
+    if (savingEdit) return
+    setEditingUserId('')
+  }
+
+  const saveEdit = async (user: UserRow) => {
+    const name = editName.replace(/\s+/g, ' ').trim()
+    const email = editEmail.trim().toLowerCase()
+
+    setError('')
+    setStatus('')
+
+    if (!name || !email || !editCompanyId) {
+      setError('Enter the name and email, then choose a company.')
+      return
+    }
+
+    setSavingEdit(true)
+
+    try {
+      const accessToken = await token()
+      if (!accessToken) return void (window.location.href = '/login')
+
+      const response = await fetch('/api/platform-admin/users', {
+        method: 'PATCH',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          profileId: user.id,
+          name,
+          email,
+          companyId: editCompanyId,
+          role: editRole,
+          isActive: editActive,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        setError(data.error || 'Could not update user profile.')
+        return
+      }
+
+      setEditingUserId('')
+      setStatus(`${name} was updated.`)
+      await load()
+    } catch (editError) {
+      console.error('PLATFORM EDIT USER ERROR:', editError)
+      setError('Could not update user profile.')
+    } finally {
+      setSavingEdit(false)
+    }
+  }
+
   const changeActive = async (user: UserRow) => {
     const accessToken = await token()
     const response = await fetch('/api/platform-admin/users', {
@@ -211,7 +289,12 @@ export default function PlatformAdminUsersPage() {
           </div>
           <button
             type="button"
-            onClick={() => { setShowAddUser((current) => !current); setError(''); setStatus('') }}
+            onClick={() => {
+              setShowAddUser((current) => !current)
+              setEditingUserId('')
+              setError('')
+              setStatus('')
+            }}
             style={primaryButtonStyle}
           >
             {showAddUser ? 'Cancel' : '+ Add User'}
@@ -260,7 +343,7 @@ export default function PlatformAdminUsersPage() {
               </label>
             </div>
 
-            <label style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 700, width: 'fit-content' }}>
+            <label style={checkboxStyle}>
               <input type="checkbox" checked={newActive} onChange={(event) => setNewActive(event.target.checked)} />
               Active immediately
             </label>
@@ -290,41 +373,116 @@ export default function PlatformAdminUsersPage() {
         {status && <div style={{ marginTop: 14, padding: 12, background: '#f0fdf4', color: '#166534', borderRadius: 10 }}>{status}</div>}
 
         <div style={{ display: 'grid', gap: 10, marginTop: 24 }}>
-          {loading ? <div>Loading users…</div> : users.map((user) => (
-            <div key={user.id} style={cardStyle}>
-              <div style={{ minWidth: 0 }}>
-                {user.name ? (
-                  <>
-                    <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
-                    <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
-                  </>
-                ) : (
-                  <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
-                )}
-                <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
-                  {user.companyName} · {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {!user.isPlatformAdmin && (
-                  <>
-                    {user.isActive && ['owner', 'manager'].includes(user.role) && (
-                      <button
-                        onClick={() => void switchUser(user)}
-                        disabled={Boolean(switchingUserId)}
-                        style={{ ...buttonStyle, background: '#172033', color: '#fff', borderColor: '#172033', opacity: switchingUserId ? 0.6 : 1 }}
-                      >
-                        {switchingUserId === user.id ? 'Switching…' : 'Switch User'}
-                      </button>
+          {loading ? <div>Loading users…</div> : users.map((user) => {
+            const isEditing = editingUserId === user.id
+
+            return (
+              <div key={user.id} style={{ ...cardStyle, alignItems: isEditing ? 'stretch' : 'center' }}>
+                {isEditing ? (
+                  <div style={{ width: '100%', display: 'grid', gap: 16 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <div>
+                        <div style={{ fontSize: 18, fontWeight: 800 }}>Edit user</div>
+                        <div style={{ marginTop: 3, color: '#64748b', fontSize: 13 }}>{user.email}</div>
+                      </div>
+                      <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
+                    </div>
+
+                    <div style={formGridStyle}>
+                      <label style={labelStyle}>
+                        Name
+                        <input value={editName} onChange={(event) => setEditName(event.target.value)} style={inputStyle} />
+                      </label>
+
+                      <label style={labelStyle}>
+                        Email
+                        <input type="email" value={editEmail} onChange={(event) => setEditEmail(event.target.value)} style={inputStyle} />
+                      </label>
+
+                      <label style={labelStyle}>
+                        Company
+                        <select value={editCompanyId} onChange={(event) => setEditCompanyId(event.target.value)} style={inputStyle}>
+                          <option value="">Choose a company</option>
+                          {companies.map((company) => (
+                            <option key={company.id} value={company.id} disabled={company.status === 'disabled'}>
+                              {company.name}{company.status === 'disabled' ? ' (disabled)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label style={labelStyle}>
+                        Role
+                        <select value={editRole} onChange={(event) => setEditRole(event.target.value as 'owner' | 'manager' | 'technician')} style={inputStyle}>
+                          <option value="owner">Owner</option>
+                          <option value="manager">Manager</option>
+                          <option value="technician">Technician</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label style={checkboxStyle}>
+                      <input type="checkbox" checked={editActive} onChange={(event) => setEditActive(event.target.checked)} />
+                      Active user
+                    </label>
+
+                    {(editCompanyId !== user.companyId || editRole !== user.role) && (
+                      <div style={{ padding: 11, borderRadius: 9, background: '#fffbeb', color: '#92400e', fontSize: 13, lineHeight: 1.45 }}>
+                        Changing a user's company or role can also change manager assignments or technician access. Existing technician history stays with the original company.
+                      </div>
                     )}
-                    <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
-                    <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
-                    <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
+
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => void saveEdit(user)}
+                        disabled={savingEdit}
+                        style={{ ...primaryButtonStyle, opacity: savingEdit ? 0.6 : 1 }}
+                      >
+                        {savingEdit ? 'Saving…' : 'Save Changes'}
+                      </button>
+                      <button type="button" onClick={cancelEdit} disabled={savingEdit} style={buttonStyle}>Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div style={{ minWidth: 0 }}>
+                      {user.name ? (
+                        <>
+                          <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
+                          <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
+                        </>
+                      ) : (
+                        <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.email}</div>
+                      )}
+                      <div style={{ marginTop: 4, color: '#64748b', fontSize: 13 }}>
+                        {user.companyName} · {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {!user.isPlatformAdmin && (
+                        <>
+                          {user.isActive && ['owner', 'manager'].includes(user.role) && (
+                            <button
+                              onClick={() => void switchUser(user)}
+                              disabled={Boolean(switchingUserId)}
+                              style={{ ...buttonStyle, background: '#172033', color: '#fff', borderColor: '#172033', opacity: switchingUserId ? 0.6 : 1 }}
+                            >
+                              {switchingUserId === user.id ? 'Switching…' : 'Switch User'}
+                            </button>
+                          )}
+                          <button onClick={() => startEdit(user)} style={buttonStyle}>Edit</button>
+                          <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
+                          <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
+                          <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
+                        </>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </section>
     </main>
@@ -339,3 +497,4 @@ const addUserCardStyle: React.CSSProperties = { marginTop: 20, padding: 20, back
 const formGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14 }
 const labelStyle: React.CSSProperties = { display: 'grid', gap: 7, fontSize: 13, fontWeight: 800 }
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 9, padding: '10px 11px', fontSize: 14, background: '#fff', color: '#172033' }
+const checkboxStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 700, width: 'fit-content' }
