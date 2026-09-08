@@ -1,4 +1,5 @@
 import { supabaseServer } from '../../../lib/supabase-server'
+import { normalizeCompanyFeatureFlags } from '../../../lib/company-features'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
@@ -83,7 +84,7 @@ export async function GET(request: Request) {
 
     const { data: company } = await supabaseServer
       .from('Companies')
-      .select('name')
+      .select('name, feature_flags')
       .eq('id', effectiveProfile.company_id)
       .maybeSingle()
 
@@ -92,6 +93,7 @@ export async function GET(request: Request) {
       accountRole: effectiveProfile.role,
       companyId: effectiveProfile.company_id,
       companyName: company?.name || null,
+      featureFlags: normalizeCompanyFeatureFlags(company?.feature_flags),
       isPlatformAdmin: profile.is_platform_admin === true,
       isImpersonating,
       impersonatedEmail,
