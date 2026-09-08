@@ -47,7 +47,7 @@ export async function DELETE(
       return Response.json({ error: 'Owner accounts cannot be permanently deleted here.' }, { status: 400 })
     }
     if (!profile.auth_user_id) {
-      return Response.json({ error: 'This employee does not have a Tradewise login account.' }, { status: 400 })
+      return Response.json({ error: 'This employee does not have a CraftCompass AI login account.' }, { status: 400 })
     }
 
     let technician: any = null
