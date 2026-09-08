@@ -3,12 +3,18 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import {
+  DEFAULT_COMPANY_FEATURES,
+  normalizeCompanyFeatureFlags,
+  type CompanyFeatureFlags,
+} from '../lib/company-features'
 
 export default function ManagerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [isOwner, setIsOwner] = useState(false)
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false)
   const [companyName, setCompanyName] = useState('')
+  const [featureFlags, setFeatureFlags] = useState<CompanyFeatureFlags>(DEFAULT_COMPANY_FEATURES)
   const [isDesktop, setIsDesktop] = useState(false)
 
   useEffect(() => {
@@ -26,6 +32,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
         setIsOwner(data.accountRole === 'owner')
         setIsPlatformAdmin(data.isPlatformAdmin === true)
         setCompanyName(data.companyName || '')
+        setFeatureFlags(normalizeCompanyFeatureFlags(data.featureFlags))
       } catch (error) {
         console.error('OWNER NAV ROLE ERROR:', error)
       }
@@ -41,6 +48,33 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
+  useEffect(() => {
+    const managerSidebarFeatures: Record<string, keyof CompanyFeatureFlags> = {
+      Search: 'manager_search',
+      History: 'manager_history',
+      'Follow-up': 'manager_follow_up',
+      Technicians: 'manager_technicians',
+      'Manager Notes': 'manager_notes',
+    }
+
+    const applyManagerSidebarVisibility = () => {
+      document.querySelectorAll('main aside button').forEach((button) => {
+        const label = button.textContent?.trim() || ''
+        const featureKey = managerSidebarFeatures[label]
+        if (!featureKey) return
+
+        const itemWrapper = button.parentElement
+        if (!itemWrapper) return
+        itemWrapper.style.display = featureFlags[featureKey] ? '' : 'none'
+      })
+    }
+
+    applyManagerSidebarVisibility()
+    const observer = new MutationObserver(applyManagerSidebarVisibility)
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
+  }, [featureFlags])
+
   const inOwnerWorkspace =
     pathname.startsWith('/manager/overview') ||
     pathname.startsWith('/manager/company') ||
@@ -49,12 +83,14 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
     pathname.startsWith('/manager/add-technician')
 
   const ownerLinks = [
-    { label: 'Overview', href: '/manager/overview', active: pathname.startsWith('/manager/overview') },
-    { label: 'Company', href: '/manager/company', active: pathname.startsWith('/manager/company') },
-    { label: 'Assignments', href: '/manager/assignments', active: pathname.startsWith('/manager/assignments') },
-    { label: 'Add Manager', href: '/manager/add-manager', active: pathname.startsWith('/manager/add-manager') },
-    { label: 'Add Technician', href: '/manager/add-technician', active: pathname.startsWith('/manager/add-technician') },
-  ]
+    { label: 'Overview', href: '/manager/overview', active: pathname.startsWith('/manager/overview'), feature: 'owner_overview' as const },
+    { label: 'Company', href: '/manager/company', active: pathname.startsWith('/manager/company'), feature: 'owner_company' as const },
+    { label: 'Assignments', href: '/manager/assignments', active: pathname.startsWith('/manager/assignments'), feature: 'owner_assignments' as const },
+    { label: 'Add Manager', href: '/manager/add-manager', active: pathname.startsWith('/manager/add-manager'), feature: 'owner_add_manager' as const },
+    { label: 'Add Technician', href: '/manager/add-technician', active: pathname.startsWith('/manager/add-technician'), feature: 'owner_add_technician' as const },
+  ].filter((link) => featureFlags[link.feature])
+
+  const ownerHomeHref = ownerLinks[0]?.href || '/manager'
 
   if (isOwner && inOwnerWorkspace) {
     return (
@@ -117,7 +153,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
       {children}
       {companyName && (
         isOwner ? (
-          <a href="/manager/overview" style={ownerLinkStyle}>{companyName}</a>
+          <a href={ownerHomeHref} style={ownerLinkStyle}>{companyName}</a>
         ) : (
           <div style={ownerLinkStyle}>{companyName}</div>
         )
