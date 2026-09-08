@@ -59,7 +59,7 @@ export default function PlatformAdminUsersPage() {
   }
 
   const remove = async (user: UserRow) => {
-    if (!window.confirm(`Permanently remove ${user.email} from Tradewise? This cannot be undone.`)) return
+    if (!window.confirm(`Permanently remove ${user.email} from CraftCompass AI? This cannot be undone.`)) return
     const accessToken = await token()
     const response = await fetch('/api/platform-admin/users', {
       method: 'DELETE',
@@ -74,7 +74,7 @@ export default function PlatformAdminUsersPage() {
   return (
     <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
       <header style={{ background: '#111827', color: '#fff', padding: '18px 20px' }}>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>Tradewise</div>
+        <div style={{ fontSize: 22, fontWeight: 800 }}>CraftCompass AI</div>
         <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PLATFORM ADMIN · USERS</div>
         <nav style={{ display: 'flex', gap: 10, marginTop: 14 }}>
           <a href="/platform-admin" style={navStyle}>Companies</a>
@@ -84,7 +84,7 @@ export default function PlatformAdminUsersPage() {
 
       <section style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 16px 60px' }}>
         <h1 style={{ margin: 0, fontSize: 34 }}>Users</h1>
-        <p style={{ color: '#64748b' }}>Manage company access across Tradewise.</p>
+        <p style={{ color: '#64748b' }}>Manage company access across CraftCompass AI.</p>
         {error && <div style={{ padding: 12, background: '#fff7ed', color: '#9a3412', borderRadius: 10 }}>{error}</div>}
         {status && <div style={{ marginTop: 10, padding: 12, background: '#f0fdf4', color: '#166534', borderRadius: 10 }}>{status}</div>}
 
