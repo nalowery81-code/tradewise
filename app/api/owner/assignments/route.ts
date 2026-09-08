@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const companyId = auth.profile.company_id
 
     const [{ data: managerProfiles, error: managerError }, { data: technicians, error: technicianError }, { data: assignments, error: assignmentError }] = await Promise.all([
-      supabaseServer.from('UserProfiles').select('id, auth_user_id, role, is_active').eq('company_id', companyId).eq('role', 'manager').eq('is_active', true).order('created_at', { ascending: true }),
+      supabaseServer.from('UserProfiles').select('id, auth_user_id, role, is_active, technician_id').eq('company_id', companyId).eq('role', 'manager').eq('is_active', true).order('created_at', { ascending: true }),
       supabaseServer.from('Technicians').select('id, canonical_name').eq('company_id', companyId).order('canonical_name', { ascending: true }),
       supabaseServer.from('ManagerTechnicians').select('manager_profile_id, technician_id').eq('company_id', companyId),
     ])
@@ -22,6 +22,19 @@ export async function GET(request: Request) {
     const { data: authUsers, error: authUsersError } = await supabaseServer.auth.admin.listUsers({ page: 1, perPage: 200 })
     if (authUsersError) return Response.json({ error: 'Could not load managers.' }, { status: 500 })
 
+    const historicalManagerTechnicianIds = new Set(
+      (managerProfiles || [])
+        .map((profile) => profile.technician_id)
+        .filter((id): id is string => Boolean(id))
+    )
+    const currentTechnicians = (technicians || []).filter(
+      (technician) => !historicalManagerTechnicianIds.has(technician.id)
+    )
+    const currentTechnicianIds = new Set(currentTechnicians.map((technician) => technician.id))
+    const currentAssignments = (assignments || []).filter(
+      (assignment) => currentTechnicianIds.has(assignment.technician_id)
+    )
+
     const authUserMap = new Map(authUsers.users.map((user) => [user.id, user]))
     const managers = (managerProfiles || []).map((profile) => {
       const user = profile.auth_user_id ? authUserMap.get(profile.auth_user_id) : null
@@ -30,7 +43,11 @@ export async function GET(request: Request) {
       return { id: profile.id, name, email }
     })
 
-    return Response.json({ managers, technicians: (technicians || []).map((technician) => ({ id: technician.id, name: technician.canonical_name })), assignments: assignments || [] })
+    return Response.json({
+      managers,
+      technicians: currentTechnicians.map((technician) => ({ id: technician.id, name: technician.canonical_name })),
+      assignments: currentAssignments,
+    })
   } catch (error: any) {
     console.error('OWNER ASSIGNMENTS API ERROR:', error)
     return Response.json({ error: error?.message || 'Could not load manager assignments.' }, { status: 500 })
@@ -55,8 +72,27 @@ export async function PUT(request: Request) {
     if (!managerProfile || managerProfile.role !== 'manager' || managerProfile.is_active === false) return Response.json({ error: 'Manager not found.' }, { status: 404 })
 
     if (technicianIds.length) {
-      const { data: validTechnicians, error: techniciansError } = await supabaseServer.from('Technicians').select('id').eq('company_id', companyId).in('id', technicianIds)
-      if (techniciansError || (validTechnicians || []).length !== technicianIds.length) return Response.json({ error: 'One or more technicians are invalid for this company.' }, { status: 400 })
+      const [{ data: validTechnicians, error: techniciansError }, { data: managerHistory, error: managerHistoryError }] = await Promise.all([
+        supabaseServer.from('Technicians').select('id').eq('company_id', companyId).in('id', technicianIds),
+        supabaseServer.from('UserProfiles').select('technician_id').eq('company_id', companyId).eq('role', 'manager').not('technician_id', 'is', null),
+      ])
+
+      if (techniciansError || managerHistoryError) {
+        return Response.json({ error: 'Could not validate technician assignments.' }, { status: 500 })
+      }
+
+      const historicalManagerTechnicianIds = new Set(
+        (managerHistory || [])
+          .map((profile) => profile.technician_id)
+          .filter((id): id is string => Boolean(id))
+      )
+      const validCurrentTechnicians = (validTechnicians || []).filter(
+        (technician) => !historicalManagerTechnicianIds.has(technician.id)
+      )
+
+      if (validCurrentTechnicians.length !== technicianIds.length) {
+        return Response.json({ error: 'One or more technicians are invalid for this company.' }, { status: 400 })
+      }
     }
 
     const { error: deleteError } = await supabaseServer.from('ManagerTechnicians').delete().eq('company_id', companyId).eq('manager_profile_id', managerProfileId)
