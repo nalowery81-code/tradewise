@@ -20,8 +20,10 @@ export async function GET(request: Request) {
         .from('Companies')
         .select('id, name, account_type, status, created_at')
         .order('created_at', { ascending: true }),
-      supabaseServer.from('UserProfiles').select('id, auth_user_id, company_id, role, is_active'),
-      supabaseServer.from('Technicians').select('id, company_id, auth_user_id'),
+      supabaseServer
+        .from('UserProfiles')
+        .select('id, auth_user_id, company_id, role, is_active, technician_id'),
+      supabaseServer.from('Technicians').select('id, company_id'),
     ])
 
   if (companyError) {
@@ -29,21 +31,22 @@ export async function GET(request: Request) {
     return jsonNoStore({ error: 'Could not load companies.' }, { status: 500 })
   }
 
-  const profileByAuthUserId = new Map(
-    (profiles || [])
-      .filter((profile) => profile.auth_user_id)
-      .map((profile) => [profile.auth_user_id, profile])
-  )
-
   const companyRows = (companies || []).map((company) => {
     const companyProfiles = (profiles || []).filter((profile) => profile.company_id === company.id)
-    const companyTechnicians = (technicians || []).filter((tech) => {
-      if (tech.company_id !== company.id) return false
-      if (!tech.auth_user_id) return true
 
-      const linkedProfile = profileByAuthUserId.get(tech.auth_user_id)
-      return !linkedProfile || linkedProfile.role === 'technician'
-    })
+    // A promoted manager keeps their former technician row for historical
+    // conversations/reflections. UserProfiles.technician_id identifies that old
+    // technician identity, so it should not count as a current technician.
+    const historicalManagerTechnicianIds = new Set(
+      companyProfiles
+        .filter((profile) => profile.role === 'manager')
+        .map((profile) => profile.technician_id)
+        .filter((id): id is string => Boolean(id))
+    )
+
+    const companyTechnicians = (technicians || []).filter(
+      (tech) => tech.company_id === company.id && !historicalManagerTechnicianIds.has(tech.id)
+    )
 
     return {
       ...company,
