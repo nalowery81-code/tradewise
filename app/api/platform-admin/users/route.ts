@@ -124,13 +124,16 @@ export async function POST(request: Request) {
   }
 
   const origin = new URL(request.url).origin
-  const { error: inviteError } = await supabaseServer.auth.admin.inviteUserByEmail(email, {
+  // Existing Auth users cannot be invited again. Send them through Supabase's
+  // password recovery flow instead, which lets an already-created demo user
+  // establish/reset a password at our setup-account page.
+  const { error: inviteError } = await supabaseServer.auth.resetPasswordForEmail(email, {
     redirectTo: `${origin}/setup-account`,
   })
 
   if (inviteError) {
-    console.error('PLATFORM RESEND SETUP INVITE ERROR:', inviteError)
-    return jsonNoStore({ error: inviteError.message || 'Could not resend setup invite.' }, { status: 400 })
+    console.error('PLATFORM RESEND SETUP ERROR:', inviteError)
+    return jsonNoStore({ error: inviteError.message || 'Could not send setup email.' }, { status: 400 })
   }
 
   return jsonNoStore({ sent: true, email })
