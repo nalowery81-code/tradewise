@@ -53,7 +53,7 @@ export default function PlatformAdminPage() {
     }
 
     if (!response.ok) {
-      setError('Could not load Tradewise companies.')
+      setError('Could not load CraftCompass AI companies.')
       setLoading(false)
       return
     }
@@ -204,7 +204,7 @@ export default function PlatformAdminPage() {
 
       <aside className="platform-admin-sidebar" style={sidebarStyle}>
         <div>
-          <div style={{ fontSize: 23, fontWeight: 800 }}>Tradewise</div>
+          <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
           <div style={{ marginTop: 5, color: '#64748b', fontSize: 11, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase' }}>
             Platform Admin
           </div>
@@ -224,7 +224,7 @@ export default function PlatformAdminPage() {
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
             <div>
               <div style={{ color: '#64748b', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                Tradewise Platform
+                CraftCompass AI Platform
               </div>
               <h1 style={{ margin: '7px 0 8px', fontSize: 36, letterSpacing: '-0.035em' }}>Companies</h1>
               <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55 }}>
@@ -320,7 +320,7 @@ export default function PlatformAdminPage() {
             </div>
             <h2 style={{ margin: '7px 0 8px', fontSize: 26 }}>Invite company owner</h2>
             <p style={{ margin: '0 0 20px', color: '#64748b', lineHeight: 1.5 }}>
-              The owner will receive an email invitation and create their own Tradewise password.
+              The owner will receive an email invitation and create their own CraftCompass AI password.
             </p>
 
             <label style={labelStyle}>
