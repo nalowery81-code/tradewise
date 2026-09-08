@@ -48,7 +48,8 @@ export default function LoginPage() {
       try {
         const params = new URLSearchParams(window.location.search)
         const tokenHash = params.get('token_hash')
-        const type = params.get('type') as EmailOtpType | null
+        const rawType = params.get('type')
+        const type = (rawType === 'magiclink' ? 'email' : rawType) as EmailOtpType | null
 
         if (tokenHash && type) {
           const { data, error: verifyError } = await supabase.auth.verifyOtp({
