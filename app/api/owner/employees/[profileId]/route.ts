@@ -52,7 +52,7 @@ async function createTechnicianForProfile(profile: any) {
   const user = authData.user
   const metadataName = cleanName(user.user_metadata?.full_name) || cleanName(user.user_metadata?.name)
   const emailLocal = cleanName(user.email?.split('@')[0]?.replace(/[._-]+/g, ' '))
-  const canonicalName = metadataName || emailLocal || 'Tradewise Technician'
+  const canonicalName = metadataName || emailLocal || 'CraftCompass AI Technician'
 
   const { data: nameConflict, error: conflictError } = await supabaseServer
     .from('Technicians')
@@ -110,7 +110,7 @@ export async function PATCH(
       return Response.json({ error: 'Owner accounts cannot be changed from employee lifecycle controls.' }, { status: 400 })
     }
     if (!profile.auth_user_id) {
-      return Response.json({ error: 'This employee does not have a Tradewise login account.' }, { status: 400 })
+      return Response.json({ error: 'This employee does not have a CraftCompass AI login account.' }, { status: 400 })
     }
 
     if (action === 'promote') {
