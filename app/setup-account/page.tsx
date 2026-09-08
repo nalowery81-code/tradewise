@@ -59,7 +59,7 @@ export default function SetupAccountPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        setError(data.error || 'Your account was created, but Tradewise could not load your role.')
+        setError(data.error || 'Your account was created, but CraftCompass AI could not load your role.')
         return
       }
 
@@ -75,9 +75,9 @@ export default function SetupAccountPage() {
   return (
     <main style={pageStyle}>
       <div style={cardStyle}>
-        <div style={brandStyle}>Tradewise</div>
+        <div style={brandStyle}>CraftCompass AI</div>
         <h1 style={titleStyle}>Finish setting up your account</h1>
-        <p style={textStyle}>Choose the password you will use to sign in to Tradewise.</p>
+        <p style={textStyle}>Choose the password you will use to sign in to CraftCompass AI.</p>
 
         {!ready ? (
           <div style={noticeStyle}>
