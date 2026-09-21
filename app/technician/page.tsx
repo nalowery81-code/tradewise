@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { supabase } from '../lib/supabase'
 import FeedbackRequestPrompt from '../components/feedback-request'
+import { groupSimilarConversations } from '../lib/conversation-grouping'
 
 function renderAssistantText(text: string) {
   const lines = text.split('\n')
@@ -100,6 +101,7 @@ export default function TechnicianPage() {
   const [technicianId, setTechnicianId] = useState<string | null>(null)
   const [technicianName, setTechnicianName] = useState('')
   const [recentConversationsLoading, setRecentConversationsLoading] = useState(true)
+  const [expandedRecentGroups, setExpandedRecentGroups] = useState<string[]>([])
   const [recentConversations, setRecentConversations] = useState<
     {
       id: string
@@ -109,6 +111,17 @@ export default function TechnicianPage() {
       status: string
     }[]
   >([])
+
+  const groupedRecentConversations = useMemo(
+    () =>
+      groupSimilarConversations(recentConversations, {
+        getId: (item) => item.id,
+        getTitle: (item) => item.title,
+        getTime: (item) => item.updated_at || item.created_at,
+        getOwner: () => technicianId || 'current-technician',
+      }),
+    [recentConversations, technicianId]
+  )
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
@@ -507,25 +520,59 @@ export default function TechnicianPage() {
           ) : recentConversations.length === 0 ? (
             <div style={styles.emptyText}>No recent conversations yet.</div>
           ) : (
-            recentConversations.map((conversation) => (
-              <button
-                key={conversation.id}
-                type="button"
-                onClick={() => loadConversation(conversation.id)}
-                style={{
-                  ...styles.emptyText,
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: 'none',
-                  border: 'none',
-                  padding: '6px 0',
-                  cursor: 'pointer',
-                }}
-              >
-                {conversation.title}
-              </button>
-            ))
+            groupedRecentConversations.map((group) => {
+              const expanded = expandedRecentGroups.includes(group.id)
+              return (
+                <div key={group.id} style={{ marginBottom: 3 }}>
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => loadConversation(group.primary.id)}
+                      style={{
+                        ...styles.emptyText,
+                        display: 'block',
+                        flex: 1,
+                        minWidth: 0,
+                        textAlign: 'left',
+                        background: 'none',
+                        border: 'none',
+                        padding: '6px 0',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {group.primary.title}
+                    </button>
+                    {group.items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedRecentGroups((current) =>
+                            current.includes(group.id)
+                              ? current.filter((id) => id !== group.id)
+                              : [...current, group.id]
+                          )
+                        }
+                        style={styles.relatedButton}
+                        aria-label={expanded ? 'Collapse related conversations' : 'Show related conversations'}
+                      >
+                        {expanded ? '−' : `+${group.items.length - 1}`}
+                      </button>
+                    )}
+                  </div>
+
+                  {expanded && group.items.slice(1).map((conversation) => (
+                    <button
+                      key={conversation.id}
+                      type="button"
+                      onClick={() => loadConversation(conversation.id)}
+                      style={styles.relatedConversation}
+                    >
+                      {conversation.title}
+                    </button>
+                  ))}
+                </div>
+              )
+            })
           )}
         </div>
 
@@ -912,6 +959,33 @@ const styles: Record<string, React.CSSProperties> = {
   emptyText: {
     fontSize: 14,
     color: '#94a3b8',
+  },
+  relatedButton: {
+    flex: '0 0 auto',
+    marginTop: 4,
+    border: '1px solid #cbd5e1',
+    borderRadius: 999,
+    background: '#f8fafc',
+    color: '#475569',
+    fontSize: 10,
+    fontWeight: 800,
+    lineHeight: 1,
+    padding: '5px 7px',
+    cursor: 'pointer',
+  },
+  relatedConversation: {
+    display: 'block',
+    width: 'calc(100% - 8px)',
+    textAlign: 'left',
+    border: 'none',
+    borderLeft: '2px solid #e2e8f0',
+    background: '#f8fafc',
+    color: '#64748b',
+    padding: '6px 8px',
+    margin: '2px 0 2px 8px',
+    fontSize: 12,
+    lineHeight: 1.35,
+    cursor: 'pointer',
   },
   header: {
     height: 64,

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import { groupSimilarConversations } from '../../lib/conversation-grouping'
 
 type AuditConversation = {
   id: string
@@ -111,6 +112,7 @@ export default function ConversationAuditPage() {
   const [companyId, setCompanyId] = useState('')
   const [role, setRole] = useState('')
   const [needsAuditOnly, setNeedsAuditOnly] = useState(false)
+  const [expandedAuditGroups, setExpandedAuditGroups] = useState<string[]>([])
 
   const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
@@ -157,6 +159,17 @@ export default function ConversationAuditPage() {
       ].some((value) => String(value || '').toLowerCase().includes(needle))
     })
   }, [conversations, companyId, role, search, needsAuditOnly])
+
+  const groupedFiltered = useMemo(
+    () =>
+      groupSimilarConversations(filtered, {
+        getId: (item) => `${item.type}-${item.id}`,
+        getTitle: (item) => item.title,
+        getTime: (item) => item.updatedAt || item.createdAt,
+        getOwner: (item) => `${item.type}:${item.userEmail || item.userName}`,
+      }),
+    [filtered]
+  )
 
   const openConversation = async (conversation: AuditConversation) => {
     setSelected(conversation)
@@ -510,30 +523,83 @@ export default function ConversationAuditPage() {
               </div>
               <div className="audit-scroll" style={listScrollStyle}>
                 {!loading && filtered.length === 0 && <div style={emptyStyle}>No conversations match these filters.</div>}
-                {filtered.map((conversation) => {
+                {groupedFiltered.map((group) => {
+                  const conversation = group.primary
                   const isActive = selected?.id === conversation.id && selected?.type === conversation.type
+                  const expanded = expandedAuditGroups.includes(group.id)
                   return (
-                    <button
-                      key={`${conversation.type}-${conversation.id}`}
-                      type="button"
-                      onClick={() => void openConversation(conversation)}
-                      style={{ ...conversationRowStyle, background: isActive ? '#eef2f6' : '#fff' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                        <span style={roleBadgeStyle}>{conversation.role}</span>
-                        {(conversation.pendingFlagCount || 0) > 0 && <span style={{ ...roleBadgeStyle, background: '#fef3c7', color: '#92400e' }}>Needs audit {conversation.pendingFlagCount}</span>}
-                        <span style={dateStyle}>{new Date(conversation.updatedAt || conversation.createdAt).toLocaleString()}</span>
-                      </div>
-                      <div style={{ marginTop: 7, fontWeight: 800, color: '#172033', lineHeight: 1.3 }}>
-                        {conversation.title}
-                      </div>
-                      <div style={{ marginTop: 5, color: '#475569', fontSize: 12 }}>
-                        {conversation.userName}{conversation.userEmail ? ` · ${conversation.userEmail}` : ''}
-                      </div>
-                      <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
-                        {conversation.companyName}{conversation.contextType === 'profile_summary' ? ' · Profile summary' : ''}
-                      </div>
-                    </button>
+                    <div key={group.id}>
+                      <button
+                        type="button"
+                        onClick={() => void openConversation(conversation)}
+                        style={{ ...conversationRowStyle, background: isActive ? '#eef2f6' : '#fff' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                          <span style={roleBadgeStyle}>{conversation.role}</span>
+                          {(conversation.pendingFlagCount || 0) > 0 && <span style={{ ...roleBadgeStyle, background: '#fef3c7', color: '#92400e' }}>Needs audit {conversation.pendingFlagCount}</span>}
+                          <span style={dateStyle}>{new Date(conversation.updatedAt || conversation.createdAt).toLocaleString()}</span>
+                        </div>
+                        <div style={{ marginTop: 7, fontWeight: 800, color: '#172033', lineHeight: 1.3 }}>
+                          {conversation.title}
+                        </div>
+                        <div style={{ marginTop: 5, color: '#475569', fontSize: 12 }}>
+                          {conversation.userName}{conversation.userEmail ? ` · ${conversation.userEmail}` : ''}
+                        </div>
+                        <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
+                          {conversation.companyName}{conversation.contextType === 'profile_summary' ? ' · Profile summary' : ''}
+                        </div>
+                        {group.items.length > 1 && (
+                          <div style={{ marginTop: 7 }}>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                setExpandedAuditGroups((current) =>
+                                  current.includes(group.id)
+                                    ? current.filter((id) => id !== group.id)
+                                    : [...current, group.id]
+                                )
+                              }}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault()
+                                  event.stopPropagation()
+                                  setExpandedAuditGroups((current) =>
+                                    current.includes(group.id)
+                                      ? current.filter((id) => id !== group.id)
+                                      : [...current, group.id]
+                                  )
+                                }
+                              }}
+                              style={relatedAuditBadgeStyle}
+                            >
+                              {expanded ? 'Hide related' : `+${group.items.length - 1} related`}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+
+                      {expanded && group.items.slice(1).map((related) => {
+                        const relatedActive = selected?.id === related.id && selected?.type === related.type
+                        return (
+                          <button
+                            key={`${related.type}-${related.id}`}
+                            type="button"
+                            onClick={() => void openConversation(related)}
+                            style={{
+                              ...relatedAuditRowStyle,
+                              background: relatedActive ? '#eef2f6' : '#f8fafc',
+                            }}
+                          >
+                            <div style={{ fontWeight: 750, color: '#334155', lineHeight: 1.3 }}>{related.title}</div>
+                            <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 10 }}>
+                              {new Date(related.updatedAt || related.createdAt).toLocaleString()}
+                            </div>
+                          </button>
+                        )
+                      })}
+                    </div>
                   )
                 })}
               </div>
@@ -797,6 +863,8 @@ const listCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', border
 const listHeaderStyle: React.CSSProperties = { padding: '10px 13px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: 12, fontWeight: 800, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }
 const listScrollStyle: React.CSSProperties = { overflowY: 'auto', minHeight: 0, flex: 1 }
 const conversationRowStyle: React.CSSProperties = { width: '100%', display: 'block', textAlign: 'left', padding: '11px 13px', border: 0, borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }
+const relatedAuditBadgeStyle: React.CSSProperties = { display: 'inline-block', padding: '4px 7px', borderRadius: 999, border: '1px solid #cbd5e1', background: '#f8fafc', color: '#475569', fontSize: 10, fontWeight: 800, cursor: 'pointer' }
+const relatedAuditRowStyle: React.CSSProperties = { width: '100%', display: 'block', textAlign: 'left', padding: '8px 13px 8px 24px', border: 0, borderBottom: '1px solid #f1f5f9', borderLeft: '3px solid #e2e8f0', cursor: 'pointer' }
 const roleBadgeStyle: React.CSSProperties = { display: 'inline-block', padding: '4px 8px', borderRadius: 999, background: '#e2e8f0', color: '#334155', fontSize: 10, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.04em' }
 const dateStyle: React.CSSProperties = { color: '#94a3b8', fontSize: 10 }
 const transcriptCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 0, display: 'flex', flexDirection: 'column' }
