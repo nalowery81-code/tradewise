@@ -10,6 +10,7 @@ const MANAGER_MODEL = 'gpt-5.6-luna'
 type TechnicianScope = { id: string; name: string }
 
 type Reflection = {
+  conversation_id: string | null
   technician_id: string | null
   technician_name: string | null
   job_type: string | null
@@ -22,6 +23,61 @@ type Reflection = {
 
 const cleanManagerReply = (text: string) =>
   text.replace(/^#{1,6}\s*/gm, '').replace(/\*\*/g, '').trim()
+
+const REFLECTION_STOP_WORDS = new Set([
+  'a','an','and','are','as','at','be','been','but','by','for','from','had','has','have','he','i',
+  'in','is','it','job','me','my','of','on','or','she','that','the','their','they','this','to','was',
+  'we','were','with','you','your',
+])
+
+const reflectionTokens = (value: string | null | undefined) =>
+  new Set(
+    String(value || '')
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .filter((word) => word.length >= 3 && !REFLECTION_STOP_WORDS.has(word))
+  )
+
+const reflectionSimilarity = (a: Reflection, b: Reflection) => {
+  const left = reflectionTokens([a.job_type, a.challenge, a.help_needed].filter(Boolean).join(' '))
+  const right = reflectionTokens([b.job_type, b.challenge, b.help_needed].filter(Boolean).join(' '))
+  if (!left.size || !right.size) return 0
+
+  let intersection = 0
+  for (const token of left) if (right.has(token)) intersection += 1
+  const union = new Set([...left, ...right]).size
+  return union ? intersection / union : 0
+}
+
+const collapseNearDuplicateReflections = (rows: Reflection[]) => {
+  const maxGapMs = 2 * 60 * 60 * 1000
+  const groups: Reflection[][] = []
+
+  for (const row of rows) {
+    const rowTime = new Date(row.created_at || '').getTime()
+    const match = groups.find((group) => {
+      const representative = group[0]
+      if (!representative) return false
+      if ((representative.technician_id || representative.technician_name) !== (row.technician_id || row.technician_name)) return false
+      if (representative.conversation_id && row.conversation_id && representative.conversation_id === row.conversation_id) return false
+
+      const representativeTime = new Date(representative.created_at || '').getTime()
+      if (!Number.isFinite(rowTime) || !Number.isFinite(representativeTime)) return false
+      if (Math.abs(representativeTime - rowTime) > maxGapMs) return false
+
+      return reflectionSimilarity(representative, row) >= 0.72
+    })
+
+    if (match) match.push(row)
+    else groups.push([row])
+  }
+
+  return groups.map((group) => ({
+    reflection: group[0],
+    collapsed_count: group.length,
+  }))
+}
 
 const getLegacyProfileName = (message: string) => {
   const focusMatch = message.match(/Focus specifically on\s+(.+?)\.?\s*$/i)
@@ -209,7 +265,7 @@ export async function POST(request: Request) {
     if (technicianScope) {
       const { data: byId, error: byIdError } = await supabaseServer
         .from('Reflections')
-        .select('technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
+        .select('conversation_id, technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
         .eq('company_id', companyId)
         .eq('technician_id', technicianScope.id)
         .order('created_at', { ascending: false })
@@ -225,7 +281,7 @@ export async function POST(request: Request) {
       if (reflections.length === 0) {
         const { data: byName, error: byNameError } = await supabaseServer
           .from('Reflections')
-          .select('technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
+          .select('conversation_id, technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
           .eq('company_id', companyId)
           .eq('technician_name', technicianScope.name)
           .order('created_at', { ascending: false })
@@ -255,7 +311,7 @@ export async function POST(request: Request) {
 
       let reflectionQuery = supabaseServer
         .from('Reflections')
-        .select('technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
+        .select('conversation_id, technician_id, technician_name, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
         .eq('company_id', companyId)
         .order('created_at', { ascending: false })
         .limit(50)
@@ -274,14 +330,17 @@ export async function POST(request: Request) {
       reflections = (data || []) as Reflection[]
     }
 
-    const reflectionContext = reflections
-      .map((reflection, index) => `${index + 1}. Technician: ${reflection.technician_name || 'Unknown'}
+    const reflectionEpisodes = collapseNearDuplicateReflections(reflections)
+
+    const reflectionContext = reflectionEpisodes
+      .map(({ reflection, collapsed_count }, index) => `${index + 1}. Technician: ${reflection.technician_name || 'Unknown'}
 Job type: ${reflection.job_type || 'Unknown'}
 Challenge: ${reflection.challenge || 'None shared'}
 What went well: ${reflection.what_went_well || 'None shared'}
 Help needed: ${reflection.help_needed || 'None shared'}
 Manager insight: ${reflection.manager_insight || 'None'}
-Created at: ${reflection.created_at || 'Unknown'}`)
+Created at: ${reflection.created_at || 'Unknown'}
+Evidence note: ${collapsed_count > 1 ? `${collapsed_count} near-duplicate reflection records from separate conversations within two hours were collapsed into this single episode and MUST NOT be counted as ${collapsed_count} independent occurrences.` : 'One reflection episode.'}`)
       .join('\n\n')
 
     const scopeInstruction = technicianScope
@@ -304,7 +363,9 @@ Rules:
 - Never invent technicians, events, jobs, patterns, risks, or performance claims.
 - Only name a technician when the provided data supports the statement.
 - If the data is too limited to answer the question, say that clearly.
-- Separate a one-time issue from a repeated pattern. Do not call something a trend unless multiple records support it.
+- Separate a one-time issue from a repeated pattern. Do not call something a trend unless multiple INDEPENDENT reflection episodes support it.
+- Near-duplicate reflections from separate conversations may be collapsed into one episode before you see them. Never use a collapsed duplicate count as evidence of repetition or a trend.
+- Repeated testing, rephrasing, or follow-up conversations about the same underlying event must count as one episode, not multiple performance signals.
 - Do not diagnose mental health conditions or make medical claims.
 - Avoid ranking technicians or labeling someone a poor performer unless the manager explicitly asks and the data directly supports a limited factual comparison.
 - Prefer useful manager actions: who may need a check-in, what system issue may need attention, what training may help, and what positive behavior should be reinforced.
