@@ -275,6 +275,42 @@ export default function ConversationAuditPage() {
     setSavingReview(false)
   }
 
+  const markGood = async (messageId: string) => {
+    if (!selected || savingReview) return
+    setSavingReview(true)
+    setActionStatus('')
+
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'save_review',
+        conversationType: selected.type,
+        conversationId: selected.id,
+        messageId,
+        status: 'good',
+        category: 'excellent_answer',
+        correctionNote: '',
+        correctedAnswer: '',
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setActionStatus(data.error || 'Could not mark this answer Good.')
+      setSavingReview(false)
+      return
+    }
+
+    setReviews((current) => [...current.filter((item) => item.message_id !== messageId), data.review])
+    setEditingMessageId('')
+    setActionStatus('Marked Good.')
+    setSavingReview(false)
+  }
+
   const askForFeedback = async (messageId: string) => {
     if (!selected) return
     const question = window.prompt(
@@ -580,6 +616,19 @@ export default function ConversationAuditPage() {
                                       )}
 
                                       <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                                        <button
+                                          type="button"
+                                          disabled={savingReview}
+                                          onClick={() => void markGood(message.id)}
+                                          style={{
+                                            ...auditButtonStyle,
+                                            background: review?.status === 'good' ? '#166534' : '#f0fdf4',
+                                            color: review?.status === 'good' ? '#fff' : '#166534',
+                                            borderColor: '#86efac',
+                                          }}
+                                        >
+                                          {review?.status === 'good' ? 'Good ✓' : 'Good'}
+                                        </button>
                                         <button type="button" onClick={() => startCorrection(message)} style={auditButtonStyle}>
                                           {review ? 'Edit correction' : 'Correct / Review'}
                                         </button>
