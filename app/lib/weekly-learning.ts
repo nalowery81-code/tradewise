@@ -56,6 +56,17 @@ export async function runWeeklyLearning(
 
   if (reviewsError) throw reviewsError
 
+  const { data: helpfulFeedback, error: helpfulFeedbackError } = await supabaseServer
+    .from('ConversationUserFeedback')
+    .select('id, conversation_type, conversation_id, message_id, rating, created_at, updated_at')
+    .eq('rating', 'helpful')
+    .gte('updated_at', periodStart.toISOString())
+    .lte('updated_at', periodEnd.toISOString())
+    .order('updated_at', { ascending: true })
+    .limit(200)
+
+  if (helpfulFeedbackError) throw helpfulFeedbackError
+
   const candidateReviews = (reviews || []).filter(
     (review) => Boolean(review.correction_note?.trim() || review.corrected_answer?.trim())
   )
@@ -73,6 +84,19 @@ export async function runWeeklyLearning(
 
   const newReviews = candidateReviews.filter((review) => !alreadyUsed.has(review.id))
 
+  let usedHelpful = new Set<string>()
+  if ((helpfulFeedback || []).length > 0) {
+    const { data: usedHelpfulRows, error: usedHelpfulError } = await supabaseServer
+      .from('WeeklyLearningRunFeedback')
+      .select('feedback_id')
+      .in('feedback_id', (helpfulFeedback || []).map((item) => item.id))
+
+    if (usedHelpfulError) throw usedHelpfulError
+    usedHelpful = new Set((usedHelpfulRows || []).map((row) => row.feedback_id))
+  }
+
+  const newHelpfulFeedback = (helpfulFeedback || []).filter((item) => !usedHelpful.has(item.id))
+
   const { data: run, error: runError } = await supabaseServer
     .from('WeeklyLearningRuns')
     .insert({
@@ -81,21 +105,23 @@ export async function runWeeklyLearning(
       period_end: periodEnd.toISOString(),
       status: 'running',
       review_count: newReviews.length,
+      helpful_count: newHelpfulFeedback.length,
       model_name: WEEKLY_MODEL,
     })
-    .select('id, created_at, period_start, period_end, trigger_type, status, review_count')
+    .select('id, created_at, period_start, period_end, trigger_type, status, review_count, helpful_count')
     .single()
 
   if (runError || !run) throw runError || new Error('Could not create weekly learning run.')
 
   try {
-    if (newReviews.length === 0) {
-      const synopsis = 'No new Corrected or Resolved Admin reviews were available for weekly learning.'
+    if (newReviews.length === 0 && newHelpfulFeedback.length === 0) {
+      const synopsis = 'No new Corrected/Resolved Admin reviews or technician Helpful signals were available for weekly learning.'
       const { data: completed, error } = await supabaseServer
         .from('WeeklyLearningRuns')
         .update({
           status: 'completed',
           guidance_count: 0,
+          helpful_count: 0,
           synopsis,
           completed_at: new Date().toISOString(),
         })
@@ -107,12 +133,14 @@ export async function runWeeklyLearning(
       return { run: completed, guidance: [] }
     }
 
-    const technicianConversationIds = [...new Set(
-      newReviews.filter((review) => review.conversation_type === 'technician').map((review) => review.conversation_id)
-    )]
-    const managementConversationIds = [...new Set(
-      newReviews.filter((review) => review.conversation_type === 'management').map((review) => review.conversation_id)
-    )]
+    const technicianConversationIds = [...new Set([
+      ...newReviews.filter((review) => review.conversation_type === 'technician').map((review) => review.conversation_id),
+      ...newHelpfulFeedback.filter((item) => item.conversation_type === 'technician').map((item) => item.conversation_id),
+    ])]
+    const managementConversationIds = [...new Set([
+      ...newReviews.filter((review) => review.conversation_type === 'management').map((review) => review.conversation_id),
+      ...newHelpfulFeedback.filter((item) => item.conversation_type === 'management').map((item) => item.conversation_id),
+    ])]
 
     const technicianMessages = technicianConversationIds.length
       ? (await supabaseServer
@@ -156,6 +184,23 @@ export async function runWeeklyLearning(
       }
     })
 
+    const positiveExamples = newHelpfulFeedback.map((feedback) => {
+      const rows = messagesByConversation.get(feedback.conversation_id) || []
+      const targetIndex = rows.findIndex((row) => row.id === feedback.message_id)
+      const helpfulAnswer = targetIndex >= 0 ? rows[targetIndex]?.content || '' : ''
+      const userQuestion = targetIndex > 0
+        ? [...rows.slice(0, targetIndex)].reverse().find((row) => row.role === 'user')?.content || ''
+        : ''
+
+      return {
+        feedback_id: feedback.id,
+        audience: feedback.conversation_type === 'technician' ? 'technician' : 'management',
+        user_question: userQuestion,
+        helpful_answer: helpfulAnswer,
+        signal: 'technician_marked_helpful',
+      }
+    })
+
     const { data: activeGuidance, error: guidanceError } = await supabaseServer
       .from('GuidanceLibrary')
       .select('title, guidance_text, topic, scope, priority')
@@ -170,17 +215,21 @@ export async function runWeeklyLearning(
       instructions: `
 You are the CraftCompass weekly learning synthesizer.
 
-You receive ONLY human-reviewed CraftCompass corrections from the last week plus the currently active Guidance Library.
+You receive two separate learning streams from the last week plus the currently active Guidance Library:
+1. HUMAN-REVIEWED CORRECTIONS: Admin-confirmed corrections/resolutions. These are trusted for technical and behavioral guidance.
+2. POSITIVE HELPFUL EXAMPLES: answers technicians marked Helpful. These are evidence that the answer was useful, clear, well-structured, or field-effective, but they are NOT proof that every technical fact in the answer was correct.
 
 Your job is to:
-1. Write a concise weekly synopsis of what the reviews revealed.
-2. Identify repeated or important lessons that should improve future CraftCompass answers.
-3. Generalize lessons when that makes them more reusable across products, manufacturers, or trades.
-4. Keep genuinely product-specific guidance specific when generalizing would make it less accurate.
-5. Do NOT create guidance that merely repeats an existing active rule.
-6. Do NOT infer a rule from an unreviewed AI statement. The Admin finding/corrected answer is the trusted signal.
-7. Prefer a small number of durable rules over many narrow rules.
-8. If the reviews do not justify any new durable guidance, return an empty guidance array.
+1. Write a concise weekly synopsis covering both corrections and positive Helpful signals.
+2. From Admin-reviewed corrections, identify repeated or important lessons that should improve technical accuracy, safety, reasoning, or behavior.
+3. From Helpful examples, identify positive patterns in clarity, usefulness, structure, tone, memory use, workflow, or field practicality.
+4. Do NOT treat a Helpful click as technical verification. Never create a technical fact, part-number rule, code rule, manufacturer requirement, safety rule, or specification solely because an AI answer was marked Helpful.
+5. A Helpful example may reinforce a technical behavior only when that behavior is already supported by an Admin-reviewed correction or existing active guidance.
+6. Generalize lessons when that makes them more reusable across products, manufacturers, or trades.
+7. Keep genuinely product-specific guidance specific when generalizing would make it less accurate.
+8. Do NOT create guidance that merely repeats an existing active rule.
+9. Prefer a small number of durable rules over many narrow rules.
+10. If neither stream justifies any new durable guidance, return an empty guidance array.
 
 Return ONLY valid JSON with exactly this shape:
 {
@@ -198,7 +247,7 @@ Return ONLY valid JSON with exactly this shape:
 
 Maximum 8 guidance items.
       `.trim(),
-      input: `HUMAN-REVIEWED CORRECTIONS:\n${JSON.stringify(learningExamples)}\n\nCURRENT ACTIVE GUIDANCE:\n${JSON.stringify(activeGuidance || [])}`,
+      input: `HUMAN-REVIEWED CORRECTIONS:\n${JSON.stringify(learningExamples)}\n\nPOSITIVE HELPFUL EXAMPLES:\n${JSON.stringify(positiveExamples)}\n\nCURRENT ACTIVE GUIDANCE:\n${JSON.stringify(activeGuidance || [])}`,
     })
 
     const raw = stripCodeFence(response.output_text || '')
@@ -257,11 +306,20 @@ Maximum 8 guidance items.
 
     if (linkError) throw linkError
 
+    if (newHelpfulFeedback.length > 0) {
+      const { error: helpfulLinkError } = await supabaseServer
+        .from('WeeklyLearningRunFeedback')
+        .insert(newHelpfulFeedback.map((item) => ({ run_id: run.id, feedback_id: item.id })))
+
+      if (helpfulLinkError) throw helpfulLinkError
+    }
+
     const { data: completedRun, error: completeError } = await supabaseServer
       .from('WeeklyLearningRuns')
       .update({
         status: 'completed',
         review_count: newReviews.length,
+        helpful_count: newHelpfulFeedback.length,
         guidance_count: insertedGuidance.length,
         synopsis,
         completed_at: new Date().toISOString(),

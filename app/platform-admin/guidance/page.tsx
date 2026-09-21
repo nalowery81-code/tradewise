@@ -12,7 +12,7 @@ type GuidanceItem = {
 type WeeklyRun = {
   id:string; created_at:string; completed_at:string|null; trigger_type:'scheduled'|'manual';
   period_start:string; period_end:string; status:'running'|'completed'|'failed';
-  review_count:number; guidance_count:number; synopsis:string|null; model_name:string|null; error_text:string|null
+  review_count:number; helpful_count:number; guidance_count:number; synopsis:string|null; model_name:string|null; error_text:string|null
 }
 
 export default function GuidanceLibraryPage() {
@@ -47,7 +47,7 @@ export default function GuidanceLibraryPage() {
     const data=await response.json().catch(()=>({}))
     if(!response.ok){setError(data.error||'Weekly learning failed.');setRunningWeekly(false);return}
     if(data.skipped){setStatus(data.reason||'A weekly learning run is already in progress.')}
-    else setStatus(`Weekly learning complete: ${data.run?.review_count||0} reviews → ${data.run?.guidance_count||0} draft guidance items.`)
+    else setStatus(`Weekly learning complete: ${data.run?.review_count||0} corrected reviews + ${data.run?.helpful_count||0} Helpful signals → ${data.run?.guidance_count||0} draft guidance items.`)
     await load()
     setRunningWeekly(false)
   }
@@ -86,7 +86,7 @@ export default function GuidanceLibraryPage() {
           <div>
             <div style={{fontSize:20,fontWeight:850}}>Sunday Weekly Learning</div>
             <div style={{marginTop:6,color:'#64748b',lineHeight:1.5,maxWidth:720}}>
-              Runs automatically every Sunday morning. It synthesizes only new Corrected/Resolved Admin reviews into draft guidance; nothing becomes active until Admin approval.
+              Runs automatically every Sunday morning. It synthesizes new Corrected/Resolved Admin reviews plus technician Helpful signals into draft guidance. Helpful examples reinforce what worked, but are not treated as technical verification. Nothing becomes active until Admin approval.
             </div>
           </div>
           <button onClick={()=>void runWeeklyNow()} disabled={runningWeekly} style={{...primaryButtonStyle,opacity:runningWeekly?0.6:1}}>
@@ -101,7 +101,7 @@ export default function GuidanceLibraryPage() {
                 <strong>{new Date(run.created_at).toLocaleString()} · {run.trigger_type}</strong>
                 <span style={{fontSize:12,color:run.status==='failed'?'#b91c1c':'#64748b'}}>{run.status}</span>
               </div>
-              <div style={{marginTop:5,fontSize:12,color:'#64748b'}}>{run.review_count} reviewed corrections · {run.guidance_count} guidance drafts</div>
+              <div style={{marginTop:5,fontSize:12,color:'#64748b'}}>{run.review_count} reviewed corrections · {run.helpful_count||0} Helpful signals · {run.guidance_count} guidance drafts</div>
               {run.synopsis&&<div style={{marginTop:7,lineHeight:1.5,fontSize:13}}>{run.synopsis}</div>}
               {run.error_text&&<div style={{marginTop:7,color:'#b91c1c',fontSize:12}}>{run.error_text}</div>}
             </div>)}
