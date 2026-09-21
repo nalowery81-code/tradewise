@@ -70,6 +70,7 @@ export default function ConversationAuditPage() {
   const [correctionNote, setCorrectionNote] = useState('')
   const [correctedAnswer, setCorrectedAnswer] = useState('')
   const [savingReview, setSavingReview] = useState(false)
+  const [draftingCorrection, setDraftingCorrection] = useState(false)
   const [actionStatus, setActionStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [transcriptLoading, setTranscriptLoading] = useState(false)
@@ -166,8 +167,48 @@ export default function ConversationAuditPage() {
     setReviewStatus(existing?.status || 'incorrect')
     setReviewCategory(existing?.category || 'technical_error')
     setCorrectionNote(existing?.correction_note || '')
-    setCorrectedAnswer(existing?.corrected_answer || message.content)
+    const savedCorrection = existing?.corrected_answer || ''
+    setCorrectedAnswer(savedCorrection === message.content ? '' : savedCorrection)
     setActionStatus('')
+  }
+
+  const draftCorrection = async (messageId: string) => {
+    if (!selected || draftingCorrection) return
+    if (!correctionNote.trim()) {
+      setActionStatus('Add an Admin finding before drafting a corrected answer.')
+      return
+    }
+
+    setDraftingCorrection(true)
+    setActionStatus('Drafting corrected answer…')
+
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'draft_correction',
+        conversationType: selected.type,
+        conversationId: selected.id,
+        messageId,
+        category: reviewCategory,
+        correctionNote,
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setActionStatus(data.error || 'Could not draft corrected answer.')
+      setDraftingCorrection(false)
+      return
+    }
+
+    setCorrectedAnswer(data.draft || '')
+    setReviewStatus('corrected')
+    setActionStatus('AI draft ready — review and edit it before saving.')
+    setDraftingCorrection(false)
   }
 
   const saveCorrection = async (messageId: string) => {
@@ -468,33 +509,45 @@ export default function ConversationAuditPage() {
                                             <option value="excellent_answer">Excellent answer</option>
                                             <option value="other">Other</option>
                                           </select>
-                                          <textarea
-                                            value={correctedAnswer}
-                                            onChange={(event) => setCorrectedAnswer(event.target.value)}
-                                            rows={5}
-                                            placeholder="Corrected answer"
-                                            style={reviewTextareaStyle}
-                                          />
+                                          <div style={{ fontSize: 11, fontWeight: 850, color: '#475569' }}>Admin finding</div>
                                           <textarea
                                             value={correctionNote}
                                             onChange={(event) => setCorrectionNote(event.target.value)}
                                             rows={3}
-                                            placeholder="Internal note: what was wrong and why"
+                                            placeholder="What is wrong, misleading, incomplete, or especially good about this answer?"
+                                            style={reviewTextareaStyle}
+                                          />
+                                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                                            <div style={{ fontSize: 11, fontWeight: 850, color: '#475569' }}>Corrected answer <span style={{ fontWeight: 500, color: '#94a3b8' }}>(optional)</span></div>
+                                            <button
+                                              type="button"
+                                              disabled={draftingCorrection}
+                                              onClick={() => void draftCorrection(message.id)}
+                                              style={{ ...auditButtonStyle, opacity: draftingCorrection ? 0.6 : 1 }}
+                                            >
+                                              {draftingCorrection ? 'Drafting…' : 'Draft corrected answer with AI'}
+                                            </button>
+                                          </div>
+                                          <textarea
+                                            value={correctedAnswer}
+                                            onChange={(event) => setCorrectedAnswer(event.target.value)}
+                                            rows={5}
+                                            placeholder="Leave blank if you only want to record the finding, or write/draft a replacement answer."
                                             style={reviewTextareaStyle}
                                           />
                                           <div style={{ display: 'flex', gap: 7 }}>
-                                            <button type="button" disabled={savingReview} onClick={() => void saveCorrection(message.id)} style={auditButtonStyle}>
-                                              {savingReview ? 'Saving…' : 'Save correction'}
+                                            <button type="button" disabled={savingReview || draftingCorrection} onClick={() => void saveCorrection(message.id)} style={auditButtonStyle}>
+                                              {savingReview ? 'Saving…' : 'Save review'}
                                             </button>
                                             <button type="button" onClick={() => setEditingMessageId('')} style={auditButtonStyle}>Cancel</button>
                                           </div>
                                         </div>
                                       )}
 
-                                      {review?.corrected_answer && editingMessageId !== message.id && (
+                                      {review && editingMessageId !== message.id && (review.corrected_answer || review.correction_note) && (
                                         <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: '#f0fdf4', color: '#166534', fontSize: 12, lineHeight: 1.5 }}>
-                                          <strong>Admin correction:</strong><br />{review.corrected_answer}
-                                          {review.correction_note && <><br /><br /><strong>Internal note:</strong> {review.correction_note}</>}
+                                          {review.correction_note && <><strong>Admin finding:</strong><br />{review.correction_note}</>}
+                                          {review.corrected_answer && <><br /><br /><strong>Corrected answer:</strong><br />{review.corrected_answer}</>}
                                         </div>
                                       )}
                                     </>

@@ -1,5 +1,9 @@
+import OpenAI from 'openai'
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../lib/supabase-server'
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const AUDIT_MODEL = 'gpt-5.6-luna'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
@@ -296,6 +300,75 @@ export async function POST(request: Request) {
 
     if (!['technician', 'management'].includes(conversationType) || !conversationId) {
       return jsonNoStore({ error: 'Conversation is required.' }, { status: 400 })
+    }
+
+    if (action === 'draft_correction') {
+      if (!messageId) return jsonNoStore({ error: 'Assistant message is required.' }, { status: 400 })
+
+      const correctionNote = String(body?.correctionNote || '').trim()
+      const category = String(body?.category || '').trim()
+
+      if (!correctionNote) {
+        return jsonNoStore({ error: 'Add an Admin finding first so the draft knows what to fix.' }, { status: 400 })
+      }
+
+      let rows: { id: string; role: string; content: string; created_at: string }[] = []
+
+      if (conversationType === 'technician') {
+        const { data, error } = await supabaseServer
+          .from('Messages')
+          .select('id, role, content, created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+
+        if (error) throw error
+        rows = data || []
+      } else {
+        const { data, error } = await supabaseServer
+          .from('ManagementMessages')
+          .select('id, role, content, created_at')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: true })
+
+        if (error) throw error
+        rows = data || []
+      }
+
+      const targetIndex = rows.findIndex((row) => row.id === messageId)
+      if (targetIndex < 0 || rows[targetIndex]?.role !== 'assistant') {
+        return jsonNoStore({ error: 'Assistant message not found.' }, { status: 404 })
+      }
+
+      const contextRows = rows.slice(Math.max(0, targetIndex - 6), targetIndex + 1)
+      const transcript = contextRows
+        .map((row) => `${row.role === 'assistant' ? 'CraftCompass AI' : 'User'}: ${row.content}`)
+        .join('\n\n')
+
+      const response = await openai.responses.create({
+        model: AUDIT_MODEL,
+        instructions: `
+You are helping a Platform Admin correct a CraftCompass AI response.
+
+The original answer must remain preserved elsewhere. Your job is only to DRAFT a proposed replacement answer for the admin to review.
+
+Rules:
+- Follow the admin finding as the key correction signal.
+- Use the supplied conversation context so the replacement answers the user's actual question.
+- Do not invent facts, model numbers, prices, availability, code requirements, or sources.
+- If the admin finding says the original answer recommended unnecessary items, remove those recommendations rather than merely softening them.
+- Preserve useful parts of the original response that are not contradicted by the admin finding.
+- Keep the answer practical and field-oriented.
+- Do not mention this audit, the admin, or that the prior answer was wrong.
+- Do not add citations or URLs unless they are already present in the supplied conversation and necessary to the answer.
+- Return only the proposed corrected answer.
+        `.trim(),
+        input: `Conversation context:\n\n${transcript}\n\nAdmin category: ${category || 'other'}\nAdmin finding: ${correctionNote}\n\nDraft the corrected CraftCompass response.`,
+      })
+
+      const draft = response.output_text?.trim()
+      if (!draft) return jsonNoStore({ error: 'Could not draft a corrected answer.' }, { status: 500 })
+
+      return jsonNoStore({ draft, modelName: AUDIT_MODEL })
     }
 
     if (action === 'save_review') {
