@@ -416,11 +416,17 @@ export default function ConversationAuditPage() {
   return (
     <main style={pageStyle}>
       <style>{`
+        @media (max-width: 1100px) {
+          .audit-layout { grid-template-columns: minmax(300px, .9fr) minmax(0, 1.4fr) !important; }
+          .audit-filters { grid-template-columns: minmax(220px, 1fr) 170px 150px auto !important; }
+        }
         @media (max-width: 900px) {
-          .audit-layout { grid-template-columns: 1fr !important; }
+          .audit-layout { grid-template-columns: 1fr !important; height: auto !important; }
           .audit-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
-          .audit-content { margin-left: 0 !important; padding: 24px 14px 50px !important; }
+          .audit-content { margin-left: 0 !important; padding: 20px 14px 46px !important; }
           .audit-filters { grid-template-columns: 1fr !important; }
+          .audit-scroll { max-height: 60vh !important; }
+          .audit-transcript-body { max-height: none !important; min-height: 360px !important; }
         }
       `}</style>
 
@@ -438,21 +444,25 @@ export default function ConversationAuditPage() {
         <a href="/manager" style={backStyle}>← Owner Workspace</a>
       </aside>
 
-      <section className="audit-content" style={{ marginLeft: 244, padding: '38px clamp(20px, 4vw, 58px) 70px' }}>
-        <div style={{ maxWidth: 1320, margin: '0 auto' }}>
+      <section className="audit-content" style={{ marginLeft: 244, padding: '24px clamp(18px, 2.6vw, 36px) 34px' }}>
+        <div style={{ maxWidth: 1540, margin: '0 auto' }}>
           <div>
             <div style={{ ...eyebrowStyle, color: '#64748b' }}>Quality & Safety</div>
-            <h1 style={{ margin: '7px 0 8px', fontSize: 36, letterSpacing: '-0.035em' }}>Conversation Audit</h1>
-            <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55 }}>
+            <h1 style={{ margin: '5px 0 5px', fontSize: 34, letterSpacing: '-0.035em' }}>Conversation Audit</h1>
+            <p style={{ margin: 0, color: '#64748b', lineHeight: 1.45, fontSize: 14 }}>
               Review exactly what CraftCompass users asked and the responses they received.
             </p>
-          </div>
-
-          <div style={metricsStyle}>
-            <Metric label="Shown" value={conversationCount} />
-            <Metric label="Technician chats" value={techCount} />
-            <Metric label="Manager + owner" value={managementCount} />
-            <Metric label="Needs audit" value={needsAuditCount} />
+            <div style={summaryLineStyle}>
+              <strong>{conversationCount}</strong> conversations
+              <span style={summaryDotStyle}>•</span>
+              <strong>{techCount}</strong> technicians
+              <span style={summaryDotStyle}>•</span>
+              <strong>{managementCount}</strong> manager/owner
+              <span style={summaryDotStyle}>•</span>
+              <span style={{ fontWeight: 800, color: needsAuditCount > 0 ? '#92400e' : '#334155' }}>
+                {needsAuditCount > 0 ? '⚠ ' : ''}{needsAuditCount} needs audit
+              </span>
+            </div>
           </div>
 
           <div className="audit-filters" style={filtersStyle}>
@@ -472,9 +482,20 @@ export default function ConversationAuditPage() {
               <option value="manager">Managers</option>
               <option value="owner">Owners</option>
             </select>
-            <label style={{ ...controlStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <label style={{
+              ...controlStyle,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              cursor: 'pointer',
+              background: needsAuditOnly ? '#fef3c7' : '#fff',
+              color: needsAuditOnly ? '#92400e' : '#172033',
+              fontWeight: 800,
+              whiteSpace: 'nowrap',
+            }}>
               <input type="checkbox" checked={needsAuditOnly} onChange={(event) => setNeedsAuditOnly(event.target.checked)} />
-              Needs Audit only
+              Needs Audit{needsAuditCount ? ` (${needsAuditCount})` : ''}
             </label>
           </div>
 
@@ -484,9 +505,10 @@ export default function ConversationAuditPage() {
           <div className="audit-layout" style={layoutStyle}>
             <section style={listCardStyle}>
               <div style={listHeaderStyle}>
-                {loading ? 'Loading conversations…' : `${filtered.length} conversation${filtered.length === 1 ? '' : 's'}`}
+                <span>{loading ? 'Loading conversations…' : `Conversations (${filtered.length})`}</span>
+                <span style={{ color: '#94a3b8', fontWeight: 700 }}>Newest first</span>
               </div>
-              <div style={{ maxHeight: 'calc(100vh - 330px)', overflowY: 'auto' }}>
+              <div className="audit-scroll" style={listScrollStyle}>
                 {!loading && filtered.length === 0 && <div style={emptyStyle}>No conversations match these filters.</div>}
                 {filtered.map((conversation) => {
                   const isActive = selected?.id === conversation.id && selected?.type === conversation.type
@@ -502,10 +524,10 @@ export default function ConversationAuditPage() {
                         {(conversation.pendingFlagCount || 0) > 0 && <span style={{ ...roleBadgeStyle, background: '#fef3c7', color: '#92400e' }}>Needs audit {conversation.pendingFlagCount}</span>}
                         <span style={dateStyle}>{new Date(conversation.updatedAt || conversation.createdAt).toLocaleString()}</span>
                       </div>
-                      <div style={{ marginTop: 9, fontWeight: 800, color: '#172033', lineHeight: 1.35 }}>
+                      <div style={{ marginTop: 7, fontWeight: 800, color: '#172033', lineHeight: 1.3 }}>
                         {conversation.title}
                       </div>
-                      <div style={{ marginTop: 6, color: '#475569', fontSize: 13 }}>
+                      <div style={{ marginTop: 5, color: '#475569', fontSize: 12 }}>
                         {conversation.userName}{conversation.userEmail ? ` · ${conversation.userEmail}` : ''}
                       </div>
                       <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
@@ -541,7 +563,7 @@ export default function ConversationAuditPage() {
                     </div>
                   </div>
 
-                  <div style={transcriptBodyStyle}>
+                  <div className="audit-transcript-body" style={transcriptBodyStyle}>
                     {transcriptLoading ? (
                       <div style={emptyStyle}>Loading full transcript…</div>
                     ) : messages.length === 0 ? (
@@ -760,35 +782,27 @@ export default function ConversationAuditPage() {
   )
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={metricStyle}>
-      <div style={{ color: '#64748b', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.06em' }}>{label}</div>
-      <div style={{ marginTop: 7, fontSize: 28, fontWeight: 850 }}>{value}</div>
-    </div>
-  )
-}
-
 const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }
 const sidebarStyle: React.CSSProperties = { position: 'fixed', inset: '0 auto 0 0', width: 244, minHeight: '100vh', padding: '30px 20px 22px', boxSizing: 'border-box', background: '#111827', color: '#f8fafc', borderRight: '1px solid #1f2937', display: 'flex', flexDirection: 'column' }
 const eyebrowStyle: React.CSSProperties = { marginTop: 5, color: '#94a3b8', fontSize: 11, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase' }
 const navStyle: React.CSSProperties = { display: 'block', padding: '11px 12px', borderRadius: 9, color: '#94a3b8', textDecoration: 'none', fontSize: 14, fontWeight: 700 }
 const activeNavStyle: React.CSSProperties = { ...navStyle, background: '#273449', color: '#fff', fontWeight: 800 }
 const backStyle: React.CSSProperties = { marginTop: 'auto', padding: '10px 12px', border: '1px solid #334155', borderRadius: 9, color: '#cbd5e1', textDecoration: 'none', fontSize: 13, fontWeight: 700 }
-const metricsStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 11, marginTop: 28 }
-const metricStyle: React.CSSProperties = { padding: 16, border: '1px solid #e2e8f0', borderRadius: 13, background: '#fff' }
-const filtersStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 190px 160px 160px', gap: 10, marginTop: 14 }
-const controlStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 11px', border: '1px solid #cbd5e1', borderRadius: 9, background: '#fff', color: '#172033', fontSize: 13 }
-const layoutStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(330px, .8fr) minmax(480px, 1.45fr)', gap: 14, alignItems: 'start', marginTop: 14 }
-const listCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff' }
-const listHeaderStyle: React.CSSProperties = { padding: '12px 14px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', color: '#64748b', fontSize: 12, fontWeight: 800 }
-const conversationRowStyle: React.CSSProperties = { width: '100%', display: 'block', textAlign: 'left', padding: 14, border: 0, borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }
+const summaryLineStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 10, color: '#475569', fontSize: 13 }
+const summaryDotStyle: React.CSSProperties = { color: '#cbd5e1' }
+const filtersStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 190px 160px auto', gap: 9, marginTop: 14 }
+const controlStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 9, background: '#fff', color: '#172033', fontSize: 13 }
+const layoutStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(420px, .92fr) minmax(620px, 1.65fr)', gap: 12, alignItems: 'stretch', marginTop: 12, height: 'calc(100vh - 205px)', minHeight: 560 }
+const listCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 0, display: 'flex', flexDirection: 'column' }
+const listHeaderStyle: React.CSSProperties = { padding: '10px 13px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontSize: 12, fontWeight: 800, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }
+const listScrollStyle: React.CSSProperties = { overflowY: 'auto', minHeight: 0, flex: 1 }
+const conversationRowStyle: React.CSSProperties = { width: '100%', display: 'block', textAlign: 'left', padding: '11px 13px', border: 0, borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }
 const roleBadgeStyle: React.CSSProperties = { display: 'inline-block', padding: '4px 8px', borderRadius: 999, background: '#e2e8f0', color: '#334155', fontSize: 10, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.04em' }
 const dateStyle: React.CSSProperties = { color: '#94a3b8', fontSize: 10 }
-const transcriptCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 520 }
-const transcriptHeaderStyle: React.CSSProperties = { padding: '17px 18px', borderBottom: '1px solid #e2e8f0', background: '#fbfdff' }
-const transcriptBodyStyle: React.CSSProperties = { maxHeight: 'calc(100vh - 350px)', minHeight: 390, overflowY: 'auto', padding: 18, background: '#f8fafc' }
-const transcriptEmptyStyle: React.CSSProperties = { minHeight: 520, display: 'grid', placeContent: 'center', textAlign: 'center', color: '#94a3b8', padding: 30 }
+const transcriptCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff', minHeight: 0, display: 'flex', flexDirection: 'column' }
+const transcriptHeaderStyle: React.CSSProperties = { padding: '14px 16px', borderBottom: '1px solid #e2e8f0', background: '#fbfdff', flex: '0 0 auto' }
+const transcriptBodyStyle: React.CSSProperties = { minHeight: 0, overflowY: 'auto', padding: 16, background: '#f8fafc', flex: 1 }
+const transcriptEmptyStyle: React.CSSProperties = { minHeight: 0, height: '100%', display: 'grid', placeContent: 'center', textAlign: 'center', color: '#94a3b8', padding: 30 }
 const messageWrapStyle: React.CSSProperties = { display: 'flex', marginBottom: 14 }
 const userBubbleStyle: React.CSSProperties = { width: 'min(82%, 720px)', padding: '12px 14px', borderRadius: '15px 15px 4px 15px', background: '#172033', color: '#fff', fontSize: 14 }
 const assistantBubbleStyle: React.CSSProperties = { width: 'min(88%, 780px)', padding: '12px 14px', borderRadius: '15px 15px 15px 4px', background: '#fff', color: '#172033', border: '1px solid #e2e8f0', fontSize: 14 }
