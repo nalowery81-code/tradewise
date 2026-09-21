@@ -83,6 +83,7 @@ export default function TechnicianPage() {
   const [sending, setSending] = useState(false)
   const [messages, setMessages] = useState<
     {
+      id?: string
       role: 'user' | 'assistant'
       text: string
       image?: string
@@ -338,6 +339,23 @@ export default function TechnicianPage() {
     }
   }
 
+  const flagAnswer = async (messageId?: string) => {
+    if (!messageId || !conversationId) return
+    const comment = window.prompt('What is wrong or misleading about this answer?')
+    if (!comment?.trim()) return
+
+    const session = (await supabase.auth.getSession()).data.session
+    if (!session) return void window.location.replace('/login')
+
+    const response = await fetch('/api/audit-flag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ conversationType: 'technician', conversationId, messageId, comment: comment.trim() }),
+    })
+    const data = await response.json().catch(() => ({}))
+    window.alert(response.ok ? 'Thanks. This answer was flagged for Admin review.' : data.error || 'Could not flag this answer.')
+  }
+
   const handleSend = async () => {
     const text = message.trim()
 
@@ -410,6 +428,7 @@ export default function TechnicianPage() {
       setMessages((prev) => [
         ...prev,
         {
+          id: data.assistantMessageId,
           role: 'assistant',
           text: data.reply,
           sources: data.sources || [],
@@ -568,6 +587,14 @@ export default function TechnicianPage() {
                   ) : (
                     <div>{item.text}</div>
                   ))}
+
+                {item.role === 'assistant' && item.id && (
+                  <div style={{ marginTop: 10 }}>
+                    <button type="button" onClick={() => void flagAnswer(item.id)} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 9px', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      That's not right
+                    </button>
+                  </div>
+                )}
 
                 {item.sources && item.sources.length > 0 && (
                   <div

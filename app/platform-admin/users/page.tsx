@@ -412,6 +412,7 @@ export default function PlatformAdminUsersPage() {
           <a href="/platform-admin" style={navStyle}>Companies</a>
           <a href="/platform-admin/users" style={{ ...navStyle, background: '#273449' }}>Users</a>
           <a href="/platform-admin/conversation-audit" style={navStyle}>Conversation Audit</a>
+          <a href="/platform-admin/guidance" style={navStyle}>Guidance Library</a>
         </nav>
       </header>
 

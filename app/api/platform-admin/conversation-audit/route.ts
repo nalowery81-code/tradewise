@@ -110,6 +110,12 @@ export async function GET(request: Request) {
             .eq('conversation_type', 'technician')
             .eq('conversation_id', conversationId)
             .order('created_at', { ascending: false })).data || [],
+          flags: (await supabaseServer
+            .from('ConversationAuditFlags')
+            .select('id, message_id, reporter_role, comment, status, created_at, reviewed_at')
+            .eq('conversation_type', 'technician')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: false })).data || [],
         })
       }
 
@@ -180,6 +186,12 @@ export async function GET(request: Request) {
         feedbackRequests: (await supabaseServer
           .from('ConversationFeedbackRequests')
           .select('id, message_id, question, status, rating, response_text, created_at, responded_at')
+          .eq('conversation_type', 'management')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: false })).data || [],
+        flags: (await supabaseServer
+          .from('ConversationAuditFlags')
+          .select('id, message_id, reporter_role, comment, status, created_at, reviewed_at')
           .eq('conversation_type', 'management')
           .eq('conversation_id', conversationId)
           .order('created_at', { ascending: false })).data || [],
@@ -276,8 +288,24 @@ export async function GET(request: Request) {
       (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
     )
 
+    const { data: pendingFlags, error: pendingFlagsError } = await supabaseServer
+      .from('ConversationAuditFlags')
+      .select('conversation_type, conversation_id')
+      .eq('status', 'pending')
+
+    if (pendingFlagsError) console.error('PENDING AUDIT FLAGS LOAD ERROR:', pendingFlagsError)
+    const flagCounts = new Map<string, number>()
+    for (const flag of pendingFlags || []) {
+      const key = `${flag.conversation_type}:${flag.conversation_id}`
+      flagCounts.set(key, (flagCounts.get(key) || 0) + 1)
+    }
+    const conversationsWithFlags = conversations.map((conversation) => ({
+      ...conversation,
+      pendingFlagCount: flagCounts.get(`${conversation.type}:${conversation.id}`) || 0,
+    }))
+
     return jsonNoStore({
-      conversations,
+      conversations: conversationsWithFlags,
       companies: (companies || []).sort((a, b) => a.name.localeCompare(b.name)),
     })
   } catch (error) {
@@ -371,6 +399,72 @@ Rules:
       return jsonNoStore({ draft, modelName: AUDIT_MODEL })
     }
 
+    if (action === 'update_flag') {
+      const flagId = String(body?.flagId || '')
+      const status = String(body?.status || '')
+      if (!flagId || !['confirmed', 'dismissed', 'resolved'].includes(status)) return jsonNoStore({ error: 'Invalid flag update.' }, { status: 400 })
+      const { data, error } = await supabaseServer.from('ConversationAuditFlags').update({
+        status, reviewed_by_admin_profile_id: access.profileId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+      }).eq('id', flagId).eq('conversation_type', conversationType).eq('conversation_id', conversationId)
+        .select('id, message_id, reporter_role, comment, status, created_at, reviewed_at').single()
+      if (error) return jsonNoStore({ error: 'Could not update audit flag.' }, { status: 500 })
+      return jsonNoStore({ flag: data })
+    }
+
+    if (action === 'draft_guidance') {
+      if (!messageId) return jsonNoStore({ error: 'Reviewed message is required.' }, { status: 400 })
+      const { data: review, error: reviewError } = await supabaseServer.from('ConversationAuditReviews')
+        .select('id, status, category, correction_note, corrected_answer')
+        .eq('conversation_type', conversationType).eq('conversation_id', conversationId).eq('message_id', messageId).single()
+      if (reviewError || !review || !['corrected', 'resolved'].includes(review.status)) return jsonNoStore({ error: 'Mark the review Corrected or Resolved before using Learn Now.' }, { status: 400 })
+      if (!review.correction_note && !review.corrected_answer) return jsonNoStore({ error: 'The review needs an Admin finding or corrected answer first.' }, { status: 400 })
+
+      let transcriptRows: { role: string; content: string }[] = []
+      if (conversationType === 'technician') {
+        const { data, error } = await supabaseServer.from('Messages').select('role, content').eq('conversation_id', conversationId).order('created_at', { ascending: true })
+        if (error) throw error
+        transcriptRows = data || []
+      } else {
+        const { data, error } = await supabaseServer.from('ManagementMessages').select('role, content').eq('conversation_id', conversationId).order('created_at', { ascending: true })
+        if (error) throw error
+        transcriptRows = data || []
+      }
+      const transcript = transcriptRows.slice(-12).map((row) => `${row.role}: ${row.content}`).join('\n\n')
+      const response = await openai.responses.create({
+        model: AUDIT_MODEL,
+        instructions: `Turn an expert-reviewed CraftCompass mistake into ONE concise reusable guidance rule for future answers. Generalize when appropriate. Preserve product-specific detail only when truly necessary. Do not mention the audit or reviewer. Guidance must tell CraftCompass what to DO or VERIFY. Return ONLY JSON: {"title":"short title","guidance_text":"1-3 concise sentences","topic":"short topic","scope":"all|technician|management","priority":1-100}`,
+        input: `Conversation:\n${transcript}\n\nCategory: ${review.category || 'other'}\nAdmin finding: ${review.correction_note || ''}\nCorrected answer: ${review.corrected_answer || ''}`,
+      })
+      const json = (response.output_text || '').replace(/^\`\`\`json\s*/i, '').replace(/^\`\`\`\s*/i, '').replace(/\`\`\`$/i, '').trim()
+      let draft: any
+      try { draft = JSON.parse(json) } catch { return jsonNoStore({ error: 'Could not turn this review into guidance.' }, { status: 500 }) }
+      const title = String(draft?.title || '').trim()
+      const guidanceText = String(draft?.guidance_text || '').trim()
+      const topic = String(draft?.topic || '').trim()
+      const scope = ['all','technician','management'].includes(draft?.scope) ? draft.scope : (conversationType === 'technician' ? 'technician' : 'management')
+      const priority = Math.min(100, Math.max(1, Number.isFinite(Number(draft?.priority)) ? Math.round(Number(draft.priority)) : 80))
+      if (!title || !guidanceText) return jsonNoStore({ error: 'Generated guidance was incomplete.' }, { status: 500 })
+      const { data: latestFlag } = await supabaseServer.from('ConversationAuditFlags').select('id')
+        .eq('conversation_type', conversationType).eq('conversation_id', conversationId).eq('message_id', messageId)
+        .in('status', ['confirmed','resolved']).order('created_at', { ascending: false }).limit(1).maybeSingle()
+      const { data: guidance, error } = await supabaseServer.from('GuidanceLibrary').insert({
+        title, guidance_text: guidanceText, topic: topic || null, scope, priority, status: 'draft', source_review_id: review.id,
+        source_flag_id: latestFlag?.id || null, created_by_admin_profile_id: access.profileId,
+      }).select('id, title, guidance_text, topic, scope, priority, status, source_review_id').single()
+      if (error) return jsonNoStore({ error: 'Could not save guidance draft.' }, { status: 500 })
+      return jsonNoStore({ guidance })
+    }
+
+    if (action === 'activate_guidance') {
+      const guidanceId = String(body?.guidanceId || '')
+      if (!guidanceId) return jsonNoStore({ error: 'Guidance item is required.' }, { status: 400 })
+      const { data, error } = await supabaseServer.from('GuidanceLibrary').update({ status: 'active', activated_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .eq('id', guidanceId).eq('created_by_admin_profile_id', access.profileId)
+        .select('id, title, guidance_text, topic, scope, priority, status, source_review_id').single()
+      if (error) return jsonNoStore({ error: 'Could not activate guidance.' }, { status: 500 })
+      return jsonNoStore({ guidance: data })
+    }
+
     if (action === 'save_review') {
       if (!messageId) return jsonNoStore({ error: 'Assistant message is required.' }, { status: 400 })
 
@@ -404,6 +498,11 @@ Rules:
         return jsonNoStore({ error: 'Could not save correction.' }, { status: 500 })
       }
 
+      if (['corrected', 'resolved'].includes(status)) {
+        await supabaseServer.from('ConversationAuditFlags').update({
+          status: 'resolved', reviewed_by_admin_profile_id: access.profileId, reviewed_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+        }).eq('conversation_type', conversationType).eq('conversation_id', conversationId).eq('message_id', messageId).in('status', ['pending', 'confirmed'])
+      }
       return jsonNoStore({ review: data })
     }
 

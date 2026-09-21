@@ -71,6 +71,7 @@ export async function GET(
     }
 
     const messages = (data || []).map((message) => ({
+      id: message.id,
       role: message.role,
       text: message.content,
       image: message.image_url || undefined,

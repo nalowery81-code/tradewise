@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { supabaseServer } from '../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../lib/management-auth'
 import { getManagerTechnicianScope, technicianIsInScope } from '../../../lib/manager-technician-scope'
+import { getActiveGuidance } from '../../../lib/active-guidance'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANAGER_MODEL = 'gpt-5.6-luna'
@@ -115,17 +116,17 @@ export async function POST(request: Request) {
       payload: Record<string, unknown> = {},
       modelName: string | null = null
     ) => {
-      const { error: assistantMessageError } = await supabaseServer.from('ManagementMessages').insert({
+      const { data: assistantMessage, error: assistantMessageError } = await supabaseServer.from('ManagementMessages').insert({
         conversation_id: managementConversationId,
         role: 'assistant',
         content: replyText,
         model_name: modelName,
         sources: [],
-      })
+      }).select('id').single()
 
-      if (assistantMessageError) {
+      if (assistantMessageError || !assistantMessage) {
         console.error('MANAGEMENT ASSISTANT MESSAGE SAVE ERROR:', assistantMessageError)
-        throw assistantMessageError
+        throw assistantMessageError || new Error('Assistant message was not saved.')
       }
 
       const { error: conversationUpdateError } = await supabaseServer
@@ -143,6 +144,7 @@ export async function POST(request: Request) {
       return Response.json({
         reply: replyText,
         conversationId: managementConversationId,
+        assistantMessageId: assistantMessage.id,
         ...payload,
       })
     }
@@ -288,6 +290,8 @@ Created at: ${reflection.created_at || 'Unknown'}`)
         ? 'This is a company-wide owner request. Use only the verified company reflection data below.'
         : 'This is a manager request. Use only the verified reflection data for technicians assigned to this manager.'
 
+    const activeGuidance = await getActiveGuidance('management')
+
     const response = await openai.responses.create({
       model: MANAGER_MODEL,
       instructions: `
@@ -307,6 +311,11 @@ Rules:
 - For broad questions, give the manager the most important findings first.
 - Use plain text headings and bullets when helpful. Do not use Markdown heading markers (#) or bold markers (**).
 - Do not expose raw internal data formatting or technical implementation details.
+
+ACTIVE ADMIN-APPROVED GUIDANCE:
+${activeGuidance || 'No additional Admin-approved guidance is active.'}
+
+Apply active guidance when relevant. Do not mention the Guidance Library or internal review process.
       `.trim(),
       input: `${scopeInstruction}\n\nManager question:\n${message}\n\nVerified recent technician reflections:\n${reflectionContext}`,
     })

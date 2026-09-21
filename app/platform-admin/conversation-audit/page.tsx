@@ -16,6 +16,7 @@ type AuditConversation = {
   updatedAt: string
   contextType: string
   modelName: string | null
+  pendingFlagCount?: number
 }
 
 type AuditSource = {
@@ -55,6 +56,26 @@ type FeedbackAudit = {
   responded_at: string | null
 }
 
+type AuditFlag = {
+  id: string
+  message_id: string
+  reporter_role: string
+  comment: string
+  status: string
+  created_at: string
+  reviewed_at: string | null
+}
+
+type GuidanceDraft = {
+  id: string
+  title: string
+  guidance_text: string
+  topic: string | null
+  scope: string
+  priority: number
+  status: string
+}
+
 type CompanyOption = { id: string; name: string }
 
 export default function ConversationAuditPage() {
@@ -64,6 +85,8 @@ export default function ConversationAuditPage() {
   const [messages, setMessages] = useState<AuditMessage[]>([])
   const [reviews, setReviews] = useState<AuditReview[]>([])
   const [feedbackRequests, setFeedbackRequests] = useState<FeedbackAudit[]>([])
+  const [flags, setFlags] = useState<AuditFlag[]>([])
+  const [guidanceDrafts, setGuidanceDrafts] = useState<Record<string, GuidanceDraft>>({})
   const [editingMessageId, setEditingMessageId] = useState('')
   const [reviewStatus, setReviewStatus] = useState('incorrect')
   const [reviewCategory, setReviewCategory] = useState('technical_error')
@@ -78,6 +101,7 @@ export default function ConversationAuditPage() {
   const [search, setSearch] = useState('')
   const [companyId, setCompanyId] = useState('')
   const [role, setRole] = useState('')
+  const [needsAuditOnly, setNeedsAuditOnly] = useState(false)
 
   const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
@@ -112,6 +136,7 @@ export default function ConversationAuditPage() {
     return conversations.filter((conversation) => {
       if (companyId && conversation.companyId !== companyId) return false
       if (role && conversation.role !== role) return false
+      if (needsAuditOnly && !conversation.pendingFlagCount) return false
       if (!needle) return true
       return [
         conversation.title,
@@ -122,13 +147,15 @@ export default function ConversationAuditPage() {
         conversation.contextType,
       ].some((value) => String(value || '').toLowerCase().includes(needle))
     })
-  }, [conversations, companyId, role, search])
+  }, [conversations, companyId, role, search, needsAuditOnly])
 
   const openConversation = async (conversation: AuditConversation) => {
     setSelected(conversation)
     setMessages([])
     setReviews([])
     setFeedbackRequests([])
+    setFlags([])
+    setGuidanceDrafts({})
     setEditingMessageId('')
     setActionStatus('')
     setTranscriptLoading(true)
@@ -158,6 +185,7 @@ export default function ConversationAuditPage() {
     setMessages(data.messages || [])
     setReviews(data.reviews || [])
     setFeedbackRequests(data.feedbackRequests || [])
+    setFlags(data.flags || [])
     setTranscriptLoading(false)
   }
 
@@ -281,9 +309,62 @@ export default function ConversationAuditPage() {
     setActionStatus('Feedback request sent.')
   }
 
+  const updateFlag = async (flag: AuditFlag, status: 'confirmed' | 'dismissed') => {
+    if (!selected) return
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'update_flag', conversationType: selected.type, conversationId: selected.id, messageId: flag.message_id, flagId: flag.id, status }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return setActionStatus(data.error || 'Could not update flag.')
+    setFlags((current) => current.map((item) => item.id === flag.id ? data.flag : item))
+    if (status === 'confirmed') {
+      const message = messages.find((item) => item.id === flag.message_id)
+      if (message) startCorrection(message)
+      setActionStatus('Flag confirmed. Add the Admin finding/correction below.')
+    } else setActionStatus('Flag dismissed.')
+  }
+
+  const learnNow = async (messageId: string) => {
+    if (!selected) return
+    setActionStatus('Building guidance draft…')
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'draft_guidance', conversationType: selected.type, conversationId: selected.id, messageId }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return setActionStatus(data.error || 'Could not build guidance.')
+    setGuidanceDrafts((current) => ({ ...current, [messageId]: data.guidance }))
+    setActionStatus('Guidance draft ready. Review it, then Activate now.')
+  }
+
+  const activateGuidance = async (messageId: string) => {
+    if (!selected) return
+    const draft = guidanceDrafts[messageId]
+    if (!draft) return
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ action: 'activate_guidance', conversationType: selected.type, conversationId: selected.id, messageId, guidanceId: draft.id }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return setActionStatus(data.error || 'Could not activate guidance.')
+    setGuidanceDrafts((current) => ({ ...current, [messageId]: data.guidance }))
+    setActionStatus('Learn Now activated. This guidance is now available to future CraftCompass answers.')
+  }
+
   const conversationCount = filtered.length
   const techCount = conversations.filter((item) => item.role === 'technician').length
   const managementCount = conversations.filter((item) => item.role === 'manager' || item.role === 'owner').length
+  const needsAuditCount = conversations.filter((item) => (item.pendingFlagCount || 0) > 0).length
 
   return (
     <main style={pageStyle}>
@@ -305,6 +386,7 @@ export default function ConversationAuditPage() {
           <a href="/platform-admin" style={navStyle}>Companies</a>
           <a href="/platform-admin/users" style={navStyle}>Users</a>
           <a href="/platform-admin/conversation-audit" style={activeNavStyle}>Conversation Audit</a>
+          <a href="/platform-admin/guidance" style={navStyle}>Guidance Library</a>
         </nav>
         <a href="/manager" style={backStyle}>← Owner Workspace</a>
       </aside>
@@ -323,6 +405,7 @@ export default function ConversationAuditPage() {
             <Metric label="Shown" value={conversationCount} />
             <Metric label="Technician chats" value={techCount} />
             <Metric label="Manager + owner" value={managementCount} />
+            <Metric label="Needs audit" value={needsAuditCount} />
           </div>
 
           <div className="audit-filters" style={filtersStyle}>
@@ -342,6 +425,10 @@ export default function ConversationAuditPage() {
               <option value="manager">Managers</option>
               <option value="owner">Owners</option>
             </select>
+            <label style={{ ...controlStyle, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+              <input type="checkbox" checked={needsAuditOnly} onChange={(event) => setNeedsAuditOnly(event.target.checked)} />
+              Needs Audit only
+            </label>
           </div>
 
           {error && <div style={errorStyle}>{error}</div>}
@@ -365,6 +452,7 @@ export default function ConversationAuditPage() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                         <span style={roleBadgeStyle}>{conversation.role}</span>
+                        {(conversation.pendingFlagCount || 0) > 0 && <span style={{ ...roleBadgeStyle, background: '#fef3c7', color: '#92400e' }}>Needs audit {conversation.pendingFlagCount}</span>}
                         <span style={dateStyle}>{new Date(conversation.updatedAt || conversation.createdAt).toLocaleString()}</span>
                       </div>
                       <div style={{ marginTop: 9, fontWeight: 800, color: '#172033', lineHeight: 1.35 }}>
@@ -466,8 +554,23 @@ export default function ConversationAuditPage() {
                                 {(() => {
                                   const review = reviews.find((item) => item.message_id === message.id)
                                   const feedback = feedbackRequests.find((item) => item.message_id === message.id)
+                                  const messageFlags = flags.filter((item) => item.message_id === message.id)
+                                  const guidance = guidanceDrafts[message.id]
                                   return (
                                     <>
+                                      {messageFlags.map((flag) => (
+                                        <div key={flag.id} style={{ marginBottom: 9, padding: 10, borderRadius: 9, background: flag.status === 'pending' ? '#fff7ed' : '#f8fafc', color: '#7c2d12', fontSize: 12, lineHeight: 1.45 }}>
+                                          <div style={{ fontWeight: 850 }}>User flag · {flag.reporter_role} · {flag.status}</div>
+                                          <div style={{ marginTop: 4 }}>{flag.comment}</div>
+                                          {flag.status === 'pending' && (
+                                            <div style={{ display: 'flex', gap: 7, marginTop: 8 }}>
+                                              <button type="button" onClick={() => void updateFlag(flag, 'confirmed')} style={auditButtonStyle}>Confirm & review</button>
+                                              <button type="button" onClick={() => void updateFlag(flag, 'dismissed')} style={auditButtonStyle}>Dismiss</button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      ))}
+
                                       {(review || feedback) && (
                                         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
                                           {review && <span style={auditTagStyle}>{review.status.replace(/_/g, ' ')}</span>}
@@ -483,7 +586,26 @@ export default function ConversationAuditPage() {
                                         <button type="button" onClick={() => void askForFeedback(message.id)} style={auditButtonStyle}>
                                           Ask for feedback
                                         </button>
+                                        {review && ['corrected', 'resolved'].includes(review.status) && (
+                                          <button type="button" onClick={() => void learnNow(message.id)} style={{ ...auditButtonStyle, background: '#172033', color: '#fff', borderColor: '#172033' }}>
+                                            Learn Now
+                                          </button>
+                                        )}
                                       </div>
+
+                                      {guidance && (
+                                        <div style={{ marginTop: 10, padding: 11, borderRadius: 9, background: '#eff6ff', color: '#1e3a8a', fontSize: 12, lineHeight: 1.5 }}>
+                                          <div style={{ fontWeight: 850 }}>Guidance draft · {guidance.status}</div>
+                                          <div style={{ marginTop: 4, fontWeight: 750 }}>{guidance.title}</div>
+                                          <div style={{ marginTop: 5 }}>{guidance.guidance_text}</div>
+                                          <div style={{ marginTop: 5, color: '#475569' }}>{guidance.topic || 'General'} · {guidance.scope} · priority {guidance.priority}</div>
+                                          {guidance.status !== 'active' && (
+                                            <button type="button" onClick={() => void activateGuidance(message.id)} style={{ ...auditButtonStyle, marginTop: 8, background: '#172033', color: '#fff', borderColor: '#172033' }}>
+                                              Activate now
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
 
                                       {feedback?.response_text && (
                                         <div style={{ marginTop: 9, padding: 9, borderRadius: 8, background: '#f8fafc', color: '#475569', fontSize: 12 }}>
@@ -591,9 +713,9 @@ const eyebrowStyle: React.CSSProperties = { marginTop: 5, color: '#94a3b8', font
 const navStyle: React.CSSProperties = { display: 'block', padding: '11px 12px', borderRadius: 9, color: '#94a3b8', textDecoration: 'none', fontSize: 14, fontWeight: 700 }
 const activeNavStyle: React.CSSProperties = { ...navStyle, background: '#273449', color: '#fff', fontWeight: 800 }
 const backStyle: React.CSSProperties = { marginTop: 'auto', padding: '10px 12px', border: '1px solid #334155', borderRadius: 9, color: '#cbd5e1', textDecoration: 'none', fontSize: 13, fontWeight: 700 }
-const metricsStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 11, marginTop: 28 }
+const metricsStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 11, marginTop: 28 }
 const metricStyle: React.CSSProperties = { padding: 16, border: '1px solid #e2e8f0', borderRadius: 13, background: '#fff' }
-const filtersStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(260px, 1fr) 220px 180px', gap: 10, marginTop: 14 }
+const filtersStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 190px 160px 160px', gap: 10, marginTop: 14 }
 const controlStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 11px', border: '1px solid #cbd5e1', borderRadius: 9, background: '#fff', color: '#172033', fontSize: 13 }
 const layoutStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(330px, .8fr) minmax(480px, 1.45fr)', gap: 14, alignItems: 'start', marginTop: 14 }
 const listCardStyle: React.CSSProperties = { border: '1px solid #e2e8f0', borderRadius: 14, overflow: 'hidden', background: '#fff' }

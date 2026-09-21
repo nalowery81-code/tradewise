@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-type ManagerMessage = { role: 'user' | 'assistant'; text: string }
+type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string }
 type TechnicianDirectoryItem = {
   id: string
   name: string
@@ -405,6 +405,21 @@ export default function ManagerPage() {
     window.location.replace('/login')
   }
 
+  const flagManagerAnswer = async (messageId?: string) => {
+    if (!messageId || !managementConversationId) return
+    const comment = window.prompt('What is wrong or misleading about this answer?')
+    if (!comment?.trim()) return
+    const session = await getSession()
+    if (!session) return window.location.replace('/login')
+    const response = await fetch('/api/audit-flag', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ conversationType: 'management', conversationId: managementConversationId, messageId, comment: comment.trim() }),
+    })
+    const data = await response.json().catch(() => ({}))
+    window.alert(response.ok ? 'Thanks. This answer was flagged for Admin review.' : data.error || 'Could not flag this answer.')
+  }
+
   const handleSend = async (questionOverride?: string) => {
     const question = (questionOverride ?? message).trim()
     if (!question || sending) return
@@ -437,6 +452,7 @@ export default function ManagerPage() {
       setMessages((current) => [
         ...current,
         {
+          id: response.ok ? data.assistantMessageId : undefined,
           role: 'assistant',
           text: response.ok ? data.reply : data.error || 'I had trouble reading the team data. Try that again.',
         },
@@ -754,7 +770,14 @@ export default function ManagerPage() {
           <div style={{ display: 'grid', gap: 18 }}>
             {messages.map((item, index) => (
               <div key={`${item.role}-${index}`} style={{ display: 'flex', justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={item.role === 'user' ? userBubbleStyle : assistantBubbleStyle}>{item.text}</div>
+                <div style={item.role === 'user' ? userBubbleStyle : assistantBubbleStyle}>
+                  {item.text}
+                  {item.role === 'assistant' && item.id && (
+                    <div style={{ marginTop: 10, paddingTop: 9, borderTop: '1px solid #e5e7eb' }}>
+                      <button type="button" onClick={() => void flagManagerAnswer(item.id)} style={flagButtonStyle}>That's not right</button>
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             {sending && <div style={readingStyle}>Reading the team data...</div>}
@@ -826,3 +849,5 @@ const countBadgeStyle: React.CSSProperties = { minWidth: 24, height: 24, borderR
 const followUpCardStyle: React.CSSProperties = { background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '17px 18px', boxShadow: '0 3px 12px rgba(15,23,42,0.03)' }
 const followUpTechnicianButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', padding: 0, fontSize: 15, fontWeight: 700, color: '#172033', cursor: 'pointer', textAlign: 'left' }
 const followUpActionButtonStyle: React.CSSProperties = { border: '1px solid #d1d5db', background: '#ffffff', borderRadius: 10, padding: '8px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }
+
+const flagButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 9px', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }

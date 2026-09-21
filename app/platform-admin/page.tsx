@@ -214,6 +214,7 @@ export default function PlatformAdminPage() {
           <a href="/platform-admin" style={activeNavStyle}>Companies</a>
           <a href="/platform-admin/users" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Users</a>
           <a href="/platform-admin/conversation-audit" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Conversation Audit</a>
+          <a href="/platform-admin/guidance" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Guidance Library</a>
           <div style={futureNavStyle}>System</div>
         </nav>
 

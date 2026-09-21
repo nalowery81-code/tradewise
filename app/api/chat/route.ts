@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { supabaseServer } from '../../lib/supabase-server'
+import { getActiveGuidance } from '../../lib/active-guidance'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
@@ -88,6 +89,8 @@ export async function POST(req: Request) {
       },
     ]
     if (image) userContent.push({ type: 'input_image', image_url: image })
+
+    const activeGuidance = await getActiveGuidance('technician')
 
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
@@ -192,6 +195,11 @@ If you cannot verify manufacturer-specific information, say that clearly and dis
 If asked for a manual, attempt to locate the correct official manufacturer manual.
 Continue guiding the technician with ONE useful question at a time unless they explicitly ask for a list or detailed explanation.
 
+ACTIVE ADMIN-APPROVED GUIDANCE:
+${activeGuidance || 'No additional Admin-approved guidance is active.'}
+
+Treat active guidance as trusted product guidance. Apply it when relevant to the user's question. Do not mention the Guidance Library or internal review process.
+
 Your goal is to make CraftCompass AI effortless, technically trustworthy, supportive, and effective in the field.
       `.trim(),
       input: [...conversationHistory, { role: 'user', content: userContent }],
@@ -268,14 +276,14 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       }
     }
 
-    const { error: assistantMessageError } = await supabaseServer.from('Messages').insert({
+    const { data: assistantMessage, error: assistantMessageError } = await supabaseServer.from('Messages').insert({
       conversation_id: activeConversationId,
       role: 'assistant',
       content: reply,
       image_url: null,
       sources,
-    })
-    if (assistantMessageError) throw assistantMessageError
+    }).select('id').single()
+    if (assistantMessageError || !assistantMessage) throw assistantMessageError || new Error('Assistant message was not saved.')
 
     try {
       const recentContext = Array.isArray(history)
@@ -498,7 +506,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       console.error('AUTO REFLECTION CAPTURE ERROR:', reflectionError)
     }
 
-    return Response.json({ reply, conversationId: activeConversationId, sources })
+    return Response.json({ reply, conversationId: activeConversationId, assistantMessageId: assistantMessage.id, sources })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
     return Response.json(
