@@ -273,6 +273,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       role: 'assistant',
       content: reply,
       image_url: null,
+      sources,
     })
     if (assistantMessageError) throw assistantMessageError
 
