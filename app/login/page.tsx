@@ -11,6 +11,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
+  const [otpStatus, setOtpStatus] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
@@ -125,6 +126,32 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  const handleSendOtp = async () => {
+    if (!email) return
+
+    setLoading(true)
+    setError('')
+    setOtpStatus('')
+
+    const redirectTo = `${window.location.origin}/login`
+    const { error: sendError } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: redirectTo,
+      },
+    })
+
+    if (sendError) {
+      setError(sendError.message || 'Could not send a sign-in code.')
+      setLoading(false)
+      return
+    }
+
+    setOtpStatus('Check your email for a CraftCompass AI sign-in code or link.')
+    setLoading(false)
+  }
+
   const handleOtpLogin = async () => {
     setLoading(true)
     setError('')
@@ -184,6 +211,17 @@ export default function LoginPage() {
             </button>
 
             <div style={{ margin: '4px 0', textAlign: 'center', fontSize: 13, color: '#6b7280' }}>or use an email sign-in code</div>
+
+            <button
+              type="button"
+              onClick={() => void handleSendOtp()}
+              disabled={loading || !email}
+              style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}
+            >
+              {loading ? 'Working...' : 'Send email code'}
+            </button>
+
+            {otpStatus && <div style={{ fontSize: 14, color: '#166534', lineHeight: 1.4 }}>{otpStatus}</div>}
 
             <input
               type="text"
