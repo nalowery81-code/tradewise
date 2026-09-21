@@ -6,12 +6,20 @@ import { supabase } from '../../lib/supabase'
 type GuidanceItem = {
   id: string; created_at: string; updated_at: string; title: string; guidance_text: string;
   scope: 'all'|'technician'|'management'; topic: string|null; priority: number;
-  status: 'draft'|'active'|'inactive'|'superseded'; source_review_id: string|null; activated_at: string|null
+  status: 'draft'|'active'|'inactive'|'superseded'; source_review_id: string|null; source_weekly_run_id?: string|null; activated_at: string|null
+}
+
+type WeeklyRun = {
+  id:string; created_at:string; completed_at:string|null; trigger_type:'scheduled'|'manual';
+  period_start:string; period_end:string; status:'running'|'completed'|'failed';
+  review_count:number; guidance_count:number; synopsis:string|null; model_name:string|null; error_text:string|null
 }
 
 export default function GuidanceLibraryPage() {
   const [items,setItems]=useState<GuidanceItem[]>([])
   const [loading,setLoading]=useState(true)
+  const [weeklyRuns,setWeeklyRuns]=useState<WeeklyRun[]>([])
+  const [runningWeekly,setRunningWeekly]=useState(false)
   const [filter,setFilter]=useState('')
   const [error,setError]=useState('')
   const [status,setStatus]=useState('')
@@ -23,10 +31,26 @@ export default function GuidanceLibraryPage() {
     const response=await fetch('/api/platform-admin/guidance',{cache:'no-store',headers:{Authorization:`Bearer ${token}`}})
     const data=await response.json().catch(()=>({}))
     if(!response.ok){setError(data.error||'Could not load guidance library.');setLoading(false);return}
-    setItems(data.guidance||[]);setLoading(false)
+    setItems(data.guidance||[]);setWeeklyRuns(data.weeklyRuns||[]);setLoading(false)
   }
   useEffect(()=>{void load()},[])
   const visible=useMemo(()=>filter?items.filter(i=>i.status===filter):items,[items,filter])
+
+  const runWeeklyNow=async()=>{
+    setError('');setStatus('');setRunningWeekly(true)
+    const token=await getToken()
+    const response=await fetch('/api/platform-admin/guidance',{
+      method:'POST',
+      headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},
+      body:JSON.stringify({action:'run_weekly_learning'})
+    })
+    const data=await response.json().catch(()=>({}))
+    if(!response.ok){setError(data.error||'Weekly learning failed.');setRunningWeekly(false);return}
+    if(data.skipped){setStatus(data.reason||'A weekly learning run is already in progress.')}
+    else setStatus(`Weekly learning complete: ${data.run?.review_count||0} reviews → ${data.run?.guidance_count||0} draft guidance items.`)
+    await load()
+    setRunningWeekly(false)
+  }
 
   const update=async(item:GuidanceItem,patch:Record<string,unknown>)=>{
     setError('');setStatus('')
@@ -56,6 +80,34 @@ export default function GuidanceLibraryPage() {
         </select>
       </div>
       {error&&<div style={errorStyle}>{error}</div>}{status&&<div style={successStyle}>{status}</div>}
+
+      <section style={{...cardStyle,marginTop:22,background:'#f8fafc'}}>
+        <div style={{display:'flex',justifyContent:'space-between',gap:14,alignItems:'flex-start',flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:850}}>Sunday Weekly Learning</div>
+            <div style={{marginTop:6,color:'#64748b',lineHeight:1.5,maxWidth:720}}>
+              Runs automatically every Sunday morning. It synthesizes only new Corrected/Resolved Admin reviews into draft guidance; nothing becomes active until Admin approval.
+            </div>
+          </div>
+          <button onClick={()=>void runWeeklyNow()} disabled={runningWeekly} style={{...primaryButtonStyle,opacity:runningWeekly?0.6:1}}>
+            {runningWeekly?'Learning…':'Run weekly synthesis now'}
+          </button>
+        </div>
+
+        <div style={{display:'grid',gap:8,marginTop:14}}>
+          {weeklyRuns.length===0?<div style={{color:'#64748b',fontSize:13}}>No weekly learning runs yet.</div>:weeklyRuns.slice(0,5).map(run=>
+            <div key={run.id} style={{padding:11,borderRadius:9,background:'#fff',border:'1px solid #e2e8f0'}}>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+                <strong>{new Date(run.created_at).toLocaleString()} · {run.trigger_type}</strong>
+                <span style={{fontSize:12,color:run.status==='failed'?'#b91c1c':'#64748b'}}>{run.status}</span>
+              </div>
+              <div style={{marginTop:5,fontSize:12,color:'#64748b'}}>{run.review_count} reviewed corrections · {run.guidance_count} guidance drafts</div>
+              {run.synopsis&&<div style={{marginTop:7,lineHeight:1.5,fontSize:13}}>{run.synopsis}</div>}
+              {run.error_text&&<div style={{marginTop:7,color:'#b91c1c',fontSize:12}}>{run.error_text}</div>}
+            </div>)}
+        </div>
+      </section>
+
       <div style={{display:'grid',gap:12,marginTop:22}}>
         {loading?<div>Loading guidance…</div>:visible.length===0?<div style={{color:'#64748b'}}>No guidance items found.</div>:visible.map(item=>
           <section key={item.id} style={cardStyle}>
@@ -67,7 +119,8 @@ export default function GuidanceLibraryPage() {
               </div>
             </div>
             <div style={{marginTop:13,padding:13,borderRadius:10,background:'#f8fafc',lineHeight:1.6,whiteSpace:'pre-wrap'}}>{item.guidance_text}</div>
-            {item.source_review_id&&<div style={{marginTop:9,color:'#94a3b8',fontSize:11}}>Created from an Admin-reviewed conversation.</div>}
+            {item.source_review_id&&<div style={{marginTop:9,color:'#94a3b8',fontSize:11}}>Created with Learn Now from an Admin-reviewed conversation.</div>}
+            {item.source_weekly_run_id&&<div style={{marginTop:9,color:'#94a3b8',fontSize:11}}>Created by the Sunday Weekly Learning cycle.</div>}
           </section>)}
       </div>
     </section>
