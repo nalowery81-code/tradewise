@@ -56,6 +56,14 @@ type FeedbackAudit = {
   responded_at: string | null
 }
 
+type UserFeedbackSignal = {
+  id: string
+  message_id: string
+  rating: string
+  created_at: string
+  updated_at: string
+}
+
 type AuditFlag = {
   id: string
   message_id: string
@@ -86,6 +94,7 @@ export default function ConversationAuditPage() {
   const [reviews, setReviews] = useState<AuditReview[]>([])
   const [feedbackRequests, setFeedbackRequests] = useState<FeedbackAudit[]>([])
   const [flags, setFlags] = useState<AuditFlag[]>([])
+  const [userFeedback, setUserFeedback] = useState<UserFeedbackSignal[]>([])
   const [guidanceDrafts, setGuidanceDrafts] = useState<Record<string, GuidanceDraft>>({})
   const [editingMessageId, setEditingMessageId] = useState('')
   const [reviewStatus, setReviewStatus] = useState('incorrect')
@@ -155,6 +164,7 @@ export default function ConversationAuditPage() {
     setReviews([])
     setFeedbackRequests([])
     setFlags([])
+    setUserFeedback([])
     setGuidanceDrafts({})
     setEditingMessageId('')
     setActionStatus('')
@@ -186,6 +196,7 @@ export default function ConversationAuditPage() {
     setReviews(data.reviews || [])
     setFeedbackRequests(data.feedbackRequests || [])
     setFlags(data.flags || [])
+    setUserFeedback(data.userFeedback || [])
     setTranscriptLoading(false)
   }
 
@@ -591,6 +602,7 @@ export default function ConversationAuditPage() {
                                   const review = reviews.find((item) => item.message_id === message.id)
                                   const feedback = feedbackRequests.find((item) => item.message_id === message.id)
                                   const messageFlags = flags.filter((item) => item.message_id === message.id)
+                                  const positiveFeedback = userFeedback.find((item) => item.message_id === message.id && item.rating === 'helpful')
                                   const guidance = guidanceDrafts[message.id]
                                   return (
                                     <>
@@ -607,11 +619,12 @@ export default function ConversationAuditPage() {
                                         </div>
                                       ))}
 
-                                      {(review || feedback) && (
+                                      {(review || feedback || positiveFeedback) && (
                                         <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
                                           {review && <span style={auditTagStyle}>{review.status.replace(/_/g, ' ')}</span>}
                                           {feedback && <span style={auditTagStyle}>feedback {feedback.status}</span>}
                                           {feedback?.rating && <span style={auditTagStyle}>{feedback.rating.replace(/_/g, ' ')}</span>}
+                                          {positiveFeedback && <span style={{ ...auditTagStyle, background: '#f0fdf4', color: '#166534', borderColor: '#86efac' }}>👍 technician helpful</span>}
                                         </div>
                                       )}
 

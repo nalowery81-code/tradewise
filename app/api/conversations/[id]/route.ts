@@ -59,22 +59,37 @@ export async function GET(
       )
     }
 
-    const { data, error } = await supabaseServer
-      .from('Messages')
-      .select('id, role, content, image_url, created_at')
-      .eq('conversation_id', id)
-      .order('created_at', { ascending: true })
+    const [
+      { data, error },
+      { data: helpfulRows, error: helpfulError },
+    ] = await Promise.all([
+      supabaseServer
+        .from('Messages')
+        .select('id, role, content, image_url, created_at')
+        .eq('conversation_id', id)
+        .order('created_at', { ascending: true }),
+      supabaseServer
+        .from('ConversationUserFeedback')
+        .select('message_id')
+        .eq('conversation_type', 'technician')
+        .eq('conversation_id', id)
+        .eq('auth_user_id', user.id)
+        .eq('rating', 'helpful'),
+    ])
 
-    if (error) {
-      console.error('CONVERSATION MESSAGES LOAD ERROR:', error)
-      throw error
+    if (error || helpfulError) {
+      console.error('CONVERSATION MESSAGES LOAD ERROR:', error || helpfulError)
+      throw error || helpfulError
     }
+
+    const helpfulMessageIds = new Set((helpfulRows || []).map((row) => row.message_id))
 
     const messages = (data || []).map((message) => ({
       id: message.id,
       role: message.role,
       text: message.content,
       image: message.image_url || undefined,
+      helpful: helpfulMessageIds.has(message.id),
     }))
 
     return Response.json({ messages })

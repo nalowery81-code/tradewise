@@ -86,6 +86,7 @@ export default function TechnicianPage() {
       id?: string
       role: 'user' | 'assistant'
       text: string
+      helpful?: boolean
       image?: string
       sources?: {
         title: string
@@ -339,6 +340,25 @@ export default function TechnicianPage() {
     }
   }
 
+  const markHelpful = async (messageId?: string) => {
+    if (!messageId || !conversationId) return
+
+    const session = (await supabase.auth.getSession()).data.session
+    if (!session) return void window.location.replace('/login')
+
+    const response = await fetch('/api/answer-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ conversationId, messageId }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return window.alert(data.error || 'Could not save feedback.')
+
+    setMessages((current) => current.map((item) =>
+      item.id === messageId ? { ...item, helpful: true } : item
+    ))
+  }
+
   const flagAnswer = async (messageId?: string) => {
     if (!messageId || !conversationId) return
     const comment = window.prompt('What is wrong or misleading about this answer?')
@@ -432,6 +452,7 @@ export default function TechnicianPage() {
           role: 'assistant',
           text: data.reply,
           sources: data.sources || [],
+          helpful: false,
         },
       ])
     } catch (error) {
@@ -589,7 +610,24 @@ export default function TechnicianPage() {
                   ))}
 
                 {item.role === 'assistant' && item.id && (
-                  <div style={{ marginTop: 10 }}>
+                  <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      onClick={() => void markHelpful(item.id)}
+                      disabled={item.helpful}
+                      style={{
+                        border: '1px solid #86efac',
+                        borderRadius: 8,
+                        padding: '6px 9px',
+                        background: item.helpful ? '#166534' : '#f0fdf4',
+                        color: item.helpful ? '#fff' : '#166534',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        cursor: item.helpful ? 'default' : 'pointer',
+                      }}
+                    >
+                      {item.helpful ? '👍 Helpful ✓' : '👍 Helpful'}
+                    </button>
                     <button type="button" onClick={() => void flagAnswer(item.id)} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 9px', background: '#fff', color: '#64748b', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       That's not right
                     </button>

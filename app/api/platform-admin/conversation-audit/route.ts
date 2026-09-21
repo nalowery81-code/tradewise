@@ -116,6 +116,12 @@ export async function GET(request: Request) {
             .eq('conversation_type', 'technician')
             .eq('conversation_id', conversationId)
             .order('created_at', { ascending: false })).data || [],
+          userFeedback: (await supabaseServer
+            .from('ConversationUserFeedback')
+            .select('id, message_id, rating, created_at, updated_at')
+            .eq('conversation_type', 'technician')
+            .eq('conversation_id', conversationId)
+            .order('created_at', { ascending: false })).data || [],
         })
       }
 
@@ -192,6 +198,12 @@ export async function GET(request: Request) {
         flags: (await supabaseServer
           .from('ConversationAuditFlags')
           .select('id, message_id, reporter_role, comment, status, created_at, reviewed_at')
+          .eq('conversation_type', 'management')
+          .eq('conversation_id', conversationId)
+          .order('created_at', { ascending: false })).data || [],
+        userFeedback: (await supabaseServer
+          .from('ConversationUserFeedback')
+          .select('id, message_id, rating, created_at, updated_at')
           .eq('conversation_type', 'management')
           .eq('conversation_id', conversationId)
           .order('created_at', { ascending: false })).data || [],
