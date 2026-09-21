@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { supabaseServer } from './supabase-server'
+import { runWeeklySourceAudit } from './weekly-source-audit'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const WEEKLY_MODEL = 'gpt-5.6-luna'
@@ -108,20 +109,24 @@ export async function runWeeklyLearning(
       helpful_count: newHelpfulFeedback.length,
       model_name: WEEKLY_MODEL,
     })
-    .select('id, created_at, period_start, period_end, trigger_type, status, review_count, helpful_count')
+    .select('id, created_at, period_start, period_end, trigger_type, status, review_count, helpful_count, source_checked_count, source_issue_count')
     .single()
 
   if (runError || !run) throw runError || new Error('Could not create weekly learning run.')
 
   try {
+    const sourceAudit = await runWeeklySourceAudit(run.id, periodStart, periodEnd)
+
     if (newReviews.length === 0 && newHelpfulFeedback.length === 0) {
-      const synopsis = 'No new Corrected/Resolved Admin reviews or technician Helpful signals were available for weekly learning.'
+      const synopsis = `No new Corrected/Resolved Admin reviews or technician Helpful signals were available for weekly learning. Verified Source audit checked ${sourceAudit.checkedCount} unique recent links and found ${sourceAudit.issueCount} exception${sourceAudit.issueCount === 1 ? '' : 's'}.`
       const { data: completed, error } = await supabaseServer
         .from('WeeklyLearningRuns')
         .update({
           status: 'completed',
           guidance_count: 0,
           helpful_count: 0,
+          source_checked_count: sourceAudit.checkedCount,
+          source_issue_count: sourceAudit.issueCount,
           synopsis,
           completed_at: new Date().toISOString(),
         })
@@ -130,7 +135,7 @@ export async function runWeeklyLearning(
         .single()
 
       if (error) throw error
-      return { run: completed, guidance: [] }
+      return { run: completed, guidance: [], sourceAudit }
     }
 
     const technicianConversationIds = [...new Set([
@@ -321,6 +326,8 @@ Maximum 8 guidance items.
         review_count: newReviews.length,
         helpful_count: newHelpfulFeedback.length,
         guidance_count: insertedGuidance.length,
+        source_checked_count: sourceAudit.checkedCount,
+        source_issue_count: sourceAudit.issueCount,
         synopsis,
         completed_at: new Date().toISOString(),
       })
@@ -333,6 +340,7 @@ Maximum 8 guidance items.
     return {
       run: completedRun,
       guidance: insertedGuidance,
+      sourceAudit,
     }
   } catch (error: any) {
     await supabaseServer

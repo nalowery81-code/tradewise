@@ -12,13 +12,19 @@ type GuidanceItem = {
 type WeeklyRun = {
   id:string; created_at:string; completed_at:string|null; trigger_type:'scheduled'|'manual';
   period_start:string; period_end:string; status:'running'|'completed'|'failed';
-  review_count:number; helpful_count:number; guidance_count:number; synopsis:string|null; model_name:string|null; error_text:string|null
+  review_count:number; helpful_count:number; guidance_count:number; source_checked_count:number; source_issue_count:number; synopsis:string|null; model_name:string|null; error_text:string|null
+}
+
+type SourceIssue = {
+  id:string; weekly_run_id:string; message_id:string|null; source_title:string|null; source_url:string;
+  status:'dead'|'blocked'|'unreachable'|'invalid'; http_status:number|null; final_url:string|null; error_text:string|null; checked_at:string
 }
 
 export default function GuidanceLibraryPage() {
   const [items,setItems]=useState<GuidanceItem[]>([])
   const [loading,setLoading]=useState(true)
   const [weeklyRuns,setWeeklyRuns]=useState<WeeklyRun[]>([])
+  const [sourceIssues,setSourceIssues]=useState<SourceIssue[]>([])
   const [runningWeekly,setRunningWeekly]=useState(false)
   const [filter,setFilter]=useState('')
   const [error,setError]=useState('')
@@ -31,7 +37,7 @@ export default function GuidanceLibraryPage() {
     const response=await fetch('/api/platform-admin/guidance',{cache:'no-store',headers:{Authorization:`Bearer ${token}`}})
     const data=await response.json().catch(()=>({}))
     if(!response.ok){setError(data.error||'Could not load guidance library.');setLoading(false);return}
-    setItems(data.guidance||[]);setWeeklyRuns(data.weeklyRuns||[]);setLoading(false)
+    setItems(data.guidance||[]);setWeeklyRuns(data.weeklyRuns||[]);setSourceIssues(data.sourceIssues||[]);setLoading(false)
   }
   useEffect(()=>{void load()},[])
   const visible=useMemo(()=>filter?items.filter(i=>i.status===filter):items,[items,filter])
@@ -47,7 +53,7 @@ export default function GuidanceLibraryPage() {
     const data=await response.json().catch(()=>({}))
     if(!response.ok){setError(data.error||'Weekly learning failed.');setRunningWeekly(false);return}
     if(data.skipped){setStatus(data.reason||'A weekly learning run is already in progress.')}
-    else setStatus(`Weekly learning complete: ${data.run?.review_count||0} corrected reviews + ${data.run?.helpful_count||0} Helpful signals → ${data.run?.guidance_count||0} draft guidance items.`)
+    else setStatus(`Sunday cycle complete: ${data.run?.review_count||0} corrected reviews + ${data.run?.helpful_count||0} Helpful signals → ${data.run?.guidance_count||0} draft guidance items; ${data.run?.source_checked_count||0} source links checked, ${data.run?.source_issue_count||0} exceptions.`)
     await load()
     setRunningWeekly(false)
   }
@@ -86,11 +92,11 @@ export default function GuidanceLibraryPage() {
           <div>
             <div style={{fontSize:20,fontWeight:850}}>Sunday Weekly Learning</div>
             <div style={{marginTop:6,color:'#64748b',lineHeight:1.5,maxWidth:720}}>
-              Runs automatically every Sunday morning. It synthesizes new Corrected/Resolved Admin reviews plus technician Helpful signals into draft guidance. Helpful examples reinforce what worked, but are not treated as technical verification. Nothing becomes active until Admin approval.
+              Runs automatically every Sunday morning. It synthesizes new Corrected/Resolved Admin reviews plus technician Helpful signals into draft guidance and batch-checks recent technician-facing Verified Source links. Helpful examples reinforce what worked, but are not treated as technical verification. Source exceptions are surfaced for Admin review. Nothing becomes active until Admin approval.
             </div>
           </div>
           <button onClick={()=>void runWeeklyNow()} disabled={runningWeekly} style={{...primaryButtonStyle,opacity:runningWeekly?0.6:1}}>
-            {runningWeekly?'Learning…':'Run weekly synthesis now'}
+            {runningWeekly?'Running Sunday cycle…':'Run Sunday cycle now'}
           </button>
         </div>
 
@@ -101,10 +107,45 @@ export default function GuidanceLibraryPage() {
                 <strong>{new Date(run.created_at).toLocaleString()} · {run.trigger_type}</strong>
                 <span style={{fontSize:12,color:run.status==='failed'?'#b91c1c':'#64748b'}}>{run.status}</span>
               </div>
-              <div style={{marginTop:5,fontSize:12,color:'#64748b'}}>{run.review_count} reviewed corrections · {run.helpful_count||0} Helpful signals · {run.guidance_count} guidance drafts</div>
+              <div style={{marginTop:5,fontSize:12,color:'#64748b'}}>
+                {run.review_count} reviewed corrections · {run.helpful_count||0} Helpful signals · {run.guidance_count} guidance drafts · {run.source_checked_count||0} sources checked · {run.source_issue_count||0} exceptions
+              </div>
               {run.synopsis&&<div style={{marginTop:7,lineHeight:1.5,fontSize:13}}>{run.synopsis}</div>}
               {run.error_text&&<div style={{marginTop:7,color:'#b91c1c',fontSize:12}}>{run.error_text}</div>}
             </div>)}
+        </div>
+      </section>
+
+      <section style={{...cardStyle,marginTop:22}}>
+        <div style={{display:'flex',justifyContent:'space-between',gap:14,alignItems:'flex-start',flexWrap:'wrap'}}>
+          <div>
+            <div style={{fontSize:20,fontWeight:850}}>Verified Source Audit</div>
+            <div style={{marginTop:6,color:'#64748b',lineHeight:1.5,maxWidth:720}}>
+              Sunday checks unique Verified Source links from recent technician answers. Working links stay quiet; dead, blocked, invalid, or unreachable links appear here for review.
+            </div>
+          </div>
+          <div style={{fontSize:12,color:'#64748b',fontWeight:800}}>
+            {sourceIssues.length} recent exception{sourceIssues.length===1?'':'s'}
+          </div>
+        </div>
+
+        <div style={{display:'grid',gap:8,marginTop:14}}>
+          {sourceIssues.length===0 ? (
+            <div style={{padding:12,borderRadius:9,background:'#f0fdf4',color:'#166534',fontSize:13}}>
+              No recent source-link exceptions.
+            </div>
+          ) : sourceIssues.slice(0,12).map(issue=>(
+            <div key={issue.id} style={{padding:11,borderRadius:9,background:'#fff7ed',border:'1px solid #fed7aa'}}>
+              <div style={{display:'flex',justifyContent:'space-between',gap:10,flexWrap:'wrap'}}>
+                <strong style={{color:'#7c2d12'}}>{issue.source_title||'Verified source'}</strong>
+                <span style={{fontSize:11,fontWeight:850,textTransform:'uppercase',color:'#9a3412'}}>{issue.status}{issue.http_status?` · HTTP ${issue.http_status}`:''}</span>
+              </div>
+              <div style={{marginTop:6,fontSize:12,color:'#475569',overflowWrap:'anywhere'}}>{issue.source_url}</div>
+              {issue.final_url&&issue.final_url!==issue.source_url&&<div style={{marginTop:4,fontSize:11,color:'#64748b',overflowWrap:'anywhere'}}>Final URL: {issue.final_url}</div>}
+              {issue.error_text&&<div style={{marginTop:4,fontSize:11,color:'#9a3412'}}>{issue.error_text}</div>}
+              <div style={{marginTop:5,fontSize:10,color:'#94a3b8'}}>Checked {new Date(issue.checked_at).toLocaleString()}</div>
+            </div>
+          ))}
         </div>
       </section>
 

@@ -13,16 +13,21 @@ export async function GET(request: Request) {
   const [
     { data, error },
     { data: weeklyRuns, error: weeklyRunsError },
+    { data: sourceIssues, error: sourceIssuesError },
   ] = await Promise.all([
     supabaseServer.from('GuidanceLibrary')
       .select('id, created_at, updated_at, title, guidance_text, scope, topic, priority, status, source_review_id, source_flag_id, source_weekly_run_id, activated_at')
       .order('updated_at', { ascending: false }).limit(500),
     supabaseServer.from('WeeklyLearningRuns')
-      .select('id, created_at, completed_at, trigger_type, period_start, period_end, status, review_count, helpful_count, guidance_count, synopsis, model_name, error_text')
+      .select('id, created_at, completed_at, trigger_type, period_start, period_end, status, review_count, helpful_count, guidance_count, source_checked_count, source_issue_count, synopsis, model_name, error_text')
       .order('created_at', { ascending: false }).limit(12),
+    supabaseServer.from('WeeklySourceChecks')
+      .select('id, weekly_run_id, message_id, source_title, source_url, status, http_status, final_url, error_text, checked_at')
+      .in('status', ['dead','blocked','unreachable','invalid'])
+      .order('checked_at', { ascending: false }).limit(50),
   ])
-  if (error || weeklyRunsError) return jsonNoStore({ error: 'Could not load guidance library.' }, { status: 500 })
-  return jsonNoStore({ guidance: data || [], weeklyRuns: weeklyRuns || [] })
+  if (error || weeklyRunsError || sourceIssuesError) return jsonNoStore({ error: 'Could not load guidance library.' }, { status: 500 })
+  return jsonNoStore({ guidance: data || [], weeklyRuns: weeklyRuns || [], sourceIssues: sourceIssues || [] })
 }
 
 export async function PATCH(request: Request) {
