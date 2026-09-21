@@ -86,6 +86,7 @@ const SummaryBody = ({ body }: { body: string }) => {
 export default function ManagerPage() {
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ManagerMessage[]>([])
+  const [managementConversationId, setManagementConversationId] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(false)
@@ -261,6 +262,7 @@ export default function ManagerPage() {
           },
           body: JSON.stringify({
             message: `Give me a concise manager summary of ${technician.name}. Return exactly these four sections in this order: Recent issues, Strengths, Support needs, Follow up. Put each heading on its own line. Under each heading use 1 to 3 short bullet lines. No introduction. Do not use markdown heading or bold symbols such as # or **.`,
+            contextType: 'profile_summary',
           }),
         }),
       ])
@@ -391,6 +393,7 @@ export default function ManagerPage() {
   const handleNewChat = () => {
     setMessage('')
     setMessages([])
+    setManagementConversationId(null)
     setManagerView('chat')
     setSelectedHistoryCategory(null)
     resetProfileState()
@@ -422,9 +425,14 @@ export default function ManagerPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ message: question }),
+        body: JSON.stringify({
+          message: question,
+          conversationId: managementConversationId,
+          contextType: 'chat',
+        }),
       })
       const data = await response.json()
+      if (response.ok && data.conversationId) setManagementConversationId(data.conversationId)
 
       setMessages((current) => [
         ...current,

@@ -4,6 +4,7 @@ import { requireManagementAccess } from '../../../lib/management-auth'
 import { getManagerTechnicianScope, technicianIsInScope } from '../../../lib/manager-technician-scope'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const MANAGER_MODEL = 'gpt-5.6-luna'
 
 type TechnicianScope = { id: string; name: string }
 
@@ -44,9 +45,106 @@ export async function POST(request: Request) {
       typeof body?.technicianId === 'string' && body.technicianId.trim()
         ? body.technicianId.trim()
         : null
+    const requestedConversationId =
+      typeof body?.conversationId === 'string' && body.conversationId.trim()
+        ? body.conversationId.trim()
+        : null
+    const contextType = body?.contextType === 'profile_summary' ? 'profile_summary' : 'chat'
 
     if (!message) {
       return Response.json({ error: 'A manager question is required.' }, { status: 400 })
+    }
+
+    let managementConversationId = requestedConversationId
+
+    if (managementConversationId) {
+      const { data: existingConversation, error: existingConversationError } = await supabaseServer
+        .from('ManagementConversations')
+        .select('id')
+        .eq('id', managementConversationId)
+        .eq('company_id', companyId)
+        .eq('profile_id', auth.profile.id)
+        .eq('user_role', auth.profile.role)
+        .maybeSingle()
+
+      if (existingConversationError) {
+        console.error('MANAGEMENT CONVERSATION LOAD ERROR:', existingConversationError)
+        return Response.json({ error: 'Could not load the management conversation.' }, { status: 500 })
+      }
+
+      if (!existingConversation?.id) {
+        return Response.json({ error: 'Management conversation not found.' }, { status: 404 })
+      }
+    } else {
+      const { data: createdConversation, error: createConversationError } = await supabaseServer
+        .from('ManagementConversations')
+        .insert({
+          company_id: companyId,
+          profile_id: auth.profile.id,
+          user_role: auth.profile.role,
+          context_type: contextType,
+          title: message.slice(0, 120),
+          model_name: MANAGER_MODEL,
+        })
+        .select('id')
+        .single()
+
+      if (createConversationError || !createdConversation?.id) {
+        console.error('MANAGEMENT CONVERSATION CREATE ERROR:', createConversationError)
+        return Response.json({ error: 'Could not start the management conversation.' }, { status: 500 })
+      }
+
+      managementConversationId = createdConversation.id
+    }
+
+    const { error: userMessageError } = await supabaseServer.from('ManagementMessages').insert({
+      conversation_id: managementConversationId,
+      role: 'user',
+      content: message,
+      model_name: null,
+      sources: [],
+    })
+
+    if (userMessageError) {
+      console.error('MANAGEMENT USER MESSAGE SAVE ERROR:', userMessageError)
+      return Response.json({ error: 'Could not save the management message.' }, { status: 500 })
+    }
+
+    const logAssistantReply = async (
+      replyText: string,
+      payload: Record<string, unknown> = {},
+      modelName: string | null = null
+    ) => {
+      const { error: assistantMessageError } = await supabaseServer.from('ManagementMessages').insert({
+        conversation_id: managementConversationId,
+        role: 'assistant',
+        content: replyText,
+        model_name: modelName,
+        sources: [],
+      })
+
+      if (assistantMessageError) {
+        console.error('MANAGEMENT ASSISTANT MESSAGE SAVE ERROR:', assistantMessageError)
+        throw assistantMessageError
+      }
+
+      const { error: conversationUpdateError } = await supabaseServer
+        .from('ManagementConversations')
+        .update({
+          updated_at: new Date().toISOString(),
+          model_name: modelName || MANAGER_MODEL,
+        })
+        .eq('id', managementConversationId)
+
+      if (conversationUpdateError) {
+        console.error('MANAGEMENT CONVERSATION UPDATE ERROR:', conversationUpdateError)
+      }
+
+      return Response.json({
+        reply: replyText,
+        conversationId: managementConversationId,
+        ...payload,
+      })
     }
 
     let technicianScope: TechnicianScope | null = null
@@ -140,17 +238,17 @@ export async function POST(request: Request) {
       }
 
       if (reflections.length === 0) {
-        return Response.json({
-          reply: `There are no manager-relevant reflections for ${technicianScope.name} yet, so I do not have enough verified reflection data to answer that reliably.`,
-          scope: { technicianId: technicianScope.id, technicianName: technicianScope.name },
-        })
+        return logAssistantReply(
+          `There are no manager-relevant reflections for ${technicianScope.name} yet, so I do not have enough verified reflection data to answer that reliably.`,
+          { scope: { technicianId: technicianScope.id, technicianName: technicianScope.name } }
+        )
       }
     } else {
       if (scope.technicianIds !== null && scope.technicianIds.length === 0) {
-        return Response.json({
-          reply: 'No technicians are assigned to you yet, so I do not have technician data in your manager scope to answer from.',
-          scope: { assignedTechnicians: 0 },
-        })
+        return logAssistantReply(
+          'No technicians are assigned to you yet, so I do not have technician data in your manager scope to answer from.',
+          { scope: { assignedTechnicians: 0 } }
+        )
       }
 
       let reflectionQuery = supabaseServer
@@ -191,7 +289,7 @@ Created at: ${reflection.created_at || 'Unknown'}`)
         : 'This is a manager request. Use only the verified reflection data for technicians assigned to this manager.'
 
     const response = await openai.responses.create({
-      model: 'gpt-5.6-luna',
+      model: MANAGER_MODEL,
       instructions: `
 You are CraftCompass Manager, an experienced field-service manager's AI partner.
 
@@ -220,14 +318,17 @@ Rules:
       return Response.json({ error: 'CraftCompass Manager could not generate a response.' }, { status: 500 })
     }
 
-    return Response.json({
+    return logAssistantReply(
       reply,
-      scope: technicianScope
-        ? { technicianId: technicianScope.id, technicianName: technicianScope.name }
-        : auth.profile.role === 'owner'
-          ? { company: true }
-          : { assignedTechnicians: scope.technicianIds?.length || 0 },
-    })
+      {
+        scope: technicianScope
+          ? { technicianId: technicianScope.id, technicianName: technicianScope.name }
+          : auth.profile.role === 'owner'
+            ? { company: true }
+            : { assignedTechnicians: scope.technicianIds?.length || 0 },
+      },
+      MANAGER_MODEL
+    )
   } catch (error: any) {
     console.error('MANAGER CHAT API ERROR:', error)
     return Response.json({ error: error?.message || 'CraftCompass Manager could not generate a response.' }, { status: 500 })
