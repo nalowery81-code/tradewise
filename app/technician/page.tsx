@@ -79,6 +79,7 @@ export default function TechnicianPage() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [isListening, setIsListening] = useState(false)
+  const [sending, setSending] = useState(false)
   const [messages, setMessages] = useState<
     {
       role: 'user' | 'assistant'
@@ -109,7 +110,6 @@ export default function TechnicianPage() {
   const bottomRef = useRef<HTMLDivElement>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const photoInputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const recognitionRef = useRef<any>(null)
 
   useEffect(() => {
@@ -340,11 +340,24 @@ export default function TechnicianPage() {
   const handleSend = async () => {
     const text = message.trim()
 
-    if (!text && !selectedImageFile) return
+    if ((!text && !selectedImageFile) || sending) return
 
-    const imageData = selectedImageFile
-      ? await prepareImageForSend(selectedImageFile)
-      : null
+    setSending(true)
+
+    let imageData: string | null = null
+    try {
+      imageData = selectedImageFile
+        ? await prepareImageForSend(selectedImageFile)
+        : null
+    } catch (error) {
+      console.error('IMAGE PREP ERROR:', error)
+      setSending(false)
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', text: 'I could not prepare that photo. Try another photo or send your question without it.' },
+      ])
+      return
+    }
 
     setMessages((prev) => [
       ...prev,
@@ -411,6 +424,8 @@ export default function TechnicianPage() {
           text: 'I could not connect. Try sending that again.',
         },
       ])
+    } finally {
+      setSending(false)
     }
   }
 
@@ -472,9 +487,11 @@ export default function TechnicianPage() {
           )}
         </div>
 
-        <div style={styles.drawerSection}>
-          <div style={styles.sectionTitle}>Projects</div>
-          <div style={styles.emptyText}>Projects will appear here.</div>
+        <div style={styles.privacyNote}>
+          <strong>Beta privacy</strong>
+          <span>
+            Conversations are saved so your history works. Work-related takeaways may be summarized for your manager, but managers do not see your raw chat by default. Avoid sharing highly sensitive personal information.
+          </span>
         </div>
 
         <button
@@ -646,14 +663,6 @@ export default function TechnicianPage() {
                 Photos
               </button>
 
-              <button
-                type="button"
-                style={styles.attachmentOption}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <span style={styles.attachmentIcon}>📎</span>
-                Files
-              </button>
             </div>
           )}
 
@@ -713,19 +722,22 @@ export default function TechnicianPage() {
               type="button"
               style={{
                 ...styles.sendButton,
-                opacity: message.trim() || selectedImage ? 1 : 0.45,
+                opacity: !sending && (message.trim() || selectedImage) ? 1 : 0.45,
               }}
               onClick={handleSend}
-              aria-label="Send"
+              disabled={sending || (!message.trim() && !selectedImage)}
+              aria-label={sending ? 'CraftCompass AI is working' : 'Send'}
             >
-              ↑
+              {sending ? '…' : '↑'}
             </button>
           </div>
 
           <div style={styles.footerText}>
-            {isListening
-              ? 'Listening — tap the microphone again to stop.'
-              : 'CraftCompass AI can make mistakes. Verify important field information.'}
+            {sending
+              ? 'CraftCompass AI is working…'
+              : isListening
+                ? 'Listening — tap the microphone again to stop.'
+                : 'CraftCompass AI can make mistakes. Verify important field information.'}
           </div>
         </div>
       </div>
@@ -747,12 +759,6 @@ export default function TechnicianPage() {
         onChange={(e) => handleImage(e.target.files?.[0])}
       />
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        style={{ display: 'none' }}
-        onChange={() => setAttachOpen(false)}
-      />
     </main>
   )
 }
@@ -1073,6 +1079,18 @@ const styles: Record<string, React.CSSProperties> = {
     background: '#172033',
     color: '#ffffff',
     cursor: 'pointer',
+  },
+  privacyNote: {
+    display: 'grid',
+    gap: 6,
+    margin: '4px 0 22px',
+    padding: '12px 13px',
+    borderRadius: 12,
+    background: '#f8fafc',
+    border: '1px solid #e2e8f0',
+    color: '#64748b',
+    fontSize: 12,
+    lineHeight: 1.45,
   },
   footerText: {
     textAlign: 'center',
