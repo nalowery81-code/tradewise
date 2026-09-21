@@ -44,7 +44,7 @@ export async function GET(request: Request) {
       .select('id, title, created_at, updated_at, status')
       .eq('technician_id', technician.id)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(50)
 
     if (error) {
       console.error('CONVERSATIONS LOAD ERROR:', error)
