@@ -1,558 +1,297 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
-type Company = {
-  id: string
-  name: string
-  account_type: 'internal' | 'demo' | 'customer'
-  status: 'active' | 'disabled'
-  created_at: string
-  users: number
-  owners: number
-  managers: number
-  technicians: number
+type DashboardData = {
+  generatedAt: string
+  health: 'healthy' | 'attention'
+  attentionTotal: number
+  needsAttention: {
+    auditFlags: number
+    sourceExceptions: number
+    draftGuidance: number
+    failedRuns: number
+    pendingFeedback: number
+  }
+  deployment: {
+    state: string
+    environment: string
+    commitSha: string | null
+    commitMessage: string | null
+    commitRef: string | null
+    url: string
+  }
+  counts: {
+    companies: number
+    activeUsers: number
+    technicians: number
+    technicianConversations7d: number
+    managementConversations7d: number
+  }
+  quality: {
+    helpful7d: number
+    flagsPending: number
+    reviewed7d: number
+    draftGuidance: number
+    sourcesCheckedLatest: number
+    sourceIssuesLatest: number
+  }
+  latestRun: any
+  sourceIssues: {
+    id: string
+    source_title: string | null
+    source_url: string
+    status: string
+    http_status: number | null
+    checked_at: string
+  }[]
+  changes: {
+    kind: string
+    title: string
+    at: string | null
+    href: string
+  }[]
 }
 
-export default function PlatformAdminPage() {
-  const [companies, setCompanies] = useState<Company[]>([])
-  const [companyName, setCompanyName] = useState('')
+export default function PlatformAdminDashboard() {
+  const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
-  const [inviteCompany, setInviteCompany] = useState<Company | null>(null)
-  const [ownerName, setOwnerName] = useState('')
-  const [ownerEmail, setOwnerEmail] = useState('')
-  const [inviting, setInviting] = useState(false)
-  const [inviteStatus, setInviteStatus] = useState('')
-
-  const getToken = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    return session?.access_token || ''
-  }
-
-  const loadCompanies = useCallback(async () => {
-    setLoading(true)
-    setError('')
-
-    const token = await getToken()
-    if (!token) {
-      window.location.href = '/login'
-      return
-    }
-
-    const response = await fetch('/api/platform-admin/companies', {
-      cache: 'no-store',
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    if (response.status === 403) {
-      window.location.href = '/manager'
-      return
-    }
-
-    if (!response.ok) {
-      setError('Could not load CraftCompass AI companies.')
-      setLoading(false)
-      return
-    }
-
-    const data = await response.json()
-    setCompanies(data.companies || [])
-    setLoading(false)
-  }, [])
 
   useEffect(() => {
-    void loadCompanies()
-  }, [loadCompanies])
+    void (async () => {
+      const token = (await supabase.auth.getSession()).data.session?.access_token
+      if (!token) return void (window.location.href = '/login')
 
-  const createCompany = async (event: React.FormEvent) => {
-    event.preventDefault()
-    if (!companyName.trim()) return
+      const response = await fetch('/api/platform-admin/dashboard', {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      const result = await response.json().catch(() => ({}))
 
-    setCreating(true)
-    setError('')
-    const token = await getToken()
+      if (!response.ok) {
+        setError(result.error || 'Could not load Platform Admin dashboard.')
+        setLoading(false)
+        return
+      }
 
-    const response = await fetch('/api/platform-admin/companies', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name: companyName }),
-    })
+      setData(result)
+      setLoading(false)
+    })()
+  }, [])
 
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      setError(data.error || 'Could not create company.')
-      setCreating(false)
-      return
-    }
-
-    setCompanies((current) => [...current, data.company])
-    setCompanyName('')
-    setCreating(false)
-  }
-
-  const inviteOwner = async () => {
-    if (!inviteCompany || !ownerName.trim() || !ownerEmail.trim()) return
-
-    setInviting(true)
-    setError('')
-    setInviteStatus('')
-
-    const token = await getToken()
-    const response = await fetch(`/api/platform-admin/companies/${inviteCompany.id}/invite-owner`, {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ name: ownerName, email: ownerEmail }),
-    })
-
-    const data = await response.json().catch(() => ({}))
-
-    if (!response.ok) {
-      setError(data.error || 'Could not invite owner.')
-      setInviting(false)
-      return
-    }
-
-    setCompanies((currentCompanies) =>
-      currentCompanies.map((company) =>
-        company.id === inviteCompany.id
-          ? { ...company, users: company.users + 1, owners: company.owners + 1 }
-          : company
-      )
-    )
-    setInviteStatus(`Invite sent to ${ownerEmail.trim().toLowerCase()}.`)
-    setOwnerName('')
-    setOwnerEmail('')
-    setInviting(false)
-  }
-
-  const enterWorkspace = async (company: Company) => {
-    setError('')
-    const token = await getToken()
-    const response = await fetch('/api/platform-admin/workspace', {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ companyId: company.id }),
-    })
-
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      setError(data.error || 'Could not enter company workspace.')
-      return
-    }
-
-    window.location.href = '/manager/company'
-  }
-
-  const activeDemos = companies.filter((company) => company.account_type === 'demo' && company.status === 'active').length
-  const totalUsers = companies.reduce((total, company) => total + company.users, 0)
-  const totalTechnicians = companies.reduce((total, company) => total + company.technicians, 0)
+  const attention = data?.needsAttention
 
   return (
-    <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <main style={pageStyle}>
       <style>{`
-        @media (max-width: 760px) {
-          .platform-admin-sidebar {
-            position: static !important;
-            width: auto !important;
-            min-height: auto !important;
-            padding: 18px 16px !important;
-          }
-          .platform-admin-sidebar nav {
-            margin-top: 16px !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-          .platform-admin-sidebar .owner-back {
-            margin-top: 14px !important;
-          }
-          .platform-admin-content {
-            margin-left: 0 !important;
-            padding: 26px 16px 50px !important;
-          }
-          .platform-admin-metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-          .platform-admin-table {
-            overflow-x: auto !important;
-          }
-          .platform-admin-table > div {
-            min-width: 850px;
-          }
-          .platform-admin-create {
-            width: 100%;
-          }
-          .platform-admin-create input {
-            min-width: 0 !important;
-            flex: 1 1 190px;
-          }
+        @media (max-width: 1000px) {
+          .admin-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
+          .admin-main { margin-left: 0 !important; }
+          .health-grid, .two-col, .quality-grid { grid-template-columns: 1fr 1fr !important; }
+        }
+        @media (max-width: 650px) {
+          .health-grid, .two-col, .quality-grid { grid-template-columns: 1fr !important; }
+          .admin-main { padding: 22px 14px 48px !important; }
         }
       `}</style>
 
-      <aside className="platform-admin-sidebar" style={sidebarStyle}>
+      <aside className="admin-sidebar" style={sidebarStyle}>
         <div>
-          <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
-          <div style={{ marginTop: 5, color: '#64748b', fontSize: 11, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase' }}>
-            Platform Admin
-          </div>
+          <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
+          <div style={eyebrowStyle}>Platform Admin</div>
         </div>
-
-        <nav style={{ display: 'grid', gap: 7, marginTop: 32 }}>
-          <a href="/platform-admin" style={activeNavStyle}>Companies</a>
-          <a href="/platform-admin/users" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Users</a>
-          <a href="/platform-admin/conversation-audit" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Conversation Audit</a>
-          <a href="/platform-admin/guidance" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Guidance Library</a>
-          <div style={futureNavStyle}>System</div>
+        <nav style={{ display: 'grid', gap: 7, marginTop: 30 }}>
+          <a href="/platform-admin" style={activeNav}>Dashboard</a>
+          <a href="/platform-admin/companies" style={navLink}>Companies</a>
+          <a href="/platform-admin/users" style={navLink}>Users</a>
+          <a href="/platform-admin/conversation-audit" style={navLink}>Conversation Audit</a>
+          <a href="/platform-admin/guidance" style={navLink}>Guidance Library</a>
         </nav>
-
-        <a className="owner-back" href="/manager" style={backStyle}>← Owner Workspace</a>
+        <a href="/manager" style={backLink}>← Owner Workspace</a>
       </aside>
 
-      <section className="platform-admin-content" style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
-          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
+      <section className="admin-main" style={mainStyle}>
+        <div style={{ maxWidth: 1380, margin: '0 auto' }}>
+          <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
             <div>
-              <div style={{ color: '#64748b', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                CraftCompass AI Platform
-              </div>
-              <h1 style={{ margin: '7px 0 8px', fontSize: 36, letterSpacing: '-0.035em' }}>Companies</h1>
-              <p style={{ margin: 0, color: '#64748b', lineHeight: 1.55 }}>
-                Create and monitor isolated company workspaces for demos and customers.
-              </p>
+              <div style={eyebrowLight}>CraftCompass Platform</div>
+              <h1 style={{ margin: '6px 0 5px', fontSize: 38, letterSpacing: '-0.04em' }}>Platform Admin</h1>
+              <p style={{ margin: 0, color: '#64748b' }}>See platform health, quality, changes, and what needs attention.</p>
             </div>
-
-            <form className="platform-admin-create" onSubmit={createCompany} style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-              <input
-                value={companyName}
-                onChange={(event) => setCompanyName(event.target.value)}
-                placeholder="Company name"
-                maxLength={120}
-                style={inputStyle}
-              />
-              <button type="submit" disabled={creating} style={primaryButtonStyle}>
-                {creating ? 'Creating…' : '+ New Company'}
-              </button>
-            </form>
-          </div>
-
-          <div className="platform-admin-metrics" style={metricsGridStyle}>
-            <Metric label="Companies" value={companies.length} />
-            <Metric label="Active demos" value={activeDemos} />
-            <Metric label="Users" value={totalUsers} />
-            <Metric label="Technicians" value={totalTechnicians} />
-          </div>
+            <div style={{ ...statusPill, background: data?.deployment.environment === 'production' ? '#ecfdf5' : '#fff7ed', color: data?.deployment.environment === 'production' ? '#166534' : '#9a3412' }}>
+              <span style={{ fontSize: 18 }}>●</span>
+              {data?.deployment.environment === 'production' ? 'PRODUCTION' : (data?.deployment.environment || 'LOADING').toUpperCase()}
+            </div>
+          </header>
 
           {error && <div style={errorStyle}>{error}</div>}
+          {loading && <div style={{ marginTop: 20, color: '#64748b' }}>Loading platform health…</div>}
 
-          <div className="platform-admin-table" style={tableCardStyle}>
-            <div style={tableHeaderStyle}>
-              <span>Company</span>
-              <span>Type</span>
-              <span>Users</span>
-              <span>Techs</span>
-              <span>Status</span>
-              <span>Actions</span>
-            </div>
+          {data && (
+            <>
+              <div className="health-grid" style={healthGridStyle}>
+                <HealthCard
+                  title="System Health"
+                  value={data.health === 'healthy' ? 'Healthy' : 'Needs attention'}
+                  detail={data.health === 'healthy' ? 'Core platform checks are clear.' : 'One or more platform checks need review.'}
+                  tone={data.health === 'healthy' ? 'good' : 'warn'}
+                  href="/platform-admin"
+                />
+                <HealthCard title="Needs Attention" value={String(data.attentionTotal)} detail="Items requiring review" tone={data.attentionTotal ? 'warn' : 'good'} href="#attention" />
+                <HealthCard title="Draft Guidance" value={String(attention?.draftGuidance || 0)} detail="Waiting for Admin decision" tone={(attention?.draftGuidance || 0) ? 'info' : 'good'} href="/platform-admin/guidance" />
+                <HealthCard title="Source Exceptions" value={String(attention?.sourceExceptions || 0)} detail="Detected in the last 7 days" tone={(attention?.sourceExceptions || 0) ? 'warn' : 'good'} href="/platform-admin/guidance" />
+                <HealthCard title="Current Deployment" value={data.deployment.state} detail="Vercel production runtime" tone={data.deployment.state === 'READY' ? 'good' : 'warn'} href="#deployment" />
+              </div>
 
-            {loading ? (
-              <div style={emptyStyle}>Loading companies…</div>
-            ) : companies.length === 0 ? (
-              <div style={emptyStyle}>No company workspaces yet.</div>
-            ) : (
-              companies.map((company) => (
-                <div key={company.id} style={tableRowStyle}>
-                  <div>
-                    <div style={{ fontWeight: 800 }}>{company.name}</div>
-                    <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
-                      {company.owners} owner{company.owners === 1 ? '' : 's'} · {company.managers} manager{company.managers === 1 ? '' : 's'}
-                    </div>
+              <div className="two-col" style={twoColStyle}>
+                <section id="attention" style={cardStyle}>
+                  <SectionHeader title="Needs Attention" subtitle="The shortest path to what needs fixing." />
+                  <AttentionRow label="Conversation flags waiting for review" value={attention?.auditFlags || 0} href="/platform-admin/conversation-audit" />
+                  <AttentionRow label="Verified Source exceptions" value={attention?.sourceExceptions || 0} href="/platform-admin/guidance" />
+                  <AttentionRow label="Draft guidance awaiting decision" value={attention?.draftGuidance || 0} href="/platform-admin/guidance" />
+                  <AttentionRow label="Failed Sunday runs" value={attention?.failedRuns || 0} href="/platform-admin/guidance" />
+                  <AttentionRow label="Pending user feedback requests" value={attention?.pendingFeedback || 0} href="/platform-admin/conversation-audit" />
+                </section>
+
+                <section style={cardStyle}>
+                  <SectionHeader title="What Changed" subtitle="Recent meaningful platform activity." />
+                  {data.changes.length === 0 ? (
+                    <div style={quietText}>No recent platform changes to show.</div>
+                  ) : data.changes.map((change, index) => (
+                    <a key={index} href={change.href} style={changeRowStyle}>
+                      <span style={{ ...dotStyle, background: change.kind === 'error' ? '#dc2626' : change.kind === 'source' ? '#f59e0b' : change.kind === 'guidance' ? '#16a34a' : '#2563eb' }} />
+                      <span style={{ flex: 1 }}>{change.title}</span>
+                      <span style={dateText}>{change.at ? new Date(change.at).toLocaleString() : ''}</span>
+                    </a>
+                  ))}
+                </section>
+              </div>
+
+              <div className="two-col" style={twoColStyle}>
+                <section style={cardStyle}>
+                  <SectionHeader title="Learning & Quality" subtitle="The feedback loop that makes CraftCompass better." />
+                  <div className="quality-grid" style={qualityGridStyle}>
+                    <MiniMetric label="Helpful · 7d" value={data.quality.helpful7d} />
+                    <MiniMetric label="Pending flags" value={data.quality.flagsPending} />
+                    <MiniMetric label="Reviewed · 7d" value={data.quality.reviewed7d} />
+                    <MiniMetric label="Draft guidance" value={data.quality.draftGuidance} />
+                    <MiniMetric label="Sources checked" value={data.quality.sourcesCheckedLatest} />
+                    <MiniMetric label="Source issues" value={data.quality.sourceIssuesLatest} />
                   </div>
-                  <div><Badge text={company.account_type} /></div>
-                  <div style={numberStyle}>{company.users}</div>
-                  <div style={numberStyle}>{company.technicians}</div>
-                  <div><Badge text={company.status} /></div>
-                  <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                    {company.owners === 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setInviteCompany(company)
-                          setInviteStatus('')
-                          setError('')
-                        }}
-                        style={secondaryButtonStyle}
-                      >
-                        Invite Owner
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => void enterWorkspace(company)}
-                      style={secondaryButtonStyle}
-                    >
-                      Enter Workspace
-                    </button>
+                </section>
+
+                <section id="deployment" style={cardStyle}>
+                  <SectionHeader title="Vercel Production Deployment" subtitle="The production version currently serving CraftCompass." />
+                  <div style={{ ...deploymentStatus, background: data.deployment.state === 'READY' ? '#ecfdf5' : '#fff7ed', color: data.deployment.state === 'READY' ? '#166534' : '#9a3412' }}>
+                    ● {data.deployment.state}
                   </div>
+                  <KeyValue label="Environment" value={data.deployment.environment} />
+                  <KeyValue label="Branch" value={data.deployment.commitRef || 'Unavailable'} />
+                  <KeyValue label="Commit" value={data.deployment.commitSha ? data.deployment.commitSha.slice(0, 8) : 'Unavailable'} />
+                  <KeyValue label="Release" value={data.deployment.commitMessage || 'Unavailable'} />
+                  <a href={data.deployment.url} target="_blank" rel="noreferrer" style={{ ...buttonLink, marginTop: 12 }}>Open production app ↗</a>
+                </section>
+              </div>
+
+              <div className="two-col" style={twoColStyle}>
+                <section style={cardStyle}>
+                  <SectionHeader title="Companion Activity" subtitle="Real usage from the last 7 days." />
+                  <AudienceRow label="Technician Companion" value={data.counts.technicianConversations7d} suffix="conversations" />
+                  <AudienceRow label="Manager / Owner Companion" value={data.counts.managementConversations7d} suffix="conversations" />
+                  <AudienceRow label="Active users" value={data.counts.activeUsers} suffix="users" />
+                  <AudienceRow label="Technicians" value={data.counts.technicians} suffix="technicians" />
+                  <AudienceRow label="Companies" value={data.counts.companies} suffix="companies" />
+                </section>
+
+                <section style={cardStyle}>
+                  <SectionHeader title="Verified Source Exceptions" subtitle="Recent source checks that need a closer look." />
+                  {data.sourceIssues.length === 0 ? (
+                    <div style={{ ...quietText, color: '#166534' }}>No recent source-link exceptions.</div>
+                  ) : data.sourceIssues.map((issue) => (
+                    <a key={issue.id} href="/platform-admin/guidance" style={issueRowStyle}>
+                      <div>
+                        <div style={{ fontWeight: 800 }}>{issue.source_title || 'Verified source'}</div>
+                        <div style={{ marginTop: 3, color: '#64748b', fontSize: 11, overflowWrap: 'anywhere' }}>{issue.source_url}</div>
+                      </div>
+                      <div style={{ textAlign: 'right', color: '#9a3412', fontSize: 11, fontWeight: 850, textTransform: 'uppercase' }}>
+                        {issue.status}{issue.http_status ? ` · ${issue.http_status}` : ''}
+                      </div>
+                    </a>
+                  ))}
+                </section>
+              </div>
+
+              <section style={{ ...cardStyle, marginTop: 14 }}>
+                <SectionHeader title="Build / Fix / Pivot" subtitle="Turn what CraftCompass is learning into the next action." />
+                <div className="quality-grid" style={{ ...qualityGridStyle, gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+                  <ActionCard title="Fix Now" detail={data.attentionTotal ? `${data.attentionTotal} current items need review.` : 'Nothing urgent is waiting.'} href="#attention" tone="red" />
+                  <ActionCard title="Improve Next" detail="Use Guidance Library and Conversation Audit to turn reviewed issues into better behavior." href="/platform-admin/guidance" tone="amber" />
+                  <ActionCard title="Create / Pivot" detail="Watch usage and quality signals before deciding what the next product move should be." href="/platform-admin/conversation-audit" tone="blue" />
                 </div>
-              ))
-            )}
-          </div>
-
+              </section>
+            </>
+          )}
         </div>
       </section>
-
-      {inviteCompany && (
-        <div style={modalBackdropStyle} onClick={() => setInviteCompany(null)}>
-          <div style={modalCardStyle} onClick={(event) => event.stopPropagation()}>
-            <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
-              {inviteCompany.name}
-            </div>
-            <h2 style={{ margin: '7px 0 8px', fontSize: 26 }}>Invite company owner</h2>
-            <p style={{ margin: '0 0 20px', color: '#64748b', lineHeight: 1.5 }}>
-              The owner will receive an email invitation and create their own CraftCompass AI password.
-            </p>
-
-            <label style={labelStyle}>
-              Owner name
-              <input
-                value={ownerName}
-                onChange={(event) => setOwnerName(event.target.value)}
-                placeholder="Owner name"
-                style={inputStyle}
-              />
-            </label>
-
-            <label style={labelStyle}>
-              Email address
-              <input
-                type="email"
-                value={ownerEmail}
-                onChange={(event) => setOwnerEmail(event.target.value)}
-                placeholder="owner@company.com"
-                style={inputStyle}
-              />
-            </label>
-
-            {inviteStatus && <div style={successStyle}>{inviteStatus}</div>}
-
-            <div style={{ display: 'flex', gap: 9, marginTop: 18 }}>
-              <button type="button" onClick={() => setInviteCompany(null)} style={secondaryButtonStyle}>
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => void inviteOwner()}
-                disabled={inviting || !ownerName.trim() || !ownerEmail.trim()}
-                style={{ ...primaryButtonStyle, opacity: inviting || !ownerName.trim() || !ownerEmail.trim() ? 0.55 : 1 }}
-              >
-                {inviting ? 'Sending…' : 'Send Invite'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   )
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div style={metricCardStyle}>
-      <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
-      <div style={{ marginTop: 8, fontSize: 30, fontWeight: 850 }}>{value}</div>
-    </div>
-  )
+function HealthCard({ title, value, detail, tone, href }: { title: string; value: string; detail: string; tone: 'good'|'warn'|'info'; href: string }) {
+  const palette = tone === 'good' ? ['#ecfdf5','#166534'] : tone === 'warn' ? ['#fff7ed','#9a3412'] : ['#eff6ff','#1d4ed8']
+  return <a href={href} style={{ ...healthCardStyle, textDecoration: 'none', color: '#172033' }}>
+    <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800 }}>{title}</div>
+    <div style={{ marginTop: 8, fontSize: 25, fontWeight: 900, color: palette[1] }}>{value}</div>
+    <div style={{ marginTop: 5, fontSize: 11, color: '#64748b', lineHeight: 1.4 }}>{detail}</div>
+  </a>
 }
 
-function Badge({ text }: { text: string }) {
-  return (
-    <span style={{
-      display: 'inline-block',
-      padding: '5px 9px',
-      borderRadius: 999,
-      background: '#eef2f6',
-      color: '#475569',
-      fontSize: 11,
-      fontWeight: 800,
-      textTransform: 'capitalize',
-    }}>
-      {text}
-    </span>
-  )
+function SectionHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return <div style={{ marginBottom: 12 }}><div style={{ fontSize: 20, fontWeight: 900 }}>{title}</div><div style={{ marginTop: 4, color: '#64748b', fontSize: 12 }}>{subtitle}</div></div>
+}
+function AttentionRow({ label, value, href }: { label: string; value: number; href: string }) {
+  return <a href={href} style={attentionRowStyle}><span>{label}</span><span style={{ fontWeight: 900, color: value ? '#b45309' : '#166534' }}>{value}</span></a>
+}
+function MiniMetric({ label, value }: { label: string; value: number }) {
+  return <div style={miniMetricStyle}><div style={{ fontSize: 25, fontWeight: 900 }}>{value}</div><div style={{ marginTop: 4, color: '#64748b', fontSize: 11, fontWeight: 700 }}>{label}</div></div>
+}
+function KeyValue({ label, value }: { label: string; value: string }) {
+  return <div style={keyValueStyle}><span style={{ color: '#64748b' }}>{label}</span><span style={{ fontWeight: 800, textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</span></div>
+}
+function AudienceRow({ label, value, suffix }: { label: string; value: number; suffix: string }) {
+  return <div style={audienceRowStyle}><span style={{ fontWeight: 800 }}>{label}</span><span><strong>{value}</strong> <span style={{ color: '#94a3b8' }}>{suffix}</span></span></div>
+}
+function ActionCard({ title, detail, href, tone }: { title: string; detail: string; href: string; tone: 'red'|'amber'|'blue' }) {
+  const background = tone === 'red' ? '#fff1f2' : tone === 'amber' ? '#fffbeb' : '#eff6ff'
+  const color = tone === 'red' ? '#be123c' : tone === 'amber' ? '#b45309' : '#1d4ed8'
+  return <a href={href} style={{ padding: 14, borderRadius: 12, background, color, textDecoration: 'none' }}><div style={{ fontWeight: 900 }}>{title}</div><div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#475569' }}>{detail}</div></a>
 }
 
-const sidebarStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: '0 auto 0 0',
-  width: 244,
-  padding: '30px 20px 22px',
-  boxSizing: 'border-box',
-  background: '#111827',
-  color: '#f8fafc',
-  borderRight: '1px solid #1f2937',
-  display: 'flex',
-  flexDirection: 'column',
-}
-
-const activeNavStyle: React.CSSProperties = {
-  display: 'block',
-  padding: '11px 12px',
-  borderRadius: 9,
-  background: '#273449',
-  color: '#ffffff',
-  textDecoration: 'none',
-  fontSize: 14,
-  fontWeight: 800,
-}
-
-const futureNavStyle: React.CSSProperties = {
-  padding: '11px 12px',
-  color: '#64748b',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const backStyle: React.CSSProperties = {
-  marginTop: 'auto',
-  padding: '10px 12px',
-  border: '1px solid #334155',
-  borderRadius: 9,
-  color: '#cbd5e1',
-  textDecoration: 'none',
-  fontSize: 13,
-  fontWeight: 700,
-}
-
-const inputStyle: React.CSSProperties = {
-  minWidth: 230,
-  padding: '11px 12px',
-  borderRadius: 9,
-  border: '1px solid #cbd5e1',
-  background: '#ffffff',
-  fontSize: 14,
-  outline: 'none',
-}
-
-const primaryButtonStyle: React.CSSProperties = {
-  padding: '11px 14px',
-  border: 0,
-  borderRadius: 9,
-  background: '#172033',
-  color: '#ffffff',
-  fontSize: 13,
-  fontWeight: 800,
-  cursor: 'pointer',
-}
-
-const metricsGridStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-  gap: 12,
-  marginTop: 34,
-}
-
-const metricCardStyle: React.CSSProperties = {
-  padding: 18,
-  border: '1px solid #e2e8f0',
-  borderRadius: 14,
-  background: '#ffffff',
-}
-
-const tableCardStyle: React.CSSProperties = {
-  marginTop: 18,
-  border: '1px solid #e2e8f0',
-  borderRadius: 14,
-  overflow: 'hidden',
-  background: '#ffffff',
-}
-
-const tableHeaderStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 2fr) 100px 70px 70px 100px 210px',
-  gap: 12,
-  padding: '12px 18px',
-  background: '#f8fafc',
-  borderBottom: '1px solid #e2e8f0',
-  color: '#64748b',
-  fontSize: 11,
-  fontWeight: 800,
-  textTransform: 'uppercase',
-  letterSpacing: '0.06em',
-}
-
-const tableRowStyle: React.CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'minmax(220px, 2fr) 100px 70px 70px 100px 210px',
-  alignItems: 'center',
-  gap: 12,
-  padding: '16px 18px',
-  borderBottom: '1px solid #f1f5f9',
-  fontSize: 14,
-}
-
-const numberStyle: React.CSSProperties = { fontWeight: 800, color: '#334155' }
-const emptyStyle: React.CSSProperties = { padding: 28, color: '#64748b', fontSize: 14 }
-const errorStyle: React.CSSProperties = { marginTop: 16, padding: 12, borderRadius: 10, background: '#fff7ed', color: '#9a3412', fontSize: 13 }
-
-
-const secondaryButtonStyle: React.CSSProperties = {
-  border: '1px solid #cbd5e1',
-  borderRadius: 8,
-  padding: '8px 10px',
-  background: '#ffffff',
-  color: '#334155',
-  fontSize: 12,
-  fontWeight: 800,
-  cursor: 'pointer',
-}
-
-const modalBackdropStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 300,
-  display: 'grid',
-  placeItems: 'center',
-  padding: 18,
-  background: 'rgba(15, 23, 42, 0.45)',
-}
-
-const modalCardStyle: React.CSSProperties = {
-  width: '100%',
-  maxWidth: 440,
-  borderRadius: 18,
-  padding: 24,
-  background: '#ffffff',
-  boxShadow: '0 24px 70px rgba(15,23,42,0.22)',
-}
-
-const labelStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 7,
-  marginTop: 14,
-  color: '#334155',
-  fontSize: 13,
-  fontWeight: 800,
-}
-
-const successStyle: React.CSSProperties = {
-  marginTop: 14,
-  borderRadius: 10,
-  padding: 11,
-  background: '#f0fdf4',
-  color: '#166534',
-  fontSize: 13,
-  fontWeight: 700,
-}
+const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f6f8fb', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }
+const sidebarStyle: React.CSSProperties = { position: 'fixed', inset: '0 auto 0 0', width: 238, minHeight: '100vh', padding: '28px 18px 20px', boxSizing: 'border-box', background: '#111827', color: '#fff', display: 'flex', flexDirection: 'column' }
+const eyebrowStyle: React.CSSProperties = { marginTop: 5, color: '#94a3b8', fontSize: 10, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.1em' }
+const eyebrowLight: React.CSSProperties = { color: '#52708f', fontSize: 11, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.09em' }
+const activeNav: React.CSSProperties = { padding: '11px 12px', borderRadius: 9, background: '#273449', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 850 }
+const navLink: React.CSSProperties = { padding: '11px 12px', borderRadius: 9, color: '#a8b4c5', textDecoration: 'none', fontSize: 13, fontWeight: 750 }
+const backLink: React.CSSProperties = { marginTop: 'auto', padding: '10px 12px', border: '1px solid #334155', borderRadius: 9, color: '#cbd5e1', textDecoration: 'none', fontSize: 12, fontWeight: 750 }
+const mainStyle: React.CSSProperties = { marginLeft: 238, padding: '32px clamp(20px, 3.5vw, 54px) 64px' }
+const statusPill: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 900 }
+const healthGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1.2fr repeat(4, 1fr)', gap: 10, marginTop: 22 }
+const healthCardStyle: React.CSSProperties = { padding: 15, border: '1px solid #e2e8f0', borderRadius: 13, background: '#fff', minHeight: 100 }
+const twoColStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }
+const cardStyle: React.CSSProperties = { padding: 17, border: '1px solid #e2e8f0', borderRadius: 14, background: '#fff' }
+const attentionRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '11px 0', borderTop: '1px solid #f1f5f9', color: '#334155', textDecoration: 'none', fontSize: 13 }
+const changeRowStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, padding: '10px 0', borderTop: '1px solid #f1f5f9', color: '#334155', textDecoration: 'none', fontSize: 12 }
+const dotStyle: React.CSSProperties = { width: 8, height: 8, borderRadius: 999, flex: '0 0 auto' }
+const dateText: React.CSSProperties = { color: '#94a3b8', fontSize: 10, whiteSpace: 'nowrap' }
+const qualityGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9 }
+const miniMetricStyle: React.CSSProperties = { padding: 12, borderRadius: 11, background: '#f8fafc', border: '1px solid #eef2f7' }
+const deploymentStatus: React.CSSProperties = { padding: '11px 13px', borderRadius: 10, fontWeight: 900, marginBottom: 9 }
+const keyValueStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 14, padding: '9px 0', borderBottom: '1px solid #f1f5f9', fontSize: 12 }
+const buttonLink: React.CSSProperties = { display: 'inline-block', padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', color: '#334155', textDecoration: 'none', fontSize: 11, fontWeight: 800 }
+const audienceRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 14, padding: '11px 0', borderTop: '1px solid #f1f5f9', fontSize: 13 }
+const issueRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '10px 0', borderTop: '1px solid #f1f5f9', color: '#334155', textDecoration: 'none', fontSize: 12 }
+const quietText: React.CSSProperties = { padding: '11px 0', color: '#64748b', fontSize: 12 }
+const errorStyle: React.CSSProperties = { marginTop: 16, padding: 12, borderRadius: 10, background: '#fef2f2', color: '#991b1b', fontSize: 13 }

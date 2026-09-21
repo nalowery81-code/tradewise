@@ -409,7 +409,8 @@ export default function PlatformAdminUsersPage() {
         <div style={{ fontSize: 22, fontWeight: 800 }}>CraftCompass AI</div>
         <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PLATFORM ADMIN · USERS</div>
         <nav style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-          <a href="/platform-admin" style={navStyle}>Companies</a>
+          <a href="/platform-admin" style={navStyle}>Dashboard</a>
+          <a href="/platform-admin/companies" style={navStyle}>Companies</a>
           <a href="/platform-admin/users" style={{ ...navStyle, background: '#273449' }}>Users</a>
           <a href="/platform-admin/conversation-audit" style={navStyle}>Conversation Audit</a>
           <a href="/platform-admin/guidance" style={navStyle}>Guidance Library</a>

@@ -449,7 +449,8 @@ export default function ConversationAuditPage() {
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
         <nav style={{ display: 'grid', gap: 7, marginTop: 32 }}>
-          <a href="/platform-admin" style={navStyle}>Companies</a>
+          <a href="/platform-admin" style={navStyle}>Dashboard</a>
+          <a href="/platform-admin/companies" style={navStyle}>Companies</a>
           <a href="/platform-admin/users" style={navStyle}>Users</a>
           <a href="/platform-admin/conversation-audit" style={activeNavStyle}>Conversation Audit</a>
           <a href="/platform-admin/guidance" style={navStyle}>Guidance Library</a>

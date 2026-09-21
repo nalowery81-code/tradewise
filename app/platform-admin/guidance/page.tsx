@@ -72,7 +72,7 @@ export default function GuidanceLibraryPage() {
       <div style={{fontSize:22,fontWeight:850}}>CraftCompass AI</div>
       <div style={{marginTop:4,color:'#94a3b8',fontSize:11,fontWeight:850,letterSpacing:'.08em'}}>PLATFORM ADMIN · GUIDANCE LIBRARY</div>
       <nav style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
-        <a href="/platform-admin" style={navStyle}>Companies</a>
+        <a href="/platform-admin" style={navStyle}>Dashboard</a><a href="/platform-admin/companies" style={navStyle}>Companies</a>
         <a href="/platform-admin/users" style={navStyle}>Users</a>
         <a href="/platform-admin/conversation-audit" style={navStyle}>Conversation Audit</a>
         <a href="/platform-admin/guidance" style={{...navStyle,background:'#273449'}}>Guidance Library</a>
