@@ -32,7 +32,45 @@ export async function GET(request: Request) {
     return jsonNoStore({ error: 'Could not load feedback request.' }, { status: 500 })
   }
 
-  return jsonNoStore({ request: data || null })
+  if (!data) return jsonNoStore({ request: null })
+
+  let originalQuestion = ''
+  let assistantAnswer = ''
+
+  if (data.message_id) {
+    try {
+      const table = data.conversation_type === 'management' ? 'ManagementMessages' : 'Messages'
+      const { data: transcript, error: transcriptError } = await supabaseServer
+        .from(table)
+        .select('id, role, content, created_at')
+        .eq('conversation_id', data.conversation_id)
+        .order('created_at', { ascending: true })
+
+      if (transcriptError) throw transcriptError
+
+      const rows = transcript || []
+      const targetIndex = rows.findIndex((row) => row.id === data.message_id)
+
+      if (targetIndex >= 0) {
+        assistantAnswer = String(rows[targetIndex]?.content || '').trim()
+        originalQuestion =
+          [...rows.slice(0, targetIndex)]
+            .reverse()
+            .find((row) => row.role === 'user')
+            ?.content?.trim() || ''
+      }
+    } catch (contextError) {
+      console.error('FEEDBACK CONTEXT LOAD ERROR:', contextError)
+    }
+  }
+
+  return jsonNoStore({
+    request: {
+      ...data,
+      original_question: originalQuestion,
+      assistant_answer: assistantAnswer,
+    },
+  })
 }
 
 export async function POST(request: Request) {

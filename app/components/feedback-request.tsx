@@ -7,6 +7,8 @@ type FeedbackRequest = {
   id: string
   question: string
   created_at: string
+  original_question?: string
+  assistant_answer?: string
 }
 
 export default function FeedbackRequestPrompt() {
@@ -73,7 +75,27 @@ export default function FeedbackRequestPrompt() {
           CraftCompass feedback
         </div>
         <h2 style={{ margin: '7px 0 8px', fontSize: 21, color: '#172033' }}>Quick question</h2>
-        <p style={{ margin: 0, lineHeight: 1.55, color: '#334155' }}>{request.question}</p>
+        {(request.original_question || request.assistant_answer) && (
+          <div style={contextCardStyle}>
+            {request.original_question && (
+              <div>
+                <div style={contextLabelStyle}>You asked</div>
+                <div style={contextTextStyle}>{request.original_question}</div>
+              </div>
+            )}
+            {request.assistant_answer && (
+              <div style={{ marginTop: request.original_question ? 12 : 0 }}>
+                <div style={contextLabelStyle}>CraftCompass answered</div>
+                <div style={contextAnswerStyle}>{request.assistant_answer}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div style={{ marginTop: 14, fontWeight: 800, color: '#172033', fontSize: 14 }}>
+          What do you think about this answer?
+        </div>
+        <p style={{ margin: '6px 0 0', lineHeight: 1.5, color: '#475569', fontSize: 13 }}>{request.question}</p>
 
         <textarea
           value={comment}
@@ -136,4 +158,39 @@ const buttonStyle: React.CSSProperties = {
   fontSize: 12,
   fontWeight: 800,
   cursor: 'pointer',
+}
+
+
+const contextCardStyle: React.CSSProperties = {
+  marginTop: 14,
+  padding: 12,
+  borderRadius: 12,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+  maxHeight: 260,
+  overflowY: 'auto',
+}
+
+const contextLabelStyle: React.CSSProperties = {
+  fontSize: 10,
+  fontWeight: 850,
+  letterSpacing: '.06em',
+  textTransform: 'uppercase',
+  color: '#64748b',
+}
+
+const contextTextStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  lineHeight: 1.45,
+  color: '#172033',
+  fontWeight: 700,
+}
+
+const contextAnswerStyle: React.CSSProperties = {
+  marginTop: 4,
+  fontSize: 13,
+  lineHeight: 1.5,
+  color: '#334155',
+  whiteSpace: 'pre-wrap',
 }
