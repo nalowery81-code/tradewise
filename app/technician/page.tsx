@@ -859,6 +859,9 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: 'border-box',
     transition: 'transform 180ms ease',
     boxShadow: '8px 0 30px rgba(0,0,0,0.10)',
+    display: 'flex',
+    flexDirection: 'column',
+    overflow: 'hidden',
   },
   drawerHeader: {
     display: 'flex',
@@ -891,7 +894,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '26px',
   },
   drawerSection: {
-    marginBottom: '28px',
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    marginBottom: '16px',
+    paddingRight: 4,
+    scrollbarGutter: 'stable',
   },
   sectionTitle: {
     fontSize: 13,
@@ -1150,7 +1158,8 @@ const styles: Record<string, React.CSSProperties> = {
   privacyNote: {
     display: 'grid',
     gap: 6,
-    margin: '4px 0 22px',
+    margin: '0 0 14px',
+    flexShrink: 0,
     padding: '12px 13px',
     borderRadius: 12,
     background: '#f8fafc',
