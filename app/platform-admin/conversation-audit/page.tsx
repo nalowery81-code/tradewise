@@ -34,6 +34,27 @@ type AuditMessage = {
   sources: AuditSource[]
 }
 
+type AuditReview = {
+  id: string
+  message_id: string
+  status: string
+  category: string | null
+  correction_note: string | null
+  corrected_answer: string | null
+  updated_at: string
+}
+
+type FeedbackAudit = {
+  id: string
+  message_id: string | null
+  question: string
+  status: string
+  rating: string | null
+  response_text: string | null
+  created_at: string
+  responded_at: string | null
+}
+
 type CompanyOption = { id: string; name: string }
 
 export default function ConversationAuditPage() {
@@ -41,6 +62,15 @@ export default function ConversationAuditPage() {
   const [companies, setCompanies] = useState<CompanyOption[]>([])
   const [selected, setSelected] = useState<AuditConversation | null>(null)
   const [messages, setMessages] = useState<AuditMessage[]>([])
+  const [reviews, setReviews] = useState<AuditReview[]>([])
+  const [feedbackRequests, setFeedbackRequests] = useState<FeedbackAudit[]>([])
+  const [editingMessageId, setEditingMessageId] = useState('')
+  const [reviewStatus, setReviewStatus] = useState('incorrect')
+  const [reviewCategory, setReviewCategory] = useState('technical_error')
+  const [correctionNote, setCorrectionNote] = useState('')
+  const [correctedAnswer, setCorrectedAnswer] = useState('')
+  const [savingReview, setSavingReview] = useState(false)
+  const [actionStatus, setActionStatus] = useState('')
   const [loading, setLoading] = useState(true)
   const [transcriptLoading, setTranscriptLoading] = useState(false)
   const [error, setError] = useState('')
@@ -96,6 +126,10 @@ export default function ConversationAuditPage() {
   const openConversation = async (conversation: AuditConversation) => {
     setSelected(conversation)
     setMessages([])
+    setReviews([])
+    setFeedbackRequests([])
+    setEditingMessageId('')
+    setActionStatus('')
     setTranscriptLoading(true)
     setError('')
 
@@ -121,7 +155,89 @@ export default function ConversationAuditPage() {
 
     setSelected(data.conversation)
     setMessages(data.messages || [])
+    setReviews(data.reviews || [])
+    setFeedbackRequests(data.feedbackRequests || [])
     setTranscriptLoading(false)
+  }
+
+  const startCorrection = (message: AuditMessage) => {
+    const existing = reviews.find((review) => review.message_id === message.id)
+    setEditingMessageId(message.id)
+    setReviewStatus(existing?.status || 'incorrect')
+    setReviewCategory(existing?.category || 'technical_error')
+    setCorrectionNote(existing?.correction_note || '')
+    setCorrectedAnswer(existing?.corrected_answer || message.content)
+    setActionStatus('')
+  }
+
+  const saveCorrection = async (messageId: string) => {
+    if (!selected || savingReview) return
+    setSavingReview(true)
+    setActionStatus('')
+
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'save_review',
+        conversationType: selected.type,
+        conversationId: selected.id,
+        messageId,
+        status: reviewStatus,
+        category: reviewCategory,
+        correctionNote,
+        correctedAnswer,
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setActionStatus(data.error || 'Could not save correction.')
+      setSavingReview(false)
+      return
+    }
+
+    setReviews((current) => [...current.filter((item) => item.message_id !== messageId), data.review])
+    setEditingMessageId('')
+    setActionStatus('Correction saved.')
+    setSavingReview(false)
+  }
+
+  const askForFeedback = async (messageId: string) => {
+    if (!selected) return
+    const question = window.prompt(
+      'Question to send to this user:',
+      'Was this CraftCompass answer helpful and accurate? What should we improve?'
+    )
+    if (!question?.trim()) return
+
+    setActionStatus('')
+    const token = await getToken()
+    if (!token) return void (window.location.href = '/login')
+
+    const response = await fetch('/api/platform-admin/conversation-audit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({
+        action: 'request_feedback',
+        conversationType: selected.type,
+        conversationId: selected.id,
+        messageId,
+        question: question.trim(),
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setActionStatus(data.error || 'Could not request feedback.')
+      return
+    }
+
+    setFeedbackRequests((current) => [data.feedbackRequest, ...current])
+    setActionStatus('Feedback request sent.')
   }
 
   const conversationCount = filtered.length
@@ -188,6 +304,7 @@ export default function ConversationAuditPage() {
           </div>
 
           {error && <div style={errorStyle}>{error}</div>}
+          {actionStatus && <div style={{ ...errorStyle, background: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#f0fdf4' : '#fff7ed', color: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#166534' : '#9a3412' }}>{actionStatus}</div>}
 
           <div className="audit-layout" style={layoutStyle}>
             <section style={listCardStyle}>
@@ -302,6 +419,89 @@ export default function ConversationAuditPage() {
                                 </div>
                               </div>
                             )}
+
+                            {message.role === 'assistant' && (
+                              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #e2e8f0' }}>
+                                {(() => {
+                                  const review = reviews.find((item) => item.message_id === message.id)
+                                  const feedback = feedbackRequests.find((item) => item.message_id === message.id)
+                                  return (
+                                    <>
+                                      {(review || feedback) && (
+                                        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 8 }}>
+                                          {review && <span style={auditTagStyle}>{review.status.replace(/_/g, ' ')}</span>}
+                                          {feedback && <span style={auditTagStyle}>feedback {feedback.status}</span>}
+                                          {feedback?.rating && <span style={auditTagStyle}>{feedback.rating.replace(/_/g, ' ')}</span>}
+                                        </div>
+                                      )}
+
+                                      <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                                        <button type="button" onClick={() => startCorrection(message)} style={auditButtonStyle}>
+                                          {review ? 'Edit correction' : 'Correct / Review'}
+                                        </button>
+                                        <button type="button" onClick={() => void askForFeedback(message.id)} style={auditButtonStyle}>
+                                          Ask for feedback
+                                        </button>
+                                      </div>
+
+                                      {feedback?.response_text && (
+                                        <div style={{ marginTop: 9, padding: 9, borderRadius: 8, background: '#f8fafc', color: '#475569', fontSize: 12 }}>
+                                          User feedback: {feedback.response_text}
+                                        </div>
+                                      )}
+
+                                      {editingMessageId === message.id && (
+                                        <div style={reviewEditorStyle}>
+                                          <select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value)} style={reviewControlStyle}>
+                                            <option value="good">Good</option>
+                                            <option value="needs_review">Needs review</option>
+                                            <option value="incorrect">Incorrect</option>
+                                            <option value="corrected">Corrected</option>
+                                            <option value="resolved">Resolved</option>
+                                          </select>
+                                          <select value={reviewCategory} onChange={(event) => setReviewCategory(event.target.value)} style={reviewControlStyle}>
+                                            <option value="technical_error">Technical error</option>
+                                            <option value="source_problem">Source problem</option>
+                                            <option value="incomplete_answer">Incomplete answer</option>
+                                            <option value="wrong_assumption">Wrong assumption</option>
+                                            <option value="unsafe_guidance">Unsafe guidance</option>
+                                            <option value="excellent_answer">Excellent answer</option>
+                                            <option value="other">Other</option>
+                                          </select>
+                                          <textarea
+                                            value={correctedAnswer}
+                                            onChange={(event) => setCorrectedAnswer(event.target.value)}
+                                            rows={5}
+                                            placeholder="Corrected answer"
+                                            style={reviewTextareaStyle}
+                                          />
+                                          <textarea
+                                            value={correctionNote}
+                                            onChange={(event) => setCorrectionNote(event.target.value)}
+                                            rows={3}
+                                            placeholder="Internal note: what was wrong and why"
+                                            style={reviewTextareaStyle}
+                                          />
+                                          <div style={{ display: 'flex', gap: 7 }}>
+                                            <button type="button" disabled={savingReview} onClick={() => void saveCorrection(message.id)} style={auditButtonStyle}>
+                                              {savingReview ? 'Saving…' : 'Save correction'}
+                                            </button>
+                                            <button type="button" onClick={() => setEditingMessageId('')} style={auditButtonStyle}>Cancel</button>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {review?.corrected_answer && editingMessageId !== message.id && (
+                                        <div style={{ marginTop: 10, padding: 10, borderRadius: 9, background: '#f0fdf4', color: '#166534', fontSize: 12, lineHeight: 1.5 }}>
+                                          <strong>Admin correction:</strong><br />{review.corrected_answer}
+                                          {review.correction_note && <><br /><br /><strong>Internal note:</strong> {review.correction_note}</>}
+                                        </div>
+                                      )}
+                                    </>
+                                  )
+                                })()}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))
@@ -360,3 +560,52 @@ const sourcesStyle: React.CSSProperties = { marginTop: 13, paddingTop: 11, borde
 const historyNoteStyle: React.CSSProperties = { padding: '11px 15px', borderTop: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', fontSize: 12, lineHeight: 1.45 }
 const emptyStyle: React.CSSProperties = { padding: 24, color: '#64748b', fontSize: 13 }
 const errorStyle: React.CSSProperties = { marginTop: 14, padding: 11, borderRadius: 10, background: '#fef2f2', color: '#991b1b', fontSize: 13 }
+
+const auditButtonStyle: React.CSSProperties = {
+  border: '1px solid #cbd5e1',
+  borderRadius: 8,
+  padding: '7px 9px',
+  background: '#fff',
+  color: '#334155',
+  fontSize: 11,
+  fontWeight: 800,
+  cursor: 'pointer',
+}
+const auditTagStyle: React.CSSProperties = {
+  padding: '4px 7px',
+  borderRadius: 999,
+  background: '#eef2f6',
+  color: '#475569',
+  fontSize: 10,
+  fontWeight: 800,
+  textTransform: 'capitalize',
+}
+const reviewEditorStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  marginTop: 10,
+  padding: 10,
+  borderRadius: 10,
+  background: '#f8fafc',
+  border: '1px solid #e2e8f0',
+}
+const reviewControlStyle: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: '8px 9px',
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  background: '#fff',
+  fontSize: 12,
+}
+const reviewTextareaStyle: React.CSSProperties = {
+  width: '100%',
+  boxSizing: 'border-box',
+  padding: 9,
+  borderRadius: 8,
+  border: '1px solid #cbd5e1',
+  background: '#fff',
+  fontFamily: 'inherit',
+  fontSize: 12,
+  resize: 'vertical',
+}

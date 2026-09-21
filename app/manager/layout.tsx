@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { supabase } from '../lib/supabase'
+import FeedbackRequestPrompt from '../components/feedback-request'
 import {
   DEFAULT_COMPANY_FEATURES,
   normalizeCompanyFeatureFlags,
@@ -150,6 +151,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
 
   return (
     <>
+      <FeedbackRequestPrompt />
       {children}
       {companyName && (
         isOwner ? (

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { supabase } from '../lib/supabase'
+import FeedbackRequestPrompt from '../components/feedback-request'
 
 function renderAssistantText(text: string) {
   const lines = text.split('\n')
@@ -431,6 +432,7 @@ export default function TechnicianPage() {
 
   return (
     <main style={styles.page}>
+      <FeedbackRequestPrompt />
       {drawerOpen && (
         <div style={styles.backdrop} onClick={() => setDrawerOpen(false)} />
       )}
