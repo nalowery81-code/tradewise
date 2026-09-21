@@ -384,7 +384,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
     })
 
     const rawReply = response.output_text || 'I could not generate a response.'
-    const reply = rawReply
+    let reply = rawReply
       .replace(/filecite[^]+/g, '')
       .replace(/cite[^]+/g, '')
       .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
@@ -392,6 +392,41 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       .replace(/\(\s*(?:[a-z0-9-]+\.)+[a-z]{2,}(?:\/[^)]*)?\s*\)/gi, '')
       .replace(/[ \t]{2,}/g, ' ')
       .trim()
+
+    const finalLine = reply.split('\n').map((line) => line.trim()).filter(Boolean).at(-1) || ''
+    const userRequestedNoFollowUp = /\b(no follow[- ]?up|don't ask|do not ask|just answer|answer only)\b/i.test(message?.trim() || '')
+
+    if (!finalLine.endsWith('?') && !userRequestedNoFollowUp) {
+      try {
+        const followUpResponse = await openai.responses.create({
+          model: 'gpt-5.6-luna',
+          instructions: `
+Create ONE short, natural follow-up question for a skilled-trades technician after CraftCompass has already answered them.
+
+Rules:
+- Return ONLY the question, no explanation.
+- Keep it conversational and job-relevant.
+- If more technical information is needed, ask the single most useful technical question.
+- If the answer is complete, ask a light follow-up that keeps the conversation moving, such as whether that solved it, what they found, whether they are returning to the job, or what they want to tackle next.
+- Do not ask a survey-like question.
+- Do not ask more than one question.
+- Do not invent facts.
+- If a follow-up would be unsafe, distracting, awkward, or inappropriate because the situation is urgent, return exactly: NONE
+          `.trim(),
+          input: `Technician message: ${message?.trim() || '[image-only message]'}\n\nCraftCompass answer: ${reply}`,
+        })
+
+        const followUp = (followUpResponse.output_text || '')
+          .replace(/[\r\n]+/g, ' ')
+          .trim()
+
+        if (followUp && followUp !== 'NONE' && followUp.endsWith('?')) {
+          reply = `${reply}\n\n${followUp}`
+        }
+      } catch (followUpError) {
+        console.error('ENGAGEMENT FOLLOW-UP ERROR:', followUpError)
+      }
+    }
 
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
     for (const outputItem of response.output) {
