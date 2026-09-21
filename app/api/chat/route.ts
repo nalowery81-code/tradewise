@@ -334,48 +334,157 @@ If capture is false, return empty strings for every other field.
       const reflection = JSON.parse(jsonText)
 
       if (reflection?.capture === true && typeof reflection.challenge === 'string' && reflection.challenge.trim()) {
-        const { data: recentReflections, error: recentReflectionError } = await supabaseServer
-          .from('Reflections')
-          .select('challenge, created_at')
-          .eq('technician_id', technician.id)
-          .order('created_at', { ascending: false })
-          .limit(5)
-
-        if (recentReflectionError) {
-          console.error('RECENT REFLECTION CHECK ERROR:', recentReflectionError)
+        const candidate = {
+          job_type: reflection.job_type || 'Other',
+          challenge: reflection.challenge.trim(),
+          what_went_well:
+            typeof reflection.what_went_well === 'string' && reflection.what_went_well.trim()
+              ? reflection.what_went_well.trim()
+              : '',
+          help_needed:
+            typeof reflection.help_needed === 'string' && reflection.help_needed.trim()
+              ? reflection.help_needed.trim()
+              : '',
+          manager_insight:
+            typeof reflection.manager_insight === 'string' && reflection.manager_insight.trim()
+              ? reflection.manager_insight.trim()
+              : '',
         }
 
-        const normalizedNewChallenge = reflection.challenge.trim().toLowerCase()
-        const duplicate = (recentReflections || []).some((existing: any) => {
-          const normalizedExisting = String(existing.challenge || '').trim().toLowerCase()
-          return (
-            normalizedExisting === normalizedNewChallenge ||
-            (normalizedExisting.length > 20 &&
-              normalizedNewChallenge.length > 20 &&
-              (normalizedExisting.includes(normalizedNewChallenge) ||
-                normalizedNewChallenge.includes(normalizedExisting)))
-          )
-        })
+        const { data: conversationReflections, error: conversationReflectionError } =
+          await supabaseServer
+            .from('Reflections')
+            .select('id, job_type, challenge, what_went_well, help_needed, manager_insight, created_at')
+            .eq('technician_id', technician.id)
+            .eq('conversation_id', activeConversationId)
+            .order('created_at', { ascending: true })
+            .limit(10)
 
-        if (!duplicate) {
+        if (conversationReflectionError) {
+          console.error('CONVERSATION REFLECTION CHECK ERROR:', conversationReflectionError)
+        }
+
+        let mergedIntoExisting = false
+        const existing = conversationReflections || []
+
+        if (existing.length > 0) {
+          try {
+            const issueMatchResponse = await openai.responses.create({
+              model: 'gpt-5.6-luna',
+              instructions: `
+You compare a NEW manager-relevant technician signal with reflections already captured from the SAME conversation.
+
+Decide whether the new signal is:
+- "merge": more detail, context, escalation, consequence, or support need about an issue already represented
+- "new": a genuinely different manager-relevant issue that should stand on its own
+
+Do not create separate issues merely because wording changes, equipment details become more specific, urgency increases, or the technician repeats the same concern.
+
+Examples that should MERGE:
+- "I wish I had a helper" followed by "this is a 75-gallon heater in a finished basement"
+- "parts weren't staged" followed by "I lost two hours waiting on fittings"
+- "customer is upset" followed by "this is our second callback"
+
+Return ONLY valid JSON:
+{
+  "action": "merge" or "new",
+  "existing_index": number or null,
+  "merged": {
+    "job_type": "Service Call|Installation|Callback|Maintenance|Inspection|Warranty|Estimate|Emergency Call|Other",
+    "challenge": "concise factual combined summary",
+    "what_went_well": "concise factual positive signal or empty string",
+    "help_needed": "concise factual support need or empty string",
+    "manager_insight": "one concise manager-facing observation and useful next step"
+  }
+}
+
+existing_index is zero-based and required only for "merge".
+For "new", set existing_index to null and merged may repeat the new candidate.
+              `.trim(),
+              input: `Existing reflections from this conversation:\n${JSON.stringify(existing)}\n\nNew candidate reflection:\n${JSON.stringify(candidate)}`,
+            })
+
+            const rawIssueMatch = issueMatchResponse.output_text?.trim() || ''
+            const issueJson = rawIssueMatch
+              .replace(/^\`\`\`json\s*/i, '')
+              .replace(/^\`\`\`\s*/i, '')
+              .replace(/\`\`\`$/i, '')
+              .trim()
+            const decision = JSON.parse(issueJson)
+
+            const mergeIndex = Number.isInteger(decision?.existing_index)
+              ? Number(decision.existing_index)
+              : -1
+
+            if (
+              decision?.action === 'merge' &&
+              mergeIndex >= 0 &&
+              mergeIndex < existing.length
+            ) {
+              const target = existing[mergeIndex]
+              const merged = decision?.merged || {}
+
+              const { error: reflectionUpdateError } = await supabaseServer
+                .from('Reflections')
+                .update({
+                  job_type: merged.job_type || candidate.job_type || target.job_type || 'Other',
+                  challenge:
+                    typeof merged.challenge === 'string' && merged.challenge.trim()
+                      ? merged.challenge.trim()
+                      : candidate.challenge,
+                  what_went_well:
+                    typeof merged.what_went_well === 'string' && merged.what_went_well.trim()
+                      ? merged.what_went_well.trim()
+                      : target.what_went_well || candidate.what_went_well || null,
+                  help_needed:
+                    typeof merged.help_needed === 'string' && merged.help_needed.trim()
+                      ? merged.help_needed.trim()
+                      : target.help_needed || candidate.help_needed || null,
+                  manager_insight:
+                    typeof merged.manager_insight === 'string' && merged.manager_insight.trim()
+                      ? merged.manager_insight.trim()
+                      : target.manager_insight || candidate.manager_insight || null,
+                })
+                .eq('id', target.id)
+                .eq('technician_id', technician.id)
+                .eq('conversation_id', activeConversationId)
+
+              if (reflectionUpdateError) {
+                console.error('AUTO REFLECTION MERGE ERROR:', reflectionUpdateError)
+              } else {
+                mergedIntoExisting = true
+              }
+            }
+          } catch (issueMatchError) {
+            console.error('REFLECTION ISSUE MATCH ERROR:', issueMatchError)
+
+            const normalizedNewChallenge = candidate.challenge.toLowerCase()
+            const textDuplicate = existing.some((item: any) => {
+              const normalizedExisting = String(item.challenge || '').trim().toLowerCase()
+              return (
+                normalizedExisting === normalizedNewChallenge ||
+                (normalizedExisting.length > 20 &&
+                  normalizedNewChallenge.length > 20 &&
+                  (normalizedExisting.includes(normalizedNewChallenge) ||
+                    normalizedNewChallenge.includes(normalizedExisting)))
+              )
+            })
+
+            if (textDuplicate) mergedIntoExisting = true
+          }
+        }
+
+        if (!mergedIntoExisting) {
           const { error: reflectionInsertError } = await supabaseServer.from('Reflections').insert({
+            conversation_id: activeConversationId,
             technician_id: technician.id,
             technician_name: technician.canonical_name,
-            job_type: reflection.job_type || 'Other',
-            challenge: reflection.challenge.trim(),
-            what_went_well:
-              typeof reflection.what_went_well === 'string' && reflection.what_went_well.trim()
-                ? reflection.what_went_well.trim()
-                : null,
-            help_needed:
-              typeof reflection.help_needed === 'string' && reflection.help_needed.trim()
-                ? reflection.help_needed.trim()
-                : null,
+            job_type: candidate.job_type,
+            challenge: candidate.challenge,
+            what_went_well: candidate.what_went_well || null,
+            help_needed: candidate.help_needed || null,
             ai_response: null,
-            manager_insight:
-              typeof reflection.manager_insight === 'string' && reflection.manager_insight.trim()
-                ? reflection.manager_insight.trim()
-                : null,
+            manager_insight: candidate.manager_insight || null,
             created_at: new Date().toISOString(),
           })
 
