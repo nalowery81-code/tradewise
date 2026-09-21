@@ -657,9 +657,9 @@ export default function ConversationAuditPage() {
                                           onClick={() => void markGood(message.id)}
                                           style={{
                                             ...auditButtonStyle,
-                                            background: review?.status === 'good' ? '#166534' : '#f0fdf4',
-                                            color: review?.status === 'good' ? '#fff' : '#166534',
-                                            borderColor: '#86efac',
+                                            background: review?.status === 'good' ? '#166534' : '#fff',
+                                            color: review?.status === 'good' ? '#fff' : '#334155',
+                                            borderColor: review?.status === 'good' ? '#166534' : '#cbd5e1',
                                           }}
                                         >
                                           {review?.status === 'good' ? 'Good ✓' : 'Good'}
