@@ -3,6 +3,28 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
+type OpenAICostData = {
+  configured: boolean
+  reason?: string
+  error?: string
+  currency?: string
+  generatedAt?: string
+  today?: number
+  last7?: number
+  monthToDate?: number
+  projectedMonthEnd?: number
+  daily?: { date: string; cost: number }[]
+  lineItems?: { name: string; cost: number }[]
+  modelUsage?: {
+    model: string
+    requests: number
+    inputTokens: number
+    cachedInputTokens: number
+    outputTokens: number
+  }[]
+  usageError?: string | null
+}
+
 type DashboardData = {
   generatedAt: string
   health: 'healthy' | 'attention'
@@ -58,26 +80,41 @@ export default function PlatformAdminDashboard() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [costs, setCosts] = useState<OpenAICostData | null>(null)
+  const [costLoading, setCostLoading] = useState(true)
 
   useEffect(() => {
     void (async () => {
       const token = (await supabase.auth.getSession()).data.session?.access_token
       if (!token) return void (window.location.href = '/login')
 
-      const response = await fetch('/api/platform-admin/dashboard', {
-        cache: 'no-store',
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      const result = await response.json().catch(() => ({}))
+      const [dashboardResponse, costsResponse] = await Promise.all([
+        fetch('/api/platform-admin/dashboard', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/platform-admin/openai-costs', {
+          cache: 'no-store',
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ])
 
-      if (!response.ok) {
+      const [result, costResult] = await Promise.all([
+        dashboardResponse.json().catch(() => ({})),
+        costsResponse.json().catch(() => ({})),
+      ])
+
+      if (!dashboardResponse.ok) {
         setError(result.error || 'Could not load Platform Admin dashboard.')
         setLoading(false)
+        setCostLoading(false)
         return
       }
 
       setData(result)
       setLoading(false)
+      setCosts(costResult)
+      setCostLoading(false)
     })()
   }, [])
 
@@ -89,10 +126,10 @@ export default function PlatformAdminDashboard() {
         @media (max-width: 1000px) {
           .admin-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
           .admin-main { margin-left: 0 !important; }
-          .health-grid, .two-col, .quality-grid { grid-template-columns: 1fr 1fr !important; }
+          .health-grid, .two-col, .quality-grid, .cost-layout, .cost-metrics { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 650px) {
-          .health-grid, .two-col, .quality-grid { grid-template-columns: 1fr !important; }
+          .health-grid, .two-col, .quality-grid, .cost-layout, .cost-metrics { grid-template-columns: 1fr !important; }
           .admin-main { padding: 22px 14px 48px !important; }
         }
       `}</style>
@@ -144,6 +181,81 @@ export default function PlatformAdminDashboard() {
                 <HealthCard title="Source Exceptions" value={String(attention?.sourceExceptions || 0)} detail="Detected in the last 7 days" tone={(attention?.sourceExceptions || 0) ? 'warn' : 'good'} href="/platform-admin/guidance" />
                 <HealthCard title="Current Deployment" value={data.deployment.state} detail="Vercel production runtime" tone={data.deployment.state === 'READY' ? 'good' : 'warn'} href="#deployment" />
               </div>
+
+              <section style={{ ...cardStyle, marginTop: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <SectionHeader title="OpenAI Cost Tracker" subtitle="Live organization billing and model usage from OpenAI." />
+                  {costs?.configured && !costs.error && (
+                    <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer" style={buttonLink}>
+                      View in OpenAI ↗
+                    </a>
+                  )}
+                </div>
+
+                {costLoading ? (
+                  <div style={quietText}>Loading OpenAI billing data…</div>
+                ) : !costs?.configured ? (
+                  <div style={setupCardStyle}>
+                    <div style={{ fontWeight: 900, fontSize: 15 }}>OpenAI Admin key required</div>
+                    <div style={{ marginTop: 6, color: '#64748b', fontSize: 12, lineHeight: 1.55 }}>
+                      Add <code>OPENAI_ADMIN_KEY</code> to the CraftCompass production environment in Vercel. The key stays server-side and is used only by the Platform Admin cost endpoint.
+                    </div>
+                  </div>
+                ) : costs.error ? (
+                  <div style={errorStyle}>OpenAI cost tracker: {costs.error}</div>
+                ) : (
+                  <>
+                    <div className="cost-metrics" style={costMetricGridStyle}>
+                      <CostMetric label="Today" value={costs.today || 0} />
+                      <CostMetric label="Last 7 days" value={costs.last7 || 0} />
+                      <CostMetric label="This month" value={costs.monthToDate || 0} />
+                      <CostMetric label="Projected month-end" value={costs.projectedMonthEnd || 0} />
+                    </div>
+
+                    <div className="cost-layout" style={costLayoutStyle}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 10 }}>Daily API Cost · Last 14 Days</div>
+                        <DailyCostBars rows={costs.daily || []} />
+                      </div>
+
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 8 }}>Usage by Model · Last 14 Days</div>
+                        {(costs.modelUsage || []).length === 0 ? (
+                          <div style={quietText}>{costs.usageError || 'No model usage returned.'}</div>
+                        ) : (
+                          (costs.modelUsage || []).slice(0, 5).map((row) => (
+                            <div key={row.model} style={modelRowStyle}>
+                              <div>
+                                <div style={{ fontWeight: 800, fontSize: 12 }}>{row.model}</div>
+                                <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 10 }}>
+                                  {row.requests.toLocaleString()} requests
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 800 }}>
+                                {(row.inputTokens + row.outputTokens).toLocaleString()} tokens
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+
+                    {(costs.lineItems || []).length > 0 && (
+                      <div style={{ marginTop: 15 }}>
+                        <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 8 }}>Month-to-Date Cost by Billing Line Item</div>
+                        <div style={lineItemGridStyle}>
+                          {(costs.lineItems || []).slice(0, 6).map((item) => (
+                            <div key={item.name} style={lineItemStyle}>
+                              <span style={{ color: '#475569', overflowWrap: 'anywhere' }}>{item.name}</span>
+                              <strong>{formatCurrency(item.cost)}</strong>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </section>
 
               <div className="two-col" style={twoColStyle}>
                 <section id="attention" style={cardStyle}>
@@ -239,6 +351,37 @@ export default function PlatformAdminDashboard() {
   )
 }
 
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value)
+
+function CostMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div style={costMetricStyle}>
+      <div style={{ color: '#64748b', fontSize: 11, fontWeight: 800 }}>{label}</div>
+      <div style={{ marginTop: 6, fontSize: 25, fontWeight: 900 }}>{formatCurrency(value)}</div>
+    </div>
+  )
+}
+
+function DailyCostBars({ rows }: { rows: { date: string; cost: number }[] }) {
+  const max = Math.max(0.01, ...rows.map((row) => row.cost))
+  if (rows.length === 0) return <div style={quietText}>No cost data returned for this period.</div>
+
+  return (
+    <div style={barChartStyle}>
+      {rows.map((row) => {
+        const height = Math.max(4, Math.round((row.cost / max) * 100))
+        return (
+          <div key={row.date} style={barColumnStyle} title={`${row.date}: ${formatCurrency(row.cost)}`}>
+            <div style={{ ...barStyle, height: `${height}%` }} />
+            <div style={barLabelStyle}>{row.date.slice(5)}</div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function HealthCard({ title, value, detail, tone, href }: { title: string; value: string; detail: string; tone: 'good'|'warn'|'info'; href: string }) {
   const palette = tone === 'good' ? ['#ecfdf5','#166534'] : tone === 'warn' ? ['#fff7ed','#9a3412'] : ['#eff6ff','#1d4ed8']
   return <a href={href} style={{ ...healthCardStyle, textDecoration: 'none', color: '#172033' }}>
@@ -295,3 +438,15 @@ const audienceRowStyle: React.CSSProperties = { display: 'flex', justifyContent:
 const issueRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '10px 0', borderTop: '1px solid #f1f5f9', color: '#334155', textDecoration: 'none', fontSize: 12 }
 const quietText: React.CSSProperties = { padding: '11px 0', color: '#64748b', fontSize: 12 }
 const errorStyle: React.CSSProperties = { marginTop: 16, padding: 12, borderRadius: 10, background: '#fef2f2', color: '#991b1b', fontSize: 13 }
+
+const setupCardStyle: React.CSSProperties = { padding: 15, borderRadius: 11, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e' }
+const costMetricGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 9 }
+const costMetricStyle: React.CSSProperties = { padding: 13, borderRadius: 11, background: '#f8fafc', border: '1px solid #e2e8f0' }
+const costLayoutStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1.7fr 1fr', gap: 18, marginTop: 16 }
+const barChartStyle: React.CSSProperties = { display: 'flex', alignItems: 'flex-end', gap: 5, height: 170, padding: '10px 4px 0', borderBottom: '1px solid #e2e8f0' }
+const barColumnStyle: React.CSSProperties = { flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', alignItems: 'stretch', gap: 5 }
+const barStyle: React.CSSProperties = { minHeight: 4, borderRadius: '5px 5px 2px 2px', background: '#2563eb' }
+const barLabelStyle: React.CSSProperties = { height: 18, color: '#94a3b8', fontSize: 8, textAlign: 'center', overflow: 'hidden', whiteSpace: 'nowrap' }
+const modelRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: '1px solid #f1f5f9' }
+const lineItemGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }
+const lineItemStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 10px', background: '#f8fafc', borderRadius: 9, fontSize: 11 }
