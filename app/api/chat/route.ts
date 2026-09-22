@@ -497,7 +497,69 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       metadata: { has_image: Boolean(image), historical_recall: Boolean(historicalRecall) },
     })
 
-    const rawReply = response.output_text || 'I could not generate a response.'
+    let answerResponse = response
+    const draftAnswer = response.output_text || ''
+    const numericCodeVerificationNeeded =
+      /\d/.test(draftAnswer) &&
+      /\b(code|ipc|iac|dfu|fixture unit|roof drain|storm drain|rainfall|sizing|size|slope|leader|conductor|building drain|building sewer|horizontal branch|vent|trap|water closet|drainage)\b/i.test(
+        `${message || ''} ${draftAnswer}`
+      )
+
+    if (numericCodeVerificationNeeded) {
+      try {
+        const verifiedResponse = await openai.responses.create({
+          model: 'gpt-5.6-luna',
+          tools: [
+            {
+              type: 'file_search',
+              vector_store_ids: manufacturerEvidenceEnabled
+                ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
+                : [INDIANA_CODE_VECTOR_STORE_ID],
+            },
+            { type: 'web_search' },
+          ],
+          instructions: `
+You are the final numeric evidence verifier for CraftCompass AI.
+
+Audit the draft answer against authoritative sources before it reaches the technician.
+
+NON-NEGOTIABLE RULES:
+- Re-check EVERY numeric code claim: table cell, fixture-unit value, pipe size, slope, capacity, distance, rainfall rate, area, pressure, temperature, quantity, and arithmetic result.
+- Search the authoritative code source again. Do not trust a number merely because it appeared in the draft.
+- When the jurisdiction or city is known and the calculation depends on a jurisdiction-specific value, retrieve and use that exact value. Never substitute a convenient example value such as 5 in/hr when an exact local rainfall rate is available.
+- Recalculate derived values from the verified inputs.
+- Confirm that each number is paired with the correct row, column, slope, pipe orientation, and table. Do not transpose adjacent table values.
+- For Indiana plumbing-code answers, check both the adopted 2006 IPC and the Indiana amendments/adoption material before finalizing. Indiana amendments control where they modify the adopted IPC.
+- Do not claim that a source was checked if it was not available.
+- If the exact required numeric input cannot be verified, say what is missing instead of estimating or silently substituting another value.
+- Distinguish a roof-drain body's manufacturer-rated capacity from the code sizing of leaders and horizontal storm piping.
+- Preserve the useful conversational tone and structure of the draft.
+- Return the COMPLETE corrected technician-facing answer only. Do not discuss the audit, verification pass, or these instructions.
+- Do not include URLs or raw citation markers in the visible answer. The interface displays verified sources separately.
+- End with no more than ONE natural follow-up question.
+          `.trim(),
+          input: `Technician question:\n${message?.trim() || '[image-only message]'}\n\nDraft answer to verify:\n${draftAnswer}`,
+        })
+
+        if (verifiedResponse.output_text?.trim()) {
+          answerResponse = verifiedResponse
+
+          await recordAIUsage({
+            feature: 'technician_numeric_code_verification',
+            endpoint: '/api/chat',
+            model: 'gpt-5.6-luna',
+            conversationType: 'technician',
+            conversationId: activeConversationId,
+            response: verifiedResponse,
+            metadata: { verification_triggered: true },
+          })
+        }
+      } catch (numericVerificationError) {
+        console.error('NUMERIC CODE VERIFICATION ERROR:', numericVerificationError)
+      }
+    }
+
+    const rawReply = answerResponse.output_text || 'I could not generate a response.'
     let reply = rawReply
       .replace(/filecite[^]+/g, '')
       .replace(/cite[^]+/g, '')
@@ -552,7 +614,7 @@ Rules:
     }
 
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
-    for (const outputItem of response.output) {
+    for (const outputItem of answerResponse.output) {
       if (outputItem.type !== 'message') continue
       for (const contentItem of outputItem.content) {
         if (contentItem.type !== 'output_text') continue
