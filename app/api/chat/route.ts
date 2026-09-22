@@ -423,7 +423,12 @@ A separate Indiana plumbing-code library is available through file search. It co
 When an answer depends on plumbing code in Indiana — including sizing, DFU limits, slope, venting, traps, fixture requirements, prohibited/required conditions, or code compliance — search BOTH the adopted model code and the Indiana amendments/adoption rule before giving the code conclusion.
 The Indiana amendment/adoption source must always be referenced for an Indiana code answer, even when the amendment check confirms that the underlying adopted IPC provision is unchanged.
 Never present a model-code-only answer as the final Indiana requirement.
-For every Indiana code answer, expose the exact IPC section/table and the exact Indiana amendment/rule section that were actually checked whenever those identifiers are available in the retrieved source.
+For every Indiana code answer, the visible technician-facing answer MUST identify the exact code section or table that supports each code requirement or numeric code value.
+- Use labels such as **2006 IPC § 608.16.1**, **Table 1106.2**, or **675 IAC 16-1.4 amendment to IPC § 608.16.1** only when that identifier was actually retrieved and verified.
+- When an Indiana amendment modifies, deletes, replaces, or adds to a base IPC section, show BOTH the affected IPC section/table and the controlling Indiana amendment/rule reference.
+- End the code portion of the answer with a short **Code references** section listing the exact section/table identifiers actually checked.
+- A filename or generic source title by itself is not enough for a code conclusion.
+- Never invent a section number. If the authoritative source supports a requirement but the exact section identifier cannot be retrieved, say that the requirement cannot yet be section-verified instead of presenting it as a final code requirement.
 For jurisdiction-dependent calculations such as storm drainage, retrieve the exact local design input available in the verified source first. If the published sizing table does not have that exact column, describe any use of the next higher published value as a conservative lookup, not as a separate code requirement.
 Authority order:
 1. Indiana amendments control wherever they delete, replace, add to, or modify the adopted IPC.
@@ -563,7 +568,10 @@ NON-NEGOTIABLE RULES:
 - For roof drainage specifically: Table 1106.2 sizes vertical conductors/leaders; Table 1106.3 sizes horizontal storm piping. A roof-drain body's outlet and flow capacity must be verified separately from the drain's applicable standard/manufacturer data. Do not combine these into one "minimum size" statement unless an authoritative source supports it.
 - Keep PRIMARY and SECONDARY / EMERGENCY drainage requirements separate. Verify whether an amendment deletes, replaces, or changes a specific subsection before stating what remains required.
 - For Indiana plumbing-code answers, check both the adopted 2006 IPC and the Indiana amendments/adoption material before finalizing. Indiana amendments control where they modify the adopted IPC.
-- If the answer relies on code, make sure the final response contains a concise "Code references" section listing the exact section/table identifiers actually verified in the retrieved sources. Preserve exact section numbers from the source; never infer or invent them.
+- If the answer relies on code, make sure the final response contains a concise "Code references" section listing the exact section/table identifiers actually verified in the retrieved sources.
+- Every code requirement or numeric code value in the visible answer must be traceable to one of those listed section/table identifiers.
+- When an Indiana amendment controls a base IPC provision, list both the affected IPC section/table and the Indiana amendment/rule reference.
+- Preserve exact section numbers from the source; never infer or invent them. If you cannot retrieve the section/table identifier, remove or soften the unsupported code conclusion rather than presenting it as final.
 - Do not claim that a source was checked if it was not available.
 - If the exact required numeric input cannot be verified, say what is missing instead of estimating or silently substituting another value.
 - Do not add unsupported approval language such as "if the AHJ accepts," "if the engineer approves," or "subject to local approval" unless the cited source actually makes that approval relevant.
@@ -593,6 +601,59 @@ NON-NEGOTIABLE RULES:
         }
       } catch (numericVerificationError) {
         console.error('NUMERIC CODE VERIFICATION ERROR:', numericVerificationError)
+      }
+    }
+
+    const codeReferencePattern =
+      /\b(?:IPC|IAC|IFGC|IRC)?\s*(?:§|Section|Table)\s*[A-Z]?\d{2,4}(?:\.\d+)*(?:\([^)]+\))?/i
+    const codeClaimLikely =
+      /\b(?:Indiana|IPC|IAC|IFGC|IRC|code|amendment|section|table|required|prohibited|shall|must)\b/i.test(
+        answerResponse.output_text || ''
+      )
+
+    if (codeClaimLikely && !codeReferencePattern.test(answerResponse.output_text || '')) {
+      try {
+        const sectionCorrectionResponse = await openai.responses.create({
+          model: 'gpt-5.6-luna',
+          tools: [
+            {
+              type: 'file_search',
+              vector_store_ids: [INDIANA_CODE_VECTOR_STORE_ID],
+            },
+          ],
+          instructions: `
+You are the final section-reference checker for CraftCompass AI.
+
+The draft contains a code-based conclusion but does not visibly show the exact section/table identifier needed for fact-checking.
+
+Rules:
+- Search the verified Indiana code library.
+- Preserve the answer unless a correction is needed.
+- Add the exact verified section/table identifier next to each code requirement or numeric code value.
+- Include a concise **Code references** section listing the exact section/table identifiers actually checked.
+- When an Indiana amendment controls a base IPC provision, show both the affected IPC section/table and the controlling Indiana amendment/rule reference.
+- Never invent a section or table number.
+- If an exact identifier cannot be retrieved, remove or soften that unsupported code conclusion and say it could not be section-verified.
+- Do not add URLs or raw citation markers.
+- Return the COMPLETE corrected technician-facing answer only.
+          `.trim(),
+          input: `Technician question:\n${message?.trim() || '[image-only message]'}\n\nDraft answer:\n${answerResponse.output_text || ''}`,
+        })
+
+        if (sectionCorrectionResponse.output_text?.trim()) {
+          answerResponse = sectionCorrectionResponse
+          await recordAIUsage({
+            feature: 'technician_code_section_verification',
+            endpoint: '/api/chat',
+            model: 'gpt-5.6-luna',
+            conversationType: 'technician',
+            conversationId: activeConversationId,
+            response: sectionCorrectionResponse,
+            metadata: { section_reference_missing: true },
+          })
+        }
+      } catch (sectionVerificationError) {
+        console.error('CODE SECTION VERIFICATION ERROR:', sectionVerificationError)
       }
     }
 
