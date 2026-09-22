@@ -378,6 +378,7 @@ HOW YOU SHOULD COMMUNICATE:
 - Ask ONE useful question at a time.
 - Guide troubleshooting one step at a time.
 - Never invent measurements, symptoms, model numbers, serial numbers, test results, error codes, specifications, manufacturer procedures, code requirements, or citations.
+- For straightforward code lookups that contain numeric requirements but do not require arithmetic, table comparison, or sizing calculations, verify the numeric requirement directly from the retrieved authoritative source in this primary response; do not rely on memory.
 - Keep code-minimum sizing, component/manufacturer selection, and conservative estimating recommendations clearly separated. Do not present one as another.
 - When a user asks what "size" something should be, identify whether the governing source is sizing the device/component itself, its outlet, the connected vertical piping, the connected horizontal piping, or the downstream combined system before giving a size.
 - If unsure what you can see in an image, say so.
@@ -515,13 +516,18 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
         userQuestionText
       )
 
-    const codeNumericRisk =
-      /\b(code|ipc|iac|dfu|fixture unit|roof drain|storm drain|rainfall|sizing|size|slope|leader|conductor|building drain|building sewer|horizontal branch|vent|trap|water closet|drainage|minimum|maximum|required|capacity|load)\b/i.test(
-        `${userQuestionText} ${draftAnswer}`
+    const calculationOrTableRisk =
+      /\b(calculate|calculation|size|sizing|sized|dfu|fixture unit|roof drain|storm drain|rainfall|slope|leader|conductor|building drain|building sewer|horizontal branch|capacity|tributary|area|load|flow rate|gpm|total connected|pipe size|how many|how much)\b/i.test(
+        userQuestionText
+      ) ||
+      /\b(table\s+\d+|\d+(?:\.\d+)?\s*(?:dfu|sq\.?\s*ft|square feet|in\.\/hr|inches per hour|gpm|%\s*slope))\b/i.test(
+        draftAnswer
       )
 
     const numericCodeVerificationNeeded =
-      !simpleUnitConversion && /\d/.test(draftAnswer) && codeNumericRisk
+      !simpleUnitConversion &&
+      /\d/.test(draftAnswer) &&
+      calculationOrTableRisk
 
     if (numericCodeVerificationNeeded) {
       try {
