@@ -135,19 +135,33 @@ export async function POST(req: Request) {
     const activeGuidance = await getActiveGuidance('technician')
 
     let verifiedManufacturerAliases = ''
-    if (message?.trim()) {
+    const manufacturerMessage = typeof message === 'string' ? message.trim() : ''
+    if (manufacturerMessage) {
       try {
-        const tokens = [...new Set(message.toLowerCase().replace(/[^a-z0-9\\s-]/g, ' ').split(/\\s+/).filter(Boolean))].slice(0, 24)
+        const tokens: string[] = [...new Set<string>(
+          manufacturerMessage
+            .toLowerCase()
+            .replace(/[^a-z0-9\s-]/g, ' ')
+            .split(/\s+/)
+            .filter((token: string) => Boolean(token))
+        )].slice(0, 24)
+
         if (tokens.length > 0) {
+          const normalizedTokens = tokens.map((token: string) => token.replace(/[^a-z0-9]/g, ''))
           const { data: aliases, error: aliasError } = await supabaseServer
             .from('VerifiedManufacturerAliases')
             .select('alias, canonical_manufacturer, confidence')
             .eq('verification_status', 'verified')
-            .in('alias_normalized', tokens.map((token) => token.replace(/[^a-z0-9]/g, '')))
+            .in('alias_normalized', normalizedTokens)
             .order('confidence', { ascending: false })
             .limit(8)
+
           if (aliasError) throw aliasError
-          verifiedManufacturerAliases = (aliases || []).map((item) => `${item.alias} → ${item.canonical_manufacturer} (verified alias)`).join('\\n')
+          verifiedManufacturerAliases = (aliases || [])
+            .map((item: { alias: string; canonical_manufacturer: string }) =>
+              `${item.alias} → ${item.canonical_manufacturer} (verified alias)`
+            )
+            .join('\n')
         }
       } catch (aliasError) {
         console.error('VERIFIED MANUFACTURER ALIAS LOOKUP ERROR:', aliasError)
