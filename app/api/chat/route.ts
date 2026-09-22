@@ -123,6 +123,64 @@ export async function POST(req: Request) {
     if (image) userContent.push({ type: 'input_image', image_url: image })
 
     const activeGuidance = await getActiveGuidance('technician')
+    const manufacturerIdentityText = [
+      typeof message === 'string' ? message : '',
+      ...(Array.isArray(history)
+        ? history
+            .filter((item: any) => item && typeof item.text === 'string')
+            .slice(-12)
+            .map((item: any) => item.text)
+        : []),
+    ]
+      .join(' ')
+      .toLowerCase()
+
+    let manufacturerEvidenceEnabled = false
+    let matchedManufacturerDocuments: string[] = []
+
+    try {
+      const { data: manufacturerDocuments, error: manufacturerDocumentError } = await supabaseServer
+        .from('ManufacturerDocuments')
+        .select('manufacturer, model, model_aliases, title, status')
+        .eq('status', 'ready')
+
+      if (manufacturerDocumentError) throw manufacturerDocumentError
+
+      const normalizedIdentityText = manufacturerIdentityText
+        .replace(/[^a-z0-9]+/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+
+      const normalizeIdentity = (value: string) =>
+        value
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+
+      const identityMatches = (value?: string | null) => {
+        const normalized = normalizeIdentity(String(value || ''))
+        return normalized.length >= 3 && normalizedIdentityText.includes(normalized)
+      }
+
+      for (const document of manufacturerDocuments || []) {
+        const aliases = Array.isArray(document.model_aliases) ? document.model_aliases : []
+        const matched =
+          identityMatches(document.manufacturer) ||
+          identityMatches(document.model) ||
+          aliases.some((alias: string) => identityMatches(alias))
+
+        if (!matched) continue
+        manufacturerEvidenceEnabled = true
+        matchedManufacturerDocuments.push(
+          [document.manufacturer, document.model, document.title].filter(Boolean).join(' · ')
+        )
+      }
+
+      matchedManufacturerDocuments = [...new Set(matchedManufacturerDocuments)].slice(0, 6)
+    } catch (manufacturerGateError) {
+      console.error('MANUFACTURER EVIDENCE GATE ERROR:', manufacturerGateError)
+    }
 
     let verifiedManufacturerAliases = ''
     const manufacturerMessage = typeof message === 'string' ? message.trim() : ''
@@ -284,7 +342,9 @@ export async function POST(req: Request) {
       tools: [
         {
           type: 'file_search',
-          vector_store_ids: [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID],
+          vector_store_ids: manufacturerEvidenceEnabled
+            ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
+            : [INDIANA_CODE_VECTOR_STORE_ID],
         },
         { type: 'web_search' },
       ],
@@ -395,6 +455,16 @@ Continue guiding the technician with ONE useful question at a time unless they e
 
 ACTIVE ADMIN-APPROVED GUIDANCE:
 ${activeGuidance || 'No additional Admin-approved guidance is active.'}
+
+MANUFACTURER EVIDENCE STATUS:
+${manufacturerEvidenceEnabled
+  ? `Manufacturer evidence is enabled because the conversation explicitly matched: ${matchedManufacturerDocuments.join('; ')}`
+  : 'Manufacturer evidence is NOT enabled because no manufacturer/model in the verified document library has been positively identified in the current or recent conversation.'}
+
+- Never use or imply manufacturer-specific installation requirements unless manufacturer evidence is enabled for the identified equipment.
+- A generic product type such as "gas water heater", "furnace", "faucet", or "pump" is not sufficient manufacturer identification.
+- A part/model number match from an unrelated manufacturer must never override the manufacturer or brand supplied by the technician.
+- If the manufacturer/model is still unknown and manufacturer instructions matter to the final answer, ask one natural identifying question or request a model/data-plate photo.
 
 Treat active guidance as trusted product guidance. Apply it when relevant to the user's question. Do not mention the Guidance Library or internal review process.
 
