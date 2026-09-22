@@ -28,15 +28,15 @@ function renderAssistantText(text: string) {
         const isHeading = headingLabels.has(cleaned)
         const isFinalQuestion = index === lastContentIndex && trimmed.endsWith('?')
 
-        if (!trimmed) return <div key={index} style={{ height: 10 }} />
+        if (!trimmed) return <div key={index} style={{ height: 14 }} />
 
         if (isHeading) {
           return (
             <div
               key={index}
               style={{
-                marginTop: index === 0 ? 0 : 8,
-                marginBottom: 6,
+                marginTop: index === 0 ? 0 : 14,
+                marginBottom: 8,
                 fontSize: 17,
                 fontWeight: 800,
                 color: '#123047',
@@ -53,8 +53,8 @@ function renderAssistantText(text: string) {
             <div
               key={index}
               style={{
-                marginTop: 12,
-                padding: '12px 14px',
+                marginTop: 18,
+                padding: '14px 16px',
                 borderRadius: 12,
                 background: '#eef4f7',
                 borderLeft: '4px solid #123047',
@@ -68,7 +68,7 @@ function renderAssistantText(text: string) {
           )
         }
 
-        return <div key={index}>{line}</div>
+        return <div key={index} style={{ marginBottom: 7 }}>{line}</div>
       })}
     </div>
   )
@@ -1100,7 +1100,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: '#172033',
     padding: '18px 20px',
     fontSize: 16,
-    lineHeight: 1.62,
+    lineHeight: 1.72,
     whiteSpace: 'pre-wrap',
   },
   composerArea: {
