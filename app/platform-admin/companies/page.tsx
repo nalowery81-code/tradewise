@@ -213,7 +213,7 @@ export default function PlatformAdminPage() {
 
         <PlatformAdminNav variant="sidebar" />
 
-        <a className="owner-back" href="/manager" style={backStyle}>← Owner Workspace</a>
+        <a className="owner-back" href="/manager/overview" style={backStyle}>← Owner Workspace</a>
       </aside>
 
       <section className="platform-admin-content" style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>

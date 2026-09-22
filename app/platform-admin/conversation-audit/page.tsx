@@ -450,7 +450,7 @@ export default function ConversationAuditPage() {
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
         <PlatformAdminNav variant="sidebar" />
-        <a href="/manager" style={backStyle}>← Owner Workspace</a>
+        <a href="/manager/overview" style={backStyle}>← Owner Workspace</a>
       </aside>
 
       <section className="audit-content" style={{ marginLeft: 244, padding: '24px clamp(18px, 2.6vw, 36px) 34px' }}>

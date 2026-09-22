@@ -134,6 +134,26 @@ export async function POST(req: Request) {
 
     const activeGuidance = await getActiveGuidance('technician')
 
+    let verifiedManufacturerAliases = ''
+    if (message?.trim()) {
+      try {
+        const tokens = [...new Set(message.toLowerCase().replace(/[^a-z0-9\\s-]/g, ' ').split(/\\s+/).filter(Boolean))].slice(0, 24)
+        if (tokens.length > 0) {
+          const { data: aliases, error: aliasError } = await supabaseServer
+            .from('VerifiedManufacturerAliases')
+            .select('alias, canonical_manufacturer, confidence')
+            .eq('verification_status', 'verified')
+            .in('alias_normalized', tokens.map((token) => token.replace(/[^a-z0-9]/g, '')))
+            .order('confidence', { ascending: false })
+            .limit(8)
+          if (aliasError) throw aliasError
+          verifiedManufacturerAliases = (aliases || []).map((item) => `${item.alias} → ${item.canonical_manufacturer} (verified alias)`).join('\\n')
+        }
+      } catch (aliasError) {
+        console.error('VERIFIED MANUFACTURER ALIAS LOOKUP ERROR:', aliasError)
+      }
+    }
+
     let historicalRecall = ''
     if (message?.trim() && shouldSearchHistory(message.trim())) {
       try {
@@ -344,6 +364,13 @@ Manufacturer
 What this means
 [field conclusion supported by the verified sources]
 For code/manufacturer conflicts, do not invent legal, permitting, approval, inspection, AHJ, or enforcement requirements. Do not assume manufacturer instructions always override code; only describe an interaction when the authoritative source supports it.
+
+VERIFIED MANUFACTURER RESOLUTION:
+${verifiedManufacturerAliases || 'No verified manufacturer alias matched this technician message.'}
+
+- A matched alias verifies spelling/brand identity context only; it does not prove a product or model.
+- Never let a distributor part-number match silently override a manufacturer/brand supplied by the technician.
+- If manufacturer identity still conflicts or is uncertain, ask one natural clarification or request a clear product/data-plate photo before product-specific guidance.
 
 MANUFACTURER DOCUMENTATION:
 When manufacturer and model are known, understand what equipment the model is.
