@@ -150,6 +150,8 @@ export default function TechnicianPage() {
   const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
   const [isListening, setIsListening] = useState(false)
   const [sending, setSending] = useState(false)
+  const [workingElapsedMs, setWorkingElapsedMs] = useState(0)
+  const requestStartedAtRef = useRef<number | null>(null)
   const [messages, setMessages] = useState<
     {
       id?: string
@@ -157,6 +159,7 @@ export default function TechnicianPage() {
       text: string
       helpful?: boolean
       image?: string
+      responseDurationMs?: number
       sources?: {
         title: string
         url?: string
@@ -210,6 +213,20 @@ export default function TechnicianPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!sending || requestStartedAtRef.current === null) return
+
+    const updateElapsed = () => {
+      if (requestStartedAtRef.current === null) return
+      setWorkingElapsedMs(performance.now() - requestStartedAtRef.current)
+    }
+
+    updateElapsed()
+    const timer = window.setInterval(updateElapsed, 100)
+
+    return () => window.clearInterval(timer)
+  }, [sending])
 
   const loadRecentConversations = async (id?: string) => {
     try {
@@ -459,6 +476,8 @@ export default function TechnicianPage() {
 
     if ((!text && !selectedImageFile) || sending) return
 
+    requestStartedAtRef.current = performance.now()
+    setWorkingElapsedMs(0)
     setSending(true)
 
     let imageData: string | null = null
@@ -468,10 +487,17 @@ export default function TechnicianPage() {
         : null
     } catch (error) {
       console.error('IMAGE PREP ERROR:', error)
+      const durationMs =
+        requestStartedAtRef.current === null ? undefined : performance.now() - requestStartedAtRef.current
       setSending(false)
+      requestStartedAtRef.current = null
       setMessages((prev) => [
         ...prev,
-        { role: 'assistant', text: 'I could not prepare that photo. Try another photo or send your question without it.' },
+        {
+          role: 'assistant',
+          text: 'I could not prepare that photo. Try another photo or send your question without it.',
+          responseDurationMs: durationMs,
+        },
       ])
       return
     }
@@ -523,6 +549,9 @@ export default function TechnicianPage() {
       setConversationId(data.conversationId)
       loadRecentConversations()
 
+      const responseDurationMs =
+        requestStartedAtRef.current === null ? undefined : performance.now() - requestStartedAtRef.current
+
       setMessages((prev) => [
         ...prev,
         {
@@ -531,20 +560,26 @@ export default function TechnicianPage() {
           text: data.reply,
           sources: data.sources || [],
           helpful: false,
+          responseDurationMs,
         },
       ])
     } catch (error) {
       console.error('CraftCompass AI chat error:', error)
+
+      const responseDurationMs =
+        requestStartedAtRef.current === null ? undefined : performance.now() - requestStartedAtRef.current
 
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
           text: 'I could not connect. Try sending that again.',
+          responseDurationMs,
         },
       ])
     } finally {
       setSending(false)
+      requestStartedAtRef.current = null
     }
   }
 
@@ -740,6 +775,19 @@ export default function TechnicianPage() {
                     <div>{item.text}</div>
                   ))}
 
+                {item.role === 'assistant' && typeof item.responseDurationMs === 'number' && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 11,
+                      color: '#94a3b8',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Worked for {(item.responseDurationMs / 1000).toFixed(1)}s
+                  </div>
+                )}
+
                 {item.role === 'assistant' && item.id && (
                   <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button
@@ -821,6 +869,36 @@ export default function TechnicianPage() {
               </div>
             </div>
           ))}
+
+          {sending && (
+            <div style={{ ...styles.messageRow, justifyContent: 'flex-start' }}>
+              <div
+                style={{
+                  ...styles.assistantBubble,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  minWidth: 150,
+                }}
+              >
+                <span
+                  aria-hidden="true"
+                  style={{
+                    display: 'inline-block',
+                    width: 8,
+                    height: 8,
+                    borderRadius: '50%',
+                    background: '#123047',
+                    opacity: 0.75,
+                  }}
+                />
+                <span style={{ fontWeight: 700, color: '#475569' }}>
+                  Working… {(workingElapsedMs / 1000).toFixed(1)}s
+                </span>
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
       </section>
@@ -932,7 +1010,7 @@ export default function TechnicianPage() {
 
           <div style={styles.footerText}>
             {sending
-              ? 'CraftCompass AI is working…'
+              ? `CraftCompass AI is working… ${(workingElapsedMs / 1000).toFixed(1)}s`
               : isListening
                 ? 'Listening — tap the microphone again to stop.'
                 : 'CraftCompass AI can make mistakes. Verify important field information.'}
