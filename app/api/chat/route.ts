@@ -358,6 +358,108 @@ export async function POST(req: Request) {
         primaryQuestionText
       )
 
+    let normalizedCodeEvidence: Array<{
+      section: string | null
+      title: string | null
+      content: string | null
+      citation_text: string | null
+      content_rights: string | null
+      source_document_id: string | null
+    }> = []
+    let normalizedMatchedAlias = ''
+
+    if (directVerifiedCodeLookup) {
+      try {
+        const normalizedQuestion = primaryQuestionText.toLowerCase()
+        const questionTokens = new Set(
+          normalizedQuestion
+            .replace(/[^a-z0-9\s-]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+        )
+
+        const { data: aliases, error: aliasLookupError } = await supabaseServer
+          .from('VerifiedSearchAliases')
+          .select('field_term, code_terms, code_family')
+          .eq('active', true)
+          .eq('code_family', 'Plumbing')
+
+        if (aliasLookupError) throw aliasLookupError
+
+        const rankedAliases = (aliases || [])
+          .map((alias: any) => {
+            const tokens = String(alias.field_term || '')
+              .toLowerCase()
+              .replace(/[^a-z0-9\s-]/g, ' ')
+              .split(/\s+/)
+              .filter(Boolean)
+            const allTokensPresent =
+              tokens.length > 0 && tokens.every((token: string) => questionTokens.has(token))
+            return { alias, score: allTokensPresent ? tokens.length : 0 }
+          })
+          .filter((item: any) => item.score > 0)
+          .sort((a: any, b: any) => b.score - a.score)
+
+        const bestAlias = rankedAliases[0]?.alias
+        if (bestAlias) {
+          normalizedMatchedAlias = String(bestAlias.field_term || '')
+          const sectionRefs = (Array.isArray(bestAlias.code_terms) ? bestAlias.code_terms : [])
+            .map((term: string) => String(term).match(/\b\d{3,4}(?:\.\d+)+\b/)?.[0])
+            .filter(Boolean)
+
+          if (sectionRefs.length > 0) {
+            const { data: sectionRows, error: sectionLookupError } = await supabaseServer
+              .from('VerifiedCodeSections')
+              .select('section, title, content, citation_text, content_rights, source_document_id')
+              .in('section', [...new Set(sectionRefs)])
+              .eq('status', 'current')
+              .order('content_rights', { ascending: true })
+
+            if (sectionLookupError) throw sectionLookupError
+            normalizedCodeEvidence = sectionRows || []
+          }
+        }
+      } catch (normalizedLookupError) {
+        console.error('NORMALIZED CODE LOOKUP ERROR:', normalizedLookupError)
+      }
+    }
+
+    const normalizedDirectLookup = normalizedCodeEvidence.length > 0
+    const normalizedEvidenceText = normalizedCodeEvidence
+      .map(
+        (item) =>
+          [
+            item.citation_text || item.section || 'Verified section',
+            item.title || '',
+            item.content || '',
+            item.content_rights === 'reference_only'
+              ? 'Source status: incorporated model-code reference; use with the Indiana amendment/adoption evidence supplied alongside it.'
+              : 'Source status: Indiana government evidence.',
+          ]
+            .filter(Boolean)
+            .join('\n')
+      )
+      .join('\n\n---\n\n')
+
+    const normalizedCodeLookupInstructions = `
+You are CraftCompass AI answering a straightforward field code lookup for a skilled trades technician.
+
+The application has already retrieved normalized, verified evidence for this exact field question.
+
+NON-NEGOTIABLE RULES:
+- Answer ONLY from the VERIFIED NORMALIZED EVIDENCE included with the technician question.
+- Do not use model memory to add code requirements, exceptions, measurements, sections, or alternatives.
+- If the evidence includes both an incorporated model-code provision and an Indiana amendment check, combine them correctly.
+- If a model-code source is reference-only, do not call it non-enforceable merely because the stored document is reference-only; explain its Indiana status only as established by the supplied amendment/adoption evidence.
+- Answer first. Keep it light and field-usable.
+- Use tape-measure fractions for inch measurements, normally to the nearest 1/16 inch.
+- Keep common practice separate from code minimums, and omit common-practice commentary unless the evidence supports it.
+- Include a concise Code reference or Code references line with the exact identifiers supplied in the evidence.
+- Do not add unrelated AAV, branch-system, manufacturer, or alternative-method information.
+- Ask at most one short follow-up only if necessary to prevent a wrong application.
+- Do not include URLs or raw source markers.
+`.trim()
+
     const fastCodeLookupInstructions = `
 You are CraftCompass AI answering a straightforward field code lookup for a skilled trades technician.
 
@@ -383,16 +485,22 @@ ${activeGuidance || 'No additional Admin-approved guidance is active.'}
     primaryStartedAt = performance.now()
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
-      tools: [
-        {
-          type: 'file_search',
-          vector_store_ids: manufacturerEvidenceEnabled
-            ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
-            : [INDIANA_CODE_VECTOR_STORE_ID],
-        },
-        ...(directVerifiedCodeLookup ? [] : [{ type: 'web_search' as const }]),
-      ],
-      instructions: directVerifiedCodeLookup ? fastCodeLookupInstructions : `
+      tools: normalizedDirectLookup
+        ? []
+        : [
+            {
+              type: 'file_search',
+              vector_store_ids: manufacturerEvidenceEnabled
+                ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
+                : [INDIANA_CODE_VECTOR_STORE_ID],
+            },
+            ...(directVerifiedCodeLookup ? [] : [{ type: 'web_search' as const }]),
+          ],
+      instructions: normalizedDirectLookup
+        ? normalizedCodeLookupInstructions
+        : directVerifiedCodeLookup
+          ? fastCodeLookupInstructions
+          : `
 You are CraftCompass AI, an experienced AI field partner for skilled trade technicians.
 CraftCompass AI is trade-agnostic and may help with plumbing, HVAC, refrigeration, electrical, boilers, maintenance, painting, handyman work, and other skilled trades.
 
@@ -581,10 +689,22 @@ Historical recall contains stored prior conversations from this same technician 
 
 Your goal is to make CraftCompass AI effortless, technically trustworthy, supportive, and effective in the field.
       `.trim(),
-      input: [
-        ...(directVerifiedCodeLookup ? conversationHistory.slice(-4) : conversationHistory),
-        { role: 'user', content: userContent },
-      ],
+      input: normalizedDirectLookup
+        ? [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'input_text',
+                  text: `Technician question:\n${primaryQuestionText}\n\nVERIFIED NORMALIZED EVIDENCE:\n${normalizedEvidenceText}`,
+                },
+              ],
+            },
+          ]
+        : [
+            ...(directVerifiedCodeLookup ? conversationHistory.slice(-4) : conversationHistory),
+            { role: 'user', content: userContent },
+          ],
     })
 
     primaryFinishedAt = performance.now()
@@ -596,7 +716,12 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       conversationType: 'technician',
       conversationId: activeConversationId,
       response,
-      metadata: { has_image: Boolean(image), historical_recall: Boolean(historicalRecall) },
+      metadata: {
+        has_image: Boolean(image),
+        historical_recall: Boolean(historicalRecall),
+        normalized_direct_lookup: normalizedDirectLookup,
+        normalized_alias: normalizedMatchedAlias || null,
+      },
     })
 
     let answerResponse = response
@@ -767,6 +892,51 @@ Rules:
     // evidence or verification step.
 
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
+
+    if (normalizedDirectLookup) {
+      try {
+        const sourceDocumentIds = [
+          ...new Set(
+            normalizedCodeEvidence
+              .map((item) => item.source_document_id)
+              .filter((id): id is string => Boolean(id))
+          ),
+        ]
+
+        if (sourceDocumentIds.length > 0) {
+          const { data: normalizedSourceDocuments, error: normalizedSourceError } =
+            await supabaseServer
+              .from('VerifiedSourceDocuments')
+              .select('id, title, source_url, source_type')
+              .in('id', sourceDocumentIds)
+
+          if (normalizedSourceError) throw normalizedSourceError
+
+          for (const document of normalizedSourceDocuments || []) {
+            const sourceType =
+              document.source_type === 'government_rule' ||
+              document.source_type === 'government_interpretation'
+                ? 'web'
+                : 'file'
+            const alreadyAdded = sources.some(
+              (source) =>
+                source.title === document.title ||
+                (document.source_url && source.url === document.source_url)
+            )
+            if (!alreadyAdded) {
+              sources.push({
+                title: document.title,
+                url: sourceType === 'web' ? document.source_url || undefined : undefined,
+                type: sourceType,
+              })
+            }
+          }
+        }
+      } catch (normalizedSourceError) {
+        console.error('NORMALIZED CODE SOURCE LOOKUP ERROR:', normalizedSourceError)
+      }
+    }
+
     for (const outputItem of answerResponse.output) {
       if (outputItem.type !== 'message') continue
       for (const contentItem of outputItem.content) {
@@ -1147,6 +1317,8 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       postPrimaryMs:
         primaryFinishedAt === null ? null : Math.round(responseFinishedAt - primaryFinishedAt),
       fastLookup: directVerifiedCodeLookup,
+      normalizedDirectLookup,
+      normalizedAlias: normalizedMatchedAlias || null,
       straightforwardTechnicalLookup,
     }
 
