@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { after } from 'next/server'
 import { supabaseServer } from '../../lib/supabase-server'
 import { getActiveGuidance } from '../../lib/active-guidance'
 import { recordAIUsage } from '../../lib/ai-usage'
@@ -728,20 +729,22 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
 
     primaryFinishedAt = performance.now()
 
-    await recordAIUsage({
-      feature: 'technician_chat',
-      endpoint: '/api/chat',
-      model: 'gpt-5.6-luna',
-      conversationType: 'technician',
-      conversationId: activeConversationId,
-      response,
-      metadata: {
-        has_image: Boolean(image),
-        historical_recall: Boolean(historicalRecall),
-        normalized_direct_lookup: normalizedDirectLookup,
-        normalized_alias: normalizedMatchedAlias || null,
-      },
-    })
+    after(() =>
+      recordAIUsage({
+        feature: 'technician_chat',
+        endpoint: '/api/chat',
+        model: 'gpt-5.6-luna',
+        conversationType: 'technician',
+        conversationId: activeConversationId,
+        response,
+        metadata: {
+          has_image: Boolean(image),
+          historical_recall: Boolean(historicalRecall),
+          normalized_direct_lookup: normalizedDirectLookup,
+          normalized_alias: normalizedMatchedAlias || null,
+        },
+      })
+    )
 
     let answerResponse = response
     const draftAnswer = response.output_text || ''
@@ -768,6 +771,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       )
 
     const numericCodeVerificationNeeded =
+      !directVerifiedCodeLookup &&
       !simpleUnitConversion &&
       !directLimitLookup &&
       /\d/.test(draftAnswer) &&
@@ -824,15 +828,17 @@ NON-NEGOTIABLE RULES:
         if (verifiedResponse.output_text?.trim()) {
           answerResponse = verifiedResponse
 
-          await recordAIUsage({
-            feature: 'technician_numeric_code_verification',
-            endpoint: '/api/chat',
-            model: 'gpt-5.6-luna',
-            conversationType: 'technician',
-            conversationId: activeConversationId,
-            response: verifiedResponse,
-            metadata: { verification_triggered: true },
-          })
+          after(() =>
+            recordAIUsage({
+              feature: 'technician_numeric_code_verification',
+              endpoint: '/api/chat',
+              model: 'gpt-5.6-luna',
+              conversationType: 'technician',
+              conversationId: activeConversationId,
+              response: verifiedResponse,
+              metadata: { verification_triggered: true },
+            })
+          )
         }
       } catch (numericVerificationError) {
         console.error('NUMERIC CODE VERIFICATION ERROR:', numericVerificationError)
@@ -846,7 +852,11 @@ NON-NEGOTIABLE RULES:
         answerResponse.output_text || ''
       )
 
-    if (codeClaimLikely && !codeReferencePattern.test(answerResponse.output_text || '')) {
+    if (
+      !directVerifiedCodeLookup &&
+      codeClaimLikely &&
+      !codeReferencePattern.test(answerResponse.output_text || '')
+    ) {
       try {
         const sectionCorrectionResponse = await openai.responses.create({
           model: 'gpt-5.6-luna',
@@ -880,15 +890,17 @@ Rules:
 
         if (sectionCorrectionResponse.output_text?.trim()) {
           answerResponse = sectionCorrectionResponse
-          await recordAIUsage({
-            feature: 'technician_code_section_verification',
-            endpoint: '/api/chat',
-            model: 'gpt-5.6-luna',
-            conversationType: 'technician',
-            conversationId: activeConversationId,
-            response: sectionCorrectionResponse,
-            metadata: { section_reference_missing: true },
-          })
+          after(() =>
+            recordAIUsage({
+              feature: 'technician_code_section_verification',
+              endpoint: '/api/chat',
+              model: 'gpt-5.6-luna',
+              conversationType: 'technician',
+              conversationId: activeConversationId,
+              response: sectionCorrectionResponse,
+              metadata: { section_reference_missing: true },
+            })
+          )
         }
       } catch (sectionVerificationError) {
         console.error('CODE SECTION VERIFICATION ERROR:', sectionVerificationError)
@@ -1067,7 +1079,8 @@ Rules:
     }
 
     if (isPhotoStartedConversation) {
-      try {
+      after(async () => {
+        try {
         const titleResponse = await openai.responses.create({
           model: 'gpt-5.6-luna',
           instructions:
@@ -1101,9 +1114,10 @@ Rules:
             console.error('CONVERSATION TITLE UPDATE ERROR:', titleUpdateError)
           }
         }
-      } catch (titleError) {
-        console.error('CONVERSATION TITLE GENERATION ERROR:', titleError)
-      }
+        } catch (titleError) {
+          console.error('CONVERSATION TITLE GENERATION ERROR:', titleError)
+        }
+      })
     }
 
     const { data: assistantMessage, error: assistantMessageError } = await supabaseServer.from('Messages').insert({
@@ -1115,7 +1129,9 @@ Rules:
     }).select('id').single()
     if (assistantMessageError || !assistantMessage) throw assistantMessageError || new Error('Assistant message was not saved.')
 
-    if (managerRelevantSignal) try {
+    if (managerRelevantSignal) {
+      after(async () => {
+        try {
       const recentContext = Array.isArray(history)
         ? history
             .filter(
@@ -1350,8 +1366,10 @@ For "new", set existing_index to null and merged may repeat the new candidate.
           }
         }
       }
-    } catch (reflectionError) {
-      console.error('AUTO REFLECTION CAPTURE ERROR:', reflectionError)
+        } catch (reflectionError) {
+          console.error('AUTO REFLECTION CAPTURE ERROR:', reflectionError)
+        }
+      })
     }
 
     const responseFinishedAt = performance.now()
@@ -1366,6 +1384,13 @@ For "new", set existing_index to null and merged may repeat the new candidate.
           : Math.round(primaryFinishedAt - primaryStartedAt),
       postPrimaryMs:
         primaryFinishedAt === null ? null : Math.round(responseFinishedAt - primaryFinishedAt),
+      routeMode: normalizedDirectLookup
+        ? 'normalized_lookup'
+        : directVerifiedCodeLookup
+          ? 'verified_lookup'
+          : numericCodeVerificationNeeded
+            ? 'deep_analysis'
+            : 'general',
       fastLookup: directVerifiedCodeLookup,
       normalizedDirectLookup,
       normalizedAlias: normalizedMatchedAlias || null,
