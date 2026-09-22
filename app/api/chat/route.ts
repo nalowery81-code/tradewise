@@ -50,6 +50,10 @@ const recallKeywords = (message: string) =>
 
 
 export async function POST(req: Request) {
+  const requestStartedAt = performance.now()
+  let primaryStartedAt: number | null = null
+  let primaryFinishedAt: number | null = null
+
   try {
     const { message, image, history = [], conversationId } = await req.json()
     const access = await requireEffectiveTechnician(req)
@@ -376,6 +380,7 @@ ACTIVE ADMIN-APPROVED GUIDANCE:
 ${activeGuidance || 'No additional Admin-approved guidance is active.'}
     `.trim()
 
+    primaryStartedAt = performance.now()
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
       tools: [
@@ -581,6 +586,8 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
         { role: 'user', content: userContent },
       ],
     })
+
+    primaryFinishedAt = performance.now()
 
     await recordAIUsage({
       feature: 'technician_chat',
@@ -1128,7 +1135,30 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       console.error('AUTO REFLECTION CAPTURE ERROR:', reflectionError)
     }
 
-    return Response.json({ reply, conversationId: activeConversationId, assistantMessageId: assistantMessage.id, sources })
+    const responseFinishedAt = performance.now()
+    const timing = {
+      totalMs: Math.round(responseFinishedAt - requestStartedAt),
+      setupMs:
+        primaryStartedAt === null ? null : Math.round(primaryStartedAt - requestStartedAt),
+      primaryMs:
+        primaryStartedAt === null || primaryFinishedAt === null
+          ? null
+          : Math.round(primaryFinishedAt - primaryStartedAt),
+      postPrimaryMs:
+        primaryFinishedAt === null ? null : Math.round(responseFinishedAt - primaryFinishedAt),
+      fastLookup: directVerifiedCodeLookup,
+      straightforwardTechnicalLookup,
+    }
+
+    console.info('CRAFTCOMPASS CHAT TIMING', timing)
+
+    return Response.json({
+      reply,
+      conversationId: activeConversationId,
+      assistantMessageId: assistantMessage.id,
+      sources,
+      timing,
+    })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
     return Response.json(
