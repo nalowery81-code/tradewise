@@ -172,7 +172,7 @@ export default function PlatformAdminDashboard() {
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
         <PlatformAdminNav variant="sidebar" />
-        <a href="/manager/overview" style={backLink}>← Owner Workspace</a>
+        <a href="/platform-admin/owner-workspace" style={backLink}>← Owner Workspace</a>
       </aside>
 
       <section className="admin-main" style={mainStyle}>

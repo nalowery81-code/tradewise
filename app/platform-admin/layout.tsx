@@ -276,7 +276,7 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 const floatingButtonStyle: React.CSSProperties = {
   position: 'fixed',
   left: 20,
-  top: 272,
+  bottom: 76,
   zIndex: 700,
   width: 204,
   boxSizing: 'border-box',
