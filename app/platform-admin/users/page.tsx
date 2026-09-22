@@ -13,6 +13,7 @@ type UserRow = {
   role: string
   isActive: boolean
   isPlatformAdmin: boolean
+  lastSignInAt: string | null
 }
 
 type CompanyRow = {
@@ -25,6 +26,13 @@ const roleOrder: Record<string, number> = {
   owner: 0,
   manager: 1,
   technician: 2,
+}
+
+const formatLastLogin = (value: string | null) => {
+  if (!value) return 'Never signed in'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Unknown'
+  return date.toLocaleString()
 }
 
 export default function PlatformAdminUsersPage() {
@@ -280,19 +288,6 @@ export default function PlatformAdminUsersPage() {
     window.location.href = '/manager'
   }
 
-  const remove = async (user: UserRow) => {
-    if (!window.confirm(`Permanently remove ${user.email} from CraftCompass AI? This cannot be undone.`)) return
-    const accessToken = await token()
-    const response = await fetch('/api/platform-admin/users', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
-      body: JSON.stringify({ profileId: user.id }),
-    })
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) return setError(data.error || 'Could not remove user.')
-    setUsers((rows) => rows.filter((row) => row.id !== user.id))
-  }
-
   const renderUser = (user: UserRow) => {
     const isEditing = editingUserId === user.id
 
@@ -378,6 +373,9 @@ export default function PlatformAdminUsersPage() {
               <div style={{ marginTop: 4, color: '#64748b', fontSize: 13, textTransform: 'capitalize' }}>
                 {user.role}{user.isPlatformAdmin ? ' · Platform Admin' : ''} · {user.isActive ? 'Active' : 'Inactive'}
               </div>
+              <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 12 }}>
+                Last login: {formatLastLogin(user.lastSignInAt)}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {!user.isPlatformAdmin && (
@@ -394,7 +392,6 @@ export default function PlatformAdminUsersPage() {
                   <button onClick={() => startEdit(user)} style={buttonStyle}>Edit</button>
                   <button onClick={() => void resendSetup(user)} style={buttonStyle}>Resend Setup</button>
                   <button onClick={() => void changeActive(user)} style={buttonStyle}>{user.isActive ? 'Deactivate' : 'Reactivate'}</button>
-                  <button onClick={() => void remove(user)} style={{ ...buttonStyle, color: '#b91c1c' }}>Remove</button>
                 </>
               )}
             </div>
