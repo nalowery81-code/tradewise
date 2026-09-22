@@ -39,6 +39,25 @@ const shouldSearchHistory = (message: string) => {
   return RECALL_TRIGGERS.some((trigger) => normalized.includes(trigger))
 }
 
+const NORMALIZATION_STOP_WORDS = new Set([
+  'a','an','and','are','as','at','be','can','could','do','does','for','how','i','in','is','it',
+  'my','of','on','or','should','the','this','to','use','what','when','where','which','with','you',
+  'your','have','has','need','allowed','same'
+])
+
+const normalizationCandidateKey = (question: string) =>
+  [...new Set(
+    question
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/\s+/)
+      .map((word) => word.trim())
+      .filter((word) => word.length >= 3 && !NORMALIZATION_STOP_WORDS.has(word))
+  )]
+    .sort()
+    .slice(0, 14)
+    .join(' ')
+
 const recallKeywords = (message: string) =>
   [...new Set(
     message
@@ -1431,6 +1450,38 @@ For "new", set existing_index to null and merged may repeat the new candidate.
     }
 
     console.info('CRAFTCOMPASS CHAT TIMING', timing)
+
+    if (directVerifiedCodeLookup && !normalizedDirectLookup && userQuestionText) {
+      const candidateKey = normalizationCandidateKey(userQuestionText)
+      if (candidateKey) {
+        const codeReferences = [...new Set(
+          (reply.match(/\b(?:IPC|IAC|IFGC|IRC)?\s*(?:§|Section|Table)?\s*[A-Z]?\d{2,4}(?:\.\d+)*(?:\([^)]+\))?/gi) || [])
+            .map((value) => value.trim())
+            .filter((value) => /\d/.test(value))
+        )].slice(0, 12)
+
+        after(async () => {
+          const { error: candidateError } = await supabaseServer
+            .from('NormalizationCandidateEvents')
+            .insert({
+              normalized_key: candidateKey,
+              question: userQuestionText,
+              code_family: 'Plumbing',
+              route_mode: timing.routeMode,
+              total_ms: timing.totalMs,
+              primary_ms: timing.primaryMs,
+              conversation_id: activeConversationId,
+              assistant_message_id: assistantMessage.id,
+              code_references: codeReferences,
+              sources,
+            })
+
+          if (candidateError) {
+            console.error('NORMALIZATION CANDIDATE CAPTURE ERROR:', candidateError)
+          }
+        })
+      }
+    }
 
     onProgress({ label: 'Answer verified' })
     return Response.json({

@@ -10,6 +10,7 @@ const items = [
   { href: '/platform-admin/users', label: 'Users' },
   { href: '/platform-admin/conversation-audit', label: 'Conversation Audit' },
   { href: '/platform-admin/guidance', label: 'Guidance Library' },
+  { href: '/platform-admin/normalization-candidates', label: 'Normalization Candidates' },
 ]
 
 export default function PlatformAdminNav({ variant = 'sidebar' }: { variant?: Variant }) {
