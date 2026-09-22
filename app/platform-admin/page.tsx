@@ -35,6 +35,25 @@ type OpenAICostData = {
     models: string[]
   }[]
   featureUsageError?: string | null
+  billingScopeNote?: string
+  efficiency?: {
+    status: 'collecting' | 'ready'
+    totalCalls: number
+    minimumCalls: number
+    message: string
+    recommendations: {
+      id: string
+      feature: string
+      title: string
+      finding: string
+      action: string
+      evidence: string
+      savingsEstimate: string
+      savingsBasis: string
+      qualityRisk: 'low' | 'medium' | 'high'
+      priority: 'watch' | 'opportunity' | 'review'
+    }[]
+  }
 }
 
 type DashboardData = {
@@ -217,6 +236,12 @@ export default function PlatformAdminDashboard() {
                   <div style={errorStyle}>OpenAI cost tracker: {costs.error}</div>
                 ) : (
                   <>
+                    {costs.billingScopeNote && (
+                      <div style={billingScopeStyle}>
+                        <strong>Billing scope:</strong> {costs.billingScopeNote}
+                      </div>
+                    )}
+
                     <div className="cost-metrics" style={costMetricGridStyle}>
                       <CostMetric label="Today" value={costs.today || 0} />
                       <CostMetric label="Last 7 days" value={costs.last7 || 0} />
@@ -250,6 +275,56 @@ export default function PlatformAdminDashboard() {
                           ))
                         )}
                       </div>
+                    </div>
+
+                    <div style={{ marginTop: 15 }}>
+                      <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 8 }}>Cost Efficiency Advisor</div>
+                      {!costs.efficiency ? (
+                        <div style={quietText}>Efficiency analysis is unavailable.</div>
+                      ) : costs.efficiency.status === 'collecting' ? (
+                        <div style={collectingStyle}>
+                          <div style={{ fontWeight: 900 }}>Collecting evidence</div>
+                          <div style={{ marginTop: 5, fontSize: 12, lineHeight: 1.5 }}>{costs.efficiency.message}</div>
+                          <div style={progressTrackStyle}>
+                            <div
+                              style={{
+                                ...progressFillStyle,
+                                width: `${Math.min(100, Math.round((costs.efficiency.totalCalls / Math.max(1, costs.efficiency.minimumCalls)) * 100))}%`,
+                              }}
+                            />
+                          </div>
+                          <div style={{ marginTop: 5, color: '#64748b', fontSize: 10 }}>
+                            {costs.efficiency.totalCalls} / {costs.efficiency.minimumCalls} AI calls
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 8 }}>
+                          <div style={{ color: '#64748b', fontSize: 11, lineHeight: 1.5 }}>{costs.efficiency.message}</div>
+                          {costs.efficiency.recommendations.length === 0 ? (
+                            <div style={{ ...quietText, color: '#166534' }}>No optimization pattern currently crosses the review threshold.</div>
+                          ) : costs.efficiency.recommendations.map((rec) => (
+                            <div key={rec.id} style={recommendationStyle}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                <div>
+                                  <div style={{ fontWeight: 900, fontSize: 13 }}>{rec.title}</div>
+                                  <div style={{ marginTop: 3, color: '#64748b', fontSize: 10, textTransform: 'uppercase', fontWeight: 850 }}>
+                                    {rec.feature.replace(/_/g, ' ')}
+                                  </div>
+                                </div>
+                                <div style={{ display: 'flex', gap: 6 }}>
+                                  <span style={priorityBadgeStyle(rec.priority)}>{rec.priority}</span>
+                                  <span style={riskBadgeStyle(rec.qualityRisk)}>quality risk: {rec.qualityRisk}</span>
+                                </div>
+                              </div>
+                              <div style={{ marginTop: 8, fontSize: 12, lineHeight: 1.5, color: '#334155' }}>{rec.finding}</div>
+                              <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5 }}><strong>Possible action:</strong> {rec.action}</div>
+                              <div style={{ marginTop: 7, fontSize: 11, color: '#475569' }}><strong>Evidence:</strong> {rec.evidence}</div>
+                              <div style={{ marginTop: 4, fontSize: 11, color: '#475569' }}><strong>Savings:</strong> {rec.savingsEstimate}</div>
+                              <div style={{ marginTop: 3, fontSize: 10, color: '#94a3b8', lineHeight: 1.4 }}>{rec.savingsBasis}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ marginTop: 15 }}>
@@ -421,6 +496,40 @@ function DailyCostBars({ rows }: { rows: { date: string; cost: number }[] }) {
   )
 }
 
+function priorityBadgeStyle(priority: 'watch' | 'opportunity' | 'review'): React.CSSProperties {
+  const palette =
+    priority === 'review'
+      ? { background: '#fff1f2', color: '#be123c', border: '#fecdd3' }
+      : priority === 'opportunity'
+        ? { background: '#fffbeb', color: '#b45309', border: '#fde68a' }
+        : { background: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' }
+
+  return {
+    padding: '4px 7px',
+    borderRadius: 999,
+    background: palette.background,
+    color: palette.color,
+    border: `1px solid ${palette.border}`,
+    fontSize: 9,
+    fontWeight: 900,
+    textTransform: 'uppercase',
+  }
+}
+
+function riskBadgeStyle(risk: 'low' | 'medium' | 'high'): React.CSSProperties {
+  const color = risk === 'low' ? '#166534' : risk === 'medium' ? '#92400e' : '#991b1b'
+  return {
+    padding: '4px 7px',
+    borderRadius: 999,
+    background: '#f8fafc',
+    color,
+    border: '1px solid #e2e8f0',
+    fontSize: 9,
+    fontWeight: 850,
+    textTransform: 'uppercase',
+  }
+}
+
 function HealthCard({ title, value, detail, tone, href }: { title: string; value: string; detail: string; tone: 'good'|'warn'|'info'; href: string }) {
   const palette = tone === 'good' ? ['#ecfdf5','#166534'] : tone === 'warn' ? ['#fff7ed','#9a3412'] : ['#eff6ff','#1d4ed8']
   return <a href={href} style={{ ...healthCardStyle, textDecoration: 'none', color: '#172033' }}>
@@ -491,3 +600,9 @@ const lineItemGridStyle: React.CSSProperties = { display: 'grid', gridTemplateCo
 const lineItemStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 10px', background: '#f8fafc', borderRadius: 9, fontSize: 11 }
 
 const featureUsageRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '10px 11px', border: '1px solid #eef2f7', borderRadius: 9, background: '#fbfdff' }
+
+const billingScopeStyle: React.CSSProperties = { marginBottom: 10, padding: '10px 12px', borderRadius: 9, background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', fontSize: 11, lineHeight: 1.45 }
+const collectingStyle: React.CSSProperties = { padding: 13, borderRadius: 10, background: '#f8fafc', border: '1px solid #e2e8f0', color: '#334155' }
+const progressTrackStyle: React.CSSProperties = { marginTop: 10, width: '100%', height: 7, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }
+const progressFillStyle: React.CSSProperties = { height: '100%', borderRadius: 999, background: '#2563eb' }
+const recommendationStyle: React.CSSProperties = { padding: 13, borderRadius: 10, background: '#fbfdff', border: '1px solid #e2e8f0' }

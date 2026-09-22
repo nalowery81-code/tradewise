@@ -1,5 +1,6 @@
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../lib/supabase-server'
+import { analyzeAIEfficiency } from '../../../lib/ai-efficiency'
 
 export const dynamic = 'force-dynamic'
 
@@ -248,6 +249,8 @@ export async function GET(request: Request) {
       }))
       .sort((a, b) => b.totalTokens - a.totalTokens)
 
+    const efficiency = analyzeAIEfficiency(featureUsage)
+
     const lineItems = [...lineItemMap.entries()]
       .map(([name, cost]) => ({ name, cost }))
       .sort((a, b) => b.cost - a.cost)
@@ -267,6 +270,8 @@ export async function GET(request: Request) {
       usageError: usageResult?.usage_error || null,
       featureUsage,
       featureUsageError: featureUsageResult.error?.message || null,
+      efficiency,
+      billingScopeNote: 'Dollar totals above are organization-wide and may include Fantasy Guru or other OpenAI projects. CraftCompass feature telemetry and efficiency recommendations below are app-specific from the moment Commit 3 went live.',
       source: 'OpenAI organization Costs and Usage APIs',
     })
   } catch (error: any) {
