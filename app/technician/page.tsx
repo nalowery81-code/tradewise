@@ -151,6 +151,9 @@ export default function TechnicianPage() {
   const [isListening, setIsListening] = useState(false)
   const [sending, setSending] = useState(false)
   const [workingElapsedMs, setWorkingElapsedMs] = useState(0)
+  const [workingSteps, setWorkingSteps] = useState<
+    { label: string; detail?: string; done: boolean }[]
+  >([])
   const requestStartedAtRef = useRef<number | null>(null)
   const [messages, setMessages] = useState<
     {
@@ -478,6 +481,11 @@ export default function TechnicianPage() {
 
     requestStartedAtRef.current = performance.now()
     setWorkingElapsedMs(0)
+    setWorkingSteps(
+      selectedImageFile
+        ? [{ label: 'Preparing your photo', done: false }]
+        : []
+    )
     setSending(true)
 
     let imageData: string | null = null
@@ -523,6 +531,7 @@ export default function TechnicianPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/x-ndjson',
           Authorization: `Bearer ${session?.access_token || ''}`,
         },
         body: JSON.stringify({
@@ -533,14 +542,71 @@ export default function TechnicianPage() {
         }),
       })
 
-      const data = await res.json()
+      let data: any = null
+      let streamedError = ''
 
-      if (!res.ok) {
+      const applyProgress = (label: string, detail?: string) => {
+        setWorkingSteps((current) => {
+          const completed = current.map((step) => ({ ...step, done: true }))
+          const previous = completed[completed.length - 1]
+          if (previous?.label === label) {
+            return [
+              ...completed.slice(0, -1),
+              { label, detail: detail || previous.detail, done: false },
+            ].slice(-5)
+          }
+          return [...completed, { label, detail, done: false }].slice(-5)
+        })
+      }
+
+      if (res.headers.get('content-type')?.includes('application/x-ndjson') && res.body) {
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        while (true) {
+          const { value, done } = await reader.read()
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+
+          const lines = buffer.split('\n')
+          buffer = lines.pop() || ''
+
+          for (const line of lines) {
+            if (!line.trim()) continue
+            const event = JSON.parse(line)
+
+            if (event.type === 'progress' && event.label) {
+              applyProgress(event.label, event.detail)
+            } else if (event.type === 'final') {
+              data = event
+            } else if (event.type === 'error') {
+              streamedError = event.error || 'I had trouble responding. Try that again.'
+            }
+          }
+
+          if (done) break
+        }
+
+        if (buffer.trim()) {
+          const event = JSON.parse(buffer)
+          if (event.type === 'final') data = event
+          if (event.type === 'error') {
+            streamedError = event.error || 'I had trouble responding. Try that again.'
+          }
+        }
+      } else {
+        data = await res.json()
+      }
+
+      if (!res.ok || streamedError || !data) {
         setMessages((prev) => [
           ...prev,
           {
             role: 'assistant',
-            text: data.error || 'I had trouble responding. Try that again.',
+            text:
+              streamedError ||
+              data?.error ||
+              'I had trouble responding. Try that again.',
           },
         ])
         return
@@ -579,6 +645,7 @@ export default function TechnicianPage() {
       ])
     } finally {
       setSending(false)
+      setWorkingSteps([])
       requestStartedAtRef.current = null
     }
   }
@@ -784,7 +851,7 @@ export default function TechnicianPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Worked for {(item.responseDurationMs / 1000).toFixed(1)}s
+                    Verified in {(item.responseDurationMs / 1000).toFixed(1)}s
                   </div>
                 )}
 
@@ -875,26 +942,74 @@ export default function TechnicianPage() {
               <div
                 style={{
                   ...styles.assistantBubble,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  minWidth: 150,
+                  minWidth: 280,
+                  maxWidth: 520,
+                  padding: '14px 16px',
                 }}
               >
-                <span
-                  aria-hidden="true"
+                <div style={{ fontWeight: 800, color: '#123047', marginBottom: 9 }}>
+                  CraftCompass is checking…
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                  {(workingSteps.length > 0
+                    ? workingSteps
+                    : [{ label: 'Connecting securely', done: false }]
+                  ).map((step, index) => (
+                    <div
+                      key={`${step.label}-${index}`}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                        color: step.done ? '#64748b' : '#1e293b',
+                        fontSize: 13,
+                      }}
+                    >
+                      <span
+                        aria-hidden="true"
+                        style={{
+                          width: 16,
+                          flex: '0 0 16px',
+                          fontWeight: 800,
+                          color: step.done ? '#16a34a' : '#123047',
+                        }}
+                      >
+                        {step.done ? '✓' : '●'}
+                      </span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: step.done ? 600 : 800 }}>
+                          {step.label}
+                        </div>
+                        {step.detail && (
+                          <div
+                            style={{
+                              marginTop: 2,
+                              color: '#64748b',
+                              fontSize: 11,
+                              lineHeight: 1.35,
+                            }}
+                          >
+                            {step.detail}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div
                   style={{
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: '#123047',
-                    opacity: 0.75,
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTop: '1px solid #e2e8f0',
+                    color: '#94a3b8',
+                    fontSize: 11,
+                    fontWeight: 600,
                   }}
-                />
-                <span style={{ fontWeight: 700, color: '#475569' }}>
-                  Working… {(workingElapsedMs / 1000).toFixed(1)}s
-                </span>
+                >
+                  {(workingElapsedMs / 1000).toFixed(1)}s elapsed
+                </div>
               </div>
             </div>
           )}

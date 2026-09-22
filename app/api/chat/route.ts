@@ -50,7 +50,10 @@ const recallKeywords = (message: string) =>
   )].slice(0, 6)
 
 
-export async function POST(req: Request) {
+async function handleChat(
+  req: Request,
+  onProgress: (event: { label: string; detail?: string }) => void = () => {}
+) {
   const requestStartedAt = performance.now()
   let primaryStartedAt: number | null = null
   let primaryFinishedAt: number | null = null
@@ -64,6 +67,7 @@ export async function POST(req: Request) {
 
   try {
     const { message, image, history = [], conversationId } = await req.json()
+    onProgress({ label: 'Connecting securely' })
     const access = await requireEffectiveTechnician(req)
     markStage('authMs')
     if ('error' in access) return access.error
@@ -82,6 +86,8 @@ export async function POST(req: Request) {
         requestQuestionText
       ) &&
       !managerRelevantSignal
+
+    onProgress({ label: 'Understanding your field question' })
 
     let activeConversationId = conversationId
     const isNewConversation = !activeConversationId
@@ -445,6 +451,30 @@ export async function POST(req: Request) {
     markStage('normalizedLookupMs')
 
     const normalizedDirectLookup = normalizedCodeEvidence.length > 0
+
+    if (normalizedDirectLookup) {
+      onProgress({
+        label: 'Using verified CraftCompass code data',
+        detail: normalizedMatchedAlias || undefined,
+      })
+      const verifiedRefs = normalizedCodeEvidence
+        .map((item) => item.citation_text)
+        .filter((value): value is string => Boolean(value))
+        .slice(0, 2)
+      if (verifiedRefs.length > 0) {
+        onProgress({
+          label: 'Checking Indiana code & amendments',
+          detail: verifiedRefs.join(' · '),
+        })
+      }
+    } else if (directVerifiedCodeLookup) {
+      onProgress({ label: 'Searching verified Indiana code' })
+    } else if (manufacturerEvidenceEnabled) {
+      onProgress({ label: 'Checking verified manufacturer documentation' })
+    } else {
+      onProgress({ label: 'Researching verified sources' })
+    }
+
     const normalizedEvidenceText = normalizedCodeEvidence
       .map(
         (item) =>
@@ -502,6 +532,7 @@ ACTIVE ADMIN-APPROVED GUIDANCE:
 ${activeGuidance || 'No additional Admin-approved guidance is active.'}
     `.trim()
 
+    onProgress({ label: 'Building a field-ready answer' })
     primaryStartedAt = performance.now()
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
@@ -728,6 +759,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
     })
 
     primaryFinishedAt = performance.now()
+    onProgress({ label: 'Cross-checking answer references' })
 
     after(() =>
       recordAIUsage({
@@ -922,6 +954,7 @@ Rules:
     // manufacture a follow-up question; this reduces latency without removing any
     // evidence or verification step.
 
+    onProgress({ label: 'Attaching verified sources' })
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
 
     if (normalizedDirectLookup) {
@@ -1399,6 +1432,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
 
     console.info('CRAFTCOMPASS CHAT TIMING', timing)
 
+    onProgress({ label: 'Answer verified' })
     return Response.json({
       reply,
       conversationId: activeConversationId,
@@ -1413,4 +1447,52 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       { status: 500 }
     )
   }
+}
+
+export async function POST(req: Request) {
+  const wantsProgress = req.headers.get('accept')?.includes('application/x-ndjson')
+  if (!wantsProgress) return handleChat(req)
+
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
+      }
+
+      try {
+        const response = await handleChat(req, (event) =>
+          send({ type: 'progress', ...event })
+        )
+        const payload = await response.json()
+
+        if (!response.ok) {
+          send({
+            type: 'error',
+            status: response.status,
+            error: payload?.error || 'CraftCompass AI could not generate a response.',
+          })
+        } else {
+          send({ type: 'final', ...payload })
+        }
+      } catch (error: any) {
+        console.error('TRADEWISE CHAT STREAM ERROR:', error)
+        send({
+          type: 'error',
+          status: 500,
+          error: error?.message || 'CraftCompass AI could not generate a response.',
+        })
+      } finally {
+        controller.close()
+      }
+    },
+  })
+
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'application/x-ndjson; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      'X-Accel-Buffering': 'no',
+    },
+  })
 }
