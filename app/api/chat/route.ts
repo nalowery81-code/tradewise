@@ -547,15 +547,22 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       )
 
     const calculationOrTableRisk =
-      /\b(calculate|calculation|size|sizing|sized|dfu|fixture unit|roof drain|storm drain|rainfall|slope|leader|conductor|building drain|building sewer|horizontal branch|capacity|tributary|area|load|flow rate|gpm|total connected|pipe size|how many|how much)\b/i.test(
+      /\b(calculate|calculation|sizing|sized|dfu|fixture unit|roof drain|storm drain|rainfall|slope|leader|conductor|building drain|building sewer|horizontal branch|capacity|tributary|area|load|flow rate|gpm|total connected|pipe size|how many|how much|sum|combined)\b/i.test(
         userQuestionText
       ) ||
       /\b(table\s+\d+|\d+(?:\.\d+)?\s*(?:dfu|sq\.?\s*ft|square feet|in\.\/hr|inches per hour|gpm|%\s*slope))\b/i.test(
         draftAnswer
       )
 
+    const directLimitLookup =
+      /\b(max(?:imum)?|min(?:imum)?|largest|smallest|how big|what size)\b/i.test(userQuestionText) &&
+      !/\b(calculate|calculation|sizing|dfu|fixture unit|rainfall|tributary|combined|total connected|how many|how much)\b/i.test(
+        userQuestionText
+      )
+
     const numericCodeVerificationNeeded =
       !simpleUnitConversion &&
+      !directLimitLookup &&
       /\d/.test(draftAnswer) &&
       calculationOrTableRisk
 
