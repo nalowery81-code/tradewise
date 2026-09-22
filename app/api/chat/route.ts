@@ -425,6 +425,7 @@ Authority order:
 4. Never invent a code section, amendment, exception, interpretation, or requirement.
 Distinguish Indiana amendments from unchanged adopted 2006 IPC provisions. If both are needed, explain that the adopted provision applies as modified by Indiana.
 If the verified Indiana library does not support the answer, say so rather than filling the gap from general knowledge or web search.
+For Indiana plumbing-code questions, use the verified code library first and do not invoke web search when the library contains the needed code evidence. Web search is a fallback only for genuinely missing non-code context or an official source that is not yet in the verified library.
 Keep manufacturer requirements and Indiana code requirements distinct.
 When both apply, prefer:
 Indiana Code
@@ -505,11 +506,22 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
 
     let answerResponse = response
     const draftAnswer = response.output_text || ''
-    const numericCodeVerificationNeeded =
-      /\d/.test(draftAnswer) &&
-      /\b(code|ipc|iac|dfu|fixture unit|roof drain|storm drain|rainfall|sizing|size|slope|leader|conductor|building drain|building sewer|horizontal branch|vent|trap|water closet|drainage)\b/i.test(
-        `${message || ''} ${draftAnswer}`
+    const userQuestionText = message?.trim() || ''
+    const simpleUnitConversion =
+      /^\s*(?:what(?:'s| is)?|convert|how many)?\s*\d+(?:\.\d+)?\s*(?:%|percent|inches?|in\.?|feet?|ft\.?|psi|gpm|gph|°?[fc])\b.*\b(?:to|in|per|equals?|equal to)\b/i.test(
+        userQuestionText
+      ) &&
+      !/\b(code|ipc|iac|dfu|fixture unit|minimum|maximum|required|allowed|prohibited|roof drain|storm drain|building drain|building sewer|vent|trap|water closet|leader|conductor)\b/i.test(
+        userQuestionText
       )
+
+    const codeNumericRisk =
+      /\b(code|ipc|iac|dfu|fixture unit|roof drain|storm drain|rainfall|sizing|size|slope|leader|conductor|building drain|building sewer|horizontal branch|vent|trap|water closet|drainage|minimum|maximum|required|capacity|load)\b/i.test(
+        `${userQuestionText} ${draftAnswer}`
+      )
+
+    const numericCodeVerificationNeeded =
+      !simpleUnitConversion && /\d/.test(draftAnswer) && codeNumericRisk
 
     if (numericCodeVerificationNeeded) {
       try {
@@ -522,7 +534,6 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
                 ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
                 : [INDIANA_CODE_VECTOR_STORE_ID],
             },
-            { type: 'web_search' },
           ],
           instructions: `
 You are the final numeric evidence verifier for CraftCompass AI.
@@ -582,49 +593,10 @@ NON-NEGOTIABLE RULES:
       .replace(/[ \t]{2,}/g, ' ')
       .trim()
 
-    const finalLine = reply.split('\n').map((line) => line.trim()).filter(Boolean).at(-1) || ''
-    const userRequestedNoFollowUp = /\b(no follow[- ]?up|don't ask|do not ask|just answer|answer only)\b/i.test(message?.trim() || '')
-
-    if (!finalLine.endsWith('?') && !userRequestedNoFollowUp) {
-      try {
-        const followUpResponse = await openai.responses.create({
-          model: 'gpt-5.6-luna',
-          instructions: `
-Create ONE short, natural follow-up question for a skilled-trades technician after CraftCompass has already answered them.
-
-Rules:
-- Return ONLY the question, no explanation.
-- Keep it conversational and job-relevant.
-- If more technical information is needed, ask the single most useful technical question.
-- If the answer is complete, ask a light follow-up that keeps the conversation moving, such as whether that solved it, what they found, whether they are returning to the job, or what they want to tackle next.
-- Do not ask a survey-like question.
-- Do not ask more than one question.
-- Do not invent facts.
-- If a follow-up would be unsafe, distracting, awkward, or inappropriate because the situation is urgent, return exactly: NONE
-          `.trim(),
-          input: `Technician message: ${message?.trim() || '[image-only message]'}\n\nCraftCompass answer: ${reply}`,
-        })
-
-        await recordAIUsage({
-          feature: 'technician_follow_up',
-          endpoint: '/api/chat',
-          model: 'gpt-5.6-luna',
-          conversationType: 'technician',
-          conversationId: activeConversationId,
-          response: followUpResponse,
-        })
-
-        const followUp = (followUpResponse.output_text || '')
-          .replace(/[\r\n]+/g, ' ')
-          .trim()
-
-        if (followUp && followUp !== 'NONE' && followUp.endsWith('?')) {
-          reply = `${reply}\n\n${followUp}`
-        }
-      } catch (followUpError) {
-        console.error('ENGAGEMENT FOLLOW-UP ERROR:', followUpError)
-      }
-    }
+    // The primary response and numeric verifier are already instructed to ask one
+    // useful follow-up when appropriate. Avoid a separate AI round trip solely to
+    // manufacture a follow-up question; this reduces latency without removing any
+    // evidence or verification step.
 
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
     for (const outputItem of answerResponse.output) {
