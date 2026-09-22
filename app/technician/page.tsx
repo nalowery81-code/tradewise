@@ -32,6 +32,7 @@ function renderAssistantText(text: string) {
     'Code minimum',
     'Conservative lookup',
     'Manufacturer selection',
+    'Code references',
   ])
 
   const normalizeLine = (line: string) =>
