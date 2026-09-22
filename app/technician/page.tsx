@@ -6,6 +6,19 @@ import { supabase } from '../lib/supabase'
 import FeedbackRequestPrompt from '../components/feedback-request'
 import { groupSimilarConversations } from '../lib/conversation-grouping'
 
+function renderInlineMarkdown(text: string) {
+  const normalized = text.replace(/\\([*_#-])/g, '$1')
+  const parts = normalized.split(/(\*\*[^*]+\*\*)/g)
+
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>
+    }
+
+    return <span key={index}>{part}</span>
+  })
+}
+
 function renderAssistantText(text: string) {
   const lines = text.split('\n')
   const headingLabels = new Set([
@@ -13,20 +26,36 @@ function renderAssistantText(text: string) {
     'Manufacturer',
     'What this means',
     'Conclusion',
+    'Preliminary sizing',
+    'Important limitations',
+    'Practical starting point',
+    'Code minimum',
+    'Conservative lookup',
+    'Manufacturer selection',
   ])
 
+  const normalizeLine = (line: string) =>
+    line
+      .trim()
+      .replace(/\\([*_#-])/g, '$1')
+      .replace(/^#{1,6}\s*/, '')
+
   const lastContentIndex = [...lines]
-    .map((line, index) => ({ line: line.trim(), index }))
+    .map((line, index) => ({ line: normalizeLine(line), index }))
     .filter(({ line }) => line.length > 0)
     .at(-1)?.index
 
   return (
     <div>
       {lines.map((line, index) => {
-        const trimmed = line.trim()
-        const cleaned = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/:$/, '')
-        const isHeading = headingLabels.has(cleaned)
+        const trimmed = normalizeLine(line)
+        const headingText = trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '').replace(/:$/, '')
+        const isHeading =
+          headingLabels.has(headingText) ||
+          /^#{1,6}\s+/.test(line.trim().replace(/\\#/g, '#'))
         const isFinalQuestion = index === lastContentIndex && trimmed.endsWith('?')
+        const bulletMatch = trimmed.match(/^[-•]\s+(.+)$/)
+        const numberedMatch = trimmed.match(/^(\d+\.)\s+(.+)$/)
 
         if (!trimmed) return <div key={index} style={{ height: 14 }} />
 
@@ -35,7 +64,7 @@ function renderAssistantText(text: string) {
             <div
               key={index}
               style={{
-                marginTop: index === 0 ? 0 : 14,
+                marginTop: index === 0 ? 0 : 16,
                 marginBottom: 8,
                 fontSize: 17,
                 fontWeight: 800,
@@ -43,7 +72,7 @@ function renderAssistantText(text: string) {
                 letterSpacing: '-0.01em',
               }}
             >
-              {cleaned}
+              {renderInlineMarkdown(headingText)}
             </div>
           )
         }
@@ -59,16 +88,54 @@ function renderAssistantText(text: string) {
                 background: '#eef4f7',
                 borderLeft: '4px solid #123047',
                 fontWeight: 700,
-                lineHeight: 1.5,
+                lineHeight: 1.55,
                 color: '#123047',
               }}
             >
-              {trimmed.replace(/^\*\*/, '').replace(/\*\*$/, '')}
+              {renderInlineMarkdown(trimmed)}
             </div>
           )
         }
 
-        return <div key={index} style={{ marginBottom: 7 }}>{line}</div>
+        if (bulletMatch) {
+          return (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                gap: 9,
+                alignItems: 'flex-start',
+                marginBottom: 8,
+              }}
+            >
+              <span aria-hidden="true" style={{ fontWeight: 800, lineHeight: 1.72 }}>•</span>
+              <div style={{ flex: 1 }}>{renderInlineMarkdown(bulletMatch[1])}</div>
+            </div>
+          )
+        }
+
+        if (numberedMatch) {
+          return (
+            <div
+              key={index}
+              style={{
+                display: 'flex',
+                gap: 9,
+                alignItems: 'flex-start',
+                marginBottom: 8,
+              }}
+            >
+              <span style={{ fontWeight: 800, lineHeight: 1.72 }}>{numberedMatch[1]}</span>
+              <div style={{ flex: 1 }}>{renderInlineMarkdown(numberedMatch[2])}</div>
+            </div>
+          )
+        }
+
+        return (
+          <div key={index} style={{ marginBottom: 8 }}>
+            {renderInlineMarkdown(trimmed)}
+          </div>
+        )
       })}
     </div>
   )
