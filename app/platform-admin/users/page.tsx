@@ -57,6 +57,8 @@ export default function PlatformAdminUsersPage() {
   const [editCompanyId, setEditCompanyId] = useState('')
   const [editRole, setEditRole] = useState<'owner' | 'manager' | 'technician'>('technician')
   const [editActive, setEditActive] = useState(true)
+  const [editPassword, setEditPassword] = useState('')
+  const [editPasswordConfirm, setEditPasswordConfirm] = useState('')
   const [savingEdit, setSavingEdit] = useState(false)
 
   const token = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
@@ -178,10 +180,14 @@ export default function PlatformAdminUsersPage() {
     setEditCompanyId(user.companyId)
     setEditRole(user.role as 'owner' | 'manager' | 'technician')
     setEditActive(user.isActive)
+    setEditPassword('')
+    setEditPasswordConfirm('')
   }
 
   const cancelEdit = () => {
     if (savingEdit) return
+    setEditPassword('')
+    setEditPasswordConfirm('')
     setEditingUserId('')
   }
 
@@ -194,6 +200,14 @@ export default function PlatformAdminUsersPage() {
 
     if (!name || !email || !editCompanyId) {
       setError('Enter the name and email, then choose a company.')
+      return
+    }
+    if (editPassword && editPassword.length < 8) {
+      setError('New password must be at least 8 characters.')
+      return
+    }
+    if (editPassword !== editPasswordConfirm) {
+      setError('New password and confirmation do not match.')
       return
     }
 
@@ -217,6 +231,7 @@ export default function PlatformAdminUsersPage() {
           companyId: editCompanyId,
           role: editRole,
           isActive: editActive,
+          password: editPassword || undefined,
         }),
       })
 
@@ -226,8 +241,10 @@ export default function PlatformAdminUsersPage() {
         return
       }
 
+      setEditPassword('')
+      setEditPasswordConfirm('')
       setEditingUserId('')
-      setStatus(`${name} was updated.`)
+      setStatus(editPassword ? `${name} was updated and the password was changed.` : `${name} was updated.`)
       await load()
     } catch (editError) {
       console.error('PLATFORM EDIT USER ERROR:', editError)
@@ -334,6 +351,39 @@ export default function PlatformAdminUsersPage() {
                   <option value="technician">Technician</option>
                 </select>
               </label>
+            </div>
+
+            <div style={passwordCardStyle}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 850 }}>Set new password</div>
+                <div style={{ marginTop: 4, color: '#64748b', fontSize: 12, lineHeight: 1.45 }}>
+                  Optional. Leave both fields blank to keep the current password.
+                </div>
+              </div>
+              <div style={formGridStyle}>
+                <label style={labelStyle}>
+                  New password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={editPassword}
+                    onChange={(event) => setEditPassword(event.target.value)}
+                    placeholder="At least 8 characters"
+                    style={inputStyle}
+                  />
+                </label>
+                <label style={labelStyle}>
+                  Confirm password
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    value={editPasswordConfirm}
+                    onChange={(event) => setEditPasswordConfirm(event.target.value)}
+                    placeholder="Type it again"
+                    style={inputStyle}
+                  />
+                </label>
+              </div>
             </div>
 
             <label style={checkboxStyle}>
@@ -541,3 +591,4 @@ const formGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumn
 const labelStyle: React.CSSProperties = { display: 'grid', gap: 7, fontSize: 13, fontWeight: 800 }
 const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 9, padding: '10px 11px', fontSize: 14, background: '#fff', color: '#172033' }
 const checkboxStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, fontSize: 14, fontWeight: 700, width: 'fit-content' }
+const passwordCardStyle: React.CSSProperties = { display: 'grid', gap: 12, padding: 14, border: '1px solid #dbe3ec', borderRadius: 11, background: '#f8fafc' }
