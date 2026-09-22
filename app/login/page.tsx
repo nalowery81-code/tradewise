@@ -182,7 +182,7 @@ export default function LoginPage() {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'linear-gradient(180deg, #f8fbfc 0%, #eef6f7 100%)' }}>
       <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', gap: 14, background: '#ffffff', border: '1px solid #dbe7ea', borderRadius: 24, padding: '28px 26px', boxShadow: '0 18px 50px rgba(11,45,66,0.10)' }}>
-        <BrandLogo width={250} style={{ margin: '0 auto 6px' }} />
+        <BrandLogo width={200} style={{ margin: '0 auto 6px' }} />
 
         {checkingSession ? (
           <div style={{ fontSize: 14, color: '#6b7280' }}>Checking your sign-in...</div>
