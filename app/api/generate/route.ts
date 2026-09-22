@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { recordAIUsage } from '../../lib/ai-usage'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -31,6 +32,13 @@ Return valid JSON with exactly these keys:
         },
       ],
       response_format: { type: 'json_object' },
+    })
+
+    await recordAIUsage({
+      feature: 'legacy_reflection_generate',
+      endpoint: '/api/generate',
+      model: 'gpt-4o-mini',
+      chatCompletion: completion,
     })
 
     const content = completion.choices[0]?.message?.content || '{}'

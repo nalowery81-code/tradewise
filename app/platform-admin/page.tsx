@@ -23,6 +23,18 @@ type OpenAICostData = {
     outputTokens: number
   }[]
   usageError?: string | null
+  featureUsage?: {
+    feature: string
+    calls: number
+    inputTokens: number
+    cachedInputTokens: number
+    outputTokens: number
+    totalTokens: number
+    webSearchCalls: number
+    fileSearchCalls: number
+    models: string[]
+  }[]
+  featureUsageError?: string | null
 }
 
 type DashboardData = {
@@ -240,6 +252,33 @@ export default function PlatformAdminDashboard() {
                       </div>
                     </div>
 
+                    <div style={{ marginTop: 15 }}>
+                      <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 8 }}>CraftCompass Feature Telemetry · Last 14 Days</div>
+                      {(costs.featureUsage || []).length === 0 ? (
+                        <div style={quietText}>
+                          {costs.featureUsageError || 'No feature telemetry yet. Data begins accumulating after Commit 3 is live.'}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 7 }}>
+                          {(costs.featureUsage || []).slice(0, 10).map((feature) => (
+                            <div key={feature.feature} style={featureUsageRowStyle}>
+                              <div>
+                                <div style={{ fontWeight: 850, fontSize: 12 }}>{feature.feature.replace(/_/g, ' ')}</div>
+                                <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 10 }}>
+                                  {feature.models.join(', ') || 'model unavailable'}
+                                </div>
+                              </div>
+                              <div style={{ textAlign: 'right', fontSize: 10, color: '#475569', lineHeight: 1.5 }}>
+                                <strong>{feature.calls}</strong> calls · <strong>{feature.totalTokens.toLocaleString()}</strong> tokens
+                                <br />
+                                {feature.webSearchCalls} web · {feature.fileSearchCalls} file searches
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
                     {(costs.lineItems || []).length > 0 && (
                       <div style={{ marginTop: 15 }}>
                         <div style={{ fontSize: 13, fontWeight: 850, marginBottom: 8 }}>Month-to-Date Cost by Billing Line Item</div>
@@ -450,3 +489,5 @@ const barLabelStyle: React.CSSProperties = { height: 18, color: '#94a3b8', fontS
 const modelRowStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 0', borderTop: '1px solid #f1f5f9' }
 const lineItemGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }
 const lineItemStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 12, padding: '9px 10px', background: '#f8fafc', borderRadius: 9, fontSize: 11 }
+
+const featureUsageRowStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, padding: '10px 11px', border: '1px solid #eef2f7', borderRadius: 9, background: '#fbfdff' }

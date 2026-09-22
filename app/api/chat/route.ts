@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { supabaseServer } from '../../lib/supabase-server'
 import { getActiveGuidance } from '../../lib/active-guidance'
+import { recordAIUsage } from '../../lib/ai-usage'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
@@ -383,6 +384,16 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       input: [...conversationHistory, { role: 'user', content: userContent }],
     })
 
+    await recordAIUsage({
+      feature: 'technician_chat',
+      endpoint: '/api/chat',
+      model: 'gpt-5.6-luna',
+      conversationType: 'technician',
+      conversationId: activeConversationId,
+      response,
+      metadata: { has_image: Boolean(image), historical_recall: Boolean(historicalRecall) },
+    })
+
     const rawReply = response.output_text || 'I could not generate a response.'
     let reply = rawReply
       .replace(/filecite[^]+/g, '')
@@ -414,6 +425,15 @@ Rules:
 - If a follow-up would be unsafe, distracting, awkward, or inappropriate because the situation is urgent, return exactly: NONE
           `.trim(),
           input: `Technician message: ${message?.trim() || '[image-only message]'}\n\nCraftCompass answer: ${reply}`,
+        })
+
+        await recordAIUsage({
+          feature: 'technician_follow_up',
+          endpoint: '/api/chat',
+          model: 'gpt-5.6-luna',
+          conversationType: 'technician',
+          conversationId: activeConversationId,
+          response: followUpResponse,
         })
 
         const followUp = (followUpResponse.output_text || '')
@@ -465,6 +485,15 @@ Rules:
           instructions:
             'Create a concise conversation title of 3 to 8 words. If equipment is identified, prioritize manufacturer and model. Return only the title with no punctuation or explanation. Do not invent any information.',
           input: `Create a title from this verified assistant response:\n\n${reply}`,
+        })
+
+        await recordAIUsage({
+          feature: 'conversation_title',
+          endpoint: '/api/chat',
+          model: 'gpt-5.6-luna',
+          conversationType: 'technician',
+          conversationId: activeConversationId,
+          response: titleResponse,
         })
 
         const generatedTitle = titleResponse.output_text
@@ -546,6 +575,15 @@ If capture is false, return empty strings for every other field.
         input: `Recent conversation:\n${recentContext || 'No earlier messages.'}\n\nCurrent technician message:\n${message?.trim() || '[image-only message]'}\n\nCurrent CraftCompass AI response:\n${reply}`,
       })
 
+      await recordAIUsage({
+        feature: 'reflection_extraction',
+        endpoint: '/api/chat',
+        model: 'gpt-5.6-luna',
+        conversationType: 'technician',
+        conversationId: activeConversationId,
+        response: reflectionResponse,
+      })
+
       const rawReflection = reflectionResponse.output_text?.trim() || ''
       const jsonText = rawReflection
         .replace(/^```json\s*/i, '')
@@ -624,6 +662,15 @@ existing_index is zero-based and required only for "merge".
 For "new", set existing_index to null and merged may repeat the new candidate.
               `.trim(),
               input: `Existing reflections from this conversation:\n${JSON.stringify(existing)}\n\nNew candidate reflection:\n${JSON.stringify(candidate)}`,
+            })
+
+            await recordAIUsage({
+              feature: 'reflection_deduplication',
+              endpoint: '/api/chat',
+              model: 'gpt-5.6-luna',
+              conversationType: 'technician',
+              conversationId: activeConversationId,
+              response: issueMatchResponse,
             })
 
             const rawIssueMatch = issueMatchResponse.output_text?.trim() || ''

@@ -1,6 +1,7 @@
 import OpenAI from 'openai'
 import { supabaseServer } from './supabase-server'
 import { runWeeklySourceAudit } from './weekly-source-audit'
+import { recordAIUsage } from './ai-usage'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const WEEKLY_MODEL = 'gpt-5.6-luna'
@@ -253,6 +254,14 @@ Return ONLY valid JSON with exactly this shape:
 Maximum 8 guidance items.
       `.trim(),
       input: `HUMAN-REVIEWED CORRECTIONS:\n${JSON.stringify(learningExamples)}\n\nPOSITIVE HELPFUL EXAMPLES:\n${JSON.stringify(positiveExamples)}\n\nCURRENT ACTIVE GUIDANCE:\n${JSON.stringify(activeGuidance || [])}`,
+    })
+
+    await recordAIUsage({
+      feature: 'weekly_learning',
+      endpoint: '/api/cron/weekly-learning',
+      model: WEEKLY_MODEL,
+      response,
+      metadata: { trigger_type: triggerType, run_id: run.id },
     })
 
     const raw = stripCodeFence(response.output_text || '')

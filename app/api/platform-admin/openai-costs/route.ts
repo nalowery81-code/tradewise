@@ -1,4 +1,5 @@
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
+import { supabaseServer } from '../../../lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -98,7 +99,7 @@ export async function GET(request: Request) {
     })
     usageParams.append('group_by[]', 'model')
 
-    const [costData, usageResult] = await Promise.all([
+    const [costData, usageResult, featureUsageResult] = await Promise.all([
       fetchOpenAI(
         `https://api.openai.com/v1/organization/costs?${costParams.toString()}`,
         adminKey
@@ -110,6 +111,10 @@ export async function GET(request: Request) {
         data: [],
         usage_error: error?.message || 'Could not load model usage.',
       })),
+      supabaseServer
+        .from('AIUsageEvents')
+        .select('feature, model, input_tokens, cached_input_tokens, output_tokens, total_tokens, web_search_calls, file_search_calls, created_at')
+        .gte('created_at', new Date(fourteenDayStart * 1000).toISOString()),
     ])
 
     const costBuckets = (Array.isArray(costData?.data) ? costData.data : []) as CostBucket[]
@@ -193,6 +198,56 @@ export async function GET(request: Request) {
         (a.inputTokens + a.outputTokens)
     )
 
+    const featureMap = new Map<string, {
+      feature: string
+      calls: number
+      inputTokens: number
+      cachedInputTokens: number
+      outputTokens: number
+      totalTokens: number
+      webSearchCalls: number
+      fileSearchCalls: number
+      models: Set<string>
+    }>()
+
+    for (const row of featureUsageResult.data || []) {
+      const feature = String(row.feature || 'unknown')
+      const current = featureMap.get(feature) || {
+        feature,
+        calls: 0,
+        inputTokens: 0,
+        cachedInputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        webSearchCalls: 0,
+        fileSearchCalls: 0,
+        models: new Set<string>(),
+      }
+      current.calls += 1
+      current.inputTokens += Number(row.input_tokens || 0)
+      current.cachedInputTokens += Number(row.cached_input_tokens || 0)
+      current.outputTokens += Number(row.output_tokens || 0)
+      current.totalTokens += Number(row.total_tokens || 0)
+      current.webSearchCalls += Number(row.web_search_calls || 0)
+      current.fileSearchCalls += Number(row.file_search_calls || 0)
+      if (row.model) current.models.add(String(row.model))
+      featureMap.set(feature, current)
+    }
+
+    const featureUsage = [...featureMap.values()]
+      .map((row) => ({
+        feature: row.feature,
+        calls: row.calls,
+        inputTokens: row.inputTokens,
+        cachedInputTokens: row.cachedInputTokens,
+        outputTokens: row.outputTokens,
+        totalTokens: row.totalTokens,
+        webSearchCalls: row.webSearchCalls,
+        fileSearchCalls: row.fileSearchCalls,
+        models: [...row.models],
+      }))
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+
     const lineItems = [...lineItemMap.entries()]
       .map(([name, cost]) => ({ name, cost }))
       .sort((a, b) => b.cost - a.cost)
@@ -210,6 +265,8 @@ export async function GET(request: Request) {
       lineItems,
       modelUsage: modelUsage.slice(0, 8),
       usageError: usageResult?.usage_error || null,
+      featureUsage,
+      featureUsageError: featureUsageResult.error?.message || null,
       source: 'OpenAI organization Costs and Usage APIs',
     })
   } catch (error: any) {

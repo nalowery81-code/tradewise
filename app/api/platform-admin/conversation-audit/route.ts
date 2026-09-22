@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
+import { recordAIUsage } from '../../../lib/ai-usage'
 import { supabaseServer } from '../../../lib/supabase-server'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -405,6 +406,15 @@ Rules:
         input: `Conversation context:\n\n${transcript}\n\nAdmin category: ${category || 'other'}\nAdmin finding: ${correctionNote}\n\nDraft the corrected CraftCompass response.`,
       })
 
+      await recordAIUsage({
+        feature: 'audit_correction_draft',
+        endpoint: '/api/platform-admin/conversation-audit',
+        model: AUDIT_MODEL,
+        conversationType,
+        conversationId,
+        response,
+      })
+
       const draft = response.output_text?.trim()
       if (!draft) return jsonNoStore({ error: 'Could not draft a corrected answer.' }, { status: 500 })
 
@@ -447,6 +457,15 @@ Rules:
         instructions: `Turn an expert-reviewed CraftCompass mistake into ONE concise reusable guidance rule for future answers. Generalize when appropriate. Preserve product-specific detail only when truly necessary. Do not mention the audit or reviewer. Guidance must tell CraftCompass what to DO or VERIFY. Return ONLY JSON: {"title":"short title","guidance_text":"1-3 concise sentences","topic":"short topic","scope":"all|technician|management","priority":1-100}`,
         input: `Conversation:\n${transcript}\n\nCategory: ${review.category || 'other'}\nAdmin finding: ${review.correction_note || ''}\nCorrected answer: ${review.corrected_answer || ''}`,
       })
+      await recordAIUsage({
+        feature: 'guidance_draft',
+        endpoint: '/api/platform-admin/conversation-audit',
+        model: AUDIT_MODEL,
+        conversationType,
+        conversationId,
+        response,
+      })
+
       const json = (response.output_text || '').replace(/^\`\`\`json\s*/i, '').replace(/^\`\`\`\s*/i, '').replace(/\`\`\`$/i, '').trim()
       let draft: any
       try { draft = JSON.parse(json) } catch { return jsonNoStore({ error: 'Could not turn this review into guidance.' }, { status: 500 }) }

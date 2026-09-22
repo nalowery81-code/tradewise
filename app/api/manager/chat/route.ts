@@ -3,6 +3,7 @@ import { supabaseServer } from '../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../lib/management-auth'
 import { getManagerTechnicianScope, technicianIsInScope } from '../../../lib/manager-technician-scope'
 import { getActiveGuidance } from '../../../lib/active-guidance'
+import { recordAIUsage } from '../../../lib/ai-usage'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANAGER_MODEL = 'gpt-5.6-luna'
@@ -379,6 +380,16 @@ ${activeGuidance || 'No additional Admin-approved guidance is active.'}
 Apply active guidance when relevant. Do not mention the Guidance Library or internal review process.
       `.trim(),
       input: `${scopeInstruction}\n\nManager question:\n${message}\n\nVerified recent technician reflections:\n${reflectionContext}`,
+    })
+
+    await recordAIUsage({
+      feature: 'manager_chat',
+      endpoint: '/api/manager/chat',
+      model: MANAGER_MODEL,
+      conversationType: 'management',
+      conversationId: managementConversationId,
+      response,
+      metadata: { context_type: contextType, technician_scoped: Boolean(requestedTechnicianId) },
     })
 
     const rawReply = response.output_text?.trim()
