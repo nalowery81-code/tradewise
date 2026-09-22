@@ -65,7 +65,7 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}))
   const profileId = String(body?.profileId || '')
-  const isProfileEdit = ['name', 'email', 'companyId', 'role'].some((key) => body?.[key] !== undefined)
+  const isProfileEdit = ['name', 'email', 'companyId', 'role', 'password'].some((key) => body?.[key] !== undefined)
 
   if (!profileId) {
     return jsonNoStore({ error: 'User is required.' }, { status: 400 })
@@ -114,6 +114,7 @@ export async function PATCH(request: Request) {
   const companyId = String(body?.companyId || '').trim()
   const role = String(body?.role || '').trim().toLowerCase()
   const isActive = body?.isActive !== false
+  const password = typeof body?.password === 'string' ? body.password : ''
 
   if (!name || name.length < 2 || name.length > 120) {
     return jsonNoStore({ error: 'Name must be between 2 and 120 characters.' }, { status: 400 })
@@ -126,6 +127,9 @@ export async function PATCH(request: Request) {
   }
   if (!['owner', 'manager', 'technician'].includes(role)) {
     return jsonNoStore({ error: 'Choose owner, manager, or technician.' }, { status: 400 })
+  }
+  if (password && (password.length < 8 || password.length > 128)) {
+    return jsonNoStore({ error: 'Password must be between 8 and 128 characters.' }, { status: 400 })
   }
 
   const [{ data: company, error: companyError }, authUserResult] = await Promise.all([
@@ -225,7 +229,12 @@ export async function PATCH(request: Request) {
       .eq('id', profileId)
     if (profileError) throw profileError
 
-    const { error: authError } = await supabaseServer.auth.admin.updateUserById(target.auth_user_id, {
+    const authUpdates: {
+      email: string
+      email_confirm: boolean
+      password?: string
+      user_metadata: Record<string, unknown>
+    } = {
       email,
       email_confirm: true,
       user_metadata: {
@@ -234,7 +243,13 @@ export async function PATCH(request: Request) {
         company_id: companyId,
         role,
       },
-    })
+    }
+    if (password) authUpdates.password = password
+
+    const { error: authError } = await supabaseServer.auth.admin.updateUserById(
+      target.auth_user_id,
+      authUpdates
+    )
     if (authError) throw authError
 
     const { error: auditError } = await supabaseServer.from('PlatformAdminUserAudit').insert({
@@ -256,6 +271,18 @@ export async function PATCH(request: Request) {
       after_state: { name, email, companyId, role, isActive },
     })
     if (auditError) console.error('PLATFORM USER AUDIT ERROR:', auditError)
+
+    if (password) {
+      const { error: passwordAuditError } = await supabaseServer.from('PlatformAdminUserAudit').insert({
+        admin_profile_id: access.profileId,
+        target_profile_id: profileId,
+        action: 'password_change',
+        before_state: null,
+        after_state: { changed: true },
+        note: 'Password changed by Platform Admin. Password value was not stored.',
+      })
+      if (passwordAuditError) console.error('PLATFORM PASSWORD AUDIT ERROR:', passwordAuditError)
+    }
 
     return jsonNoStore({
       updated: true,
