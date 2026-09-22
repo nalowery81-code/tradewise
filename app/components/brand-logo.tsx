@@ -12,7 +12,7 @@ export default function BrandLogo({
   return (
     <img
       src={logoSrc}
-      alt="CraftCompanion AI — Real Skills. Smart Solutions."
+      alt="CraftCompass AI — Real Skills. Smart Solutions."
       width={200}
       height={200}
       decoding="async"

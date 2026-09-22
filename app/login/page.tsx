@@ -24,7 +24,7 @@ export default function LoginPage() {
     })
 
     if (!roleResponse.ok) {
-      setError('Could not determine your CraftCompanion AI role.')
+      setError('Could not determine your CraftCompass AI role.')
       return false
     }
 
@@ -118,7 +118,7 @@ export default function LoginPage() {
     }
 
     if (!session?.access_token) {
-      setError('CraftCompanion AI did not receive a login session.')
+      setError('CraftCompass AI did not receive a login session.')
       setLoading(false)
       return
     }
@@ -149,7 +149,7 @@ export default function LoginPage() {
       return
     }
 
-    setOtpStatus('Check your email for a CraftCompanion AI sign-in code or link.')
+    setOtpStatus('Check your email for a CraftCompass AI sign-in code or link.')
     setLoading(false)
   }
 
@@ -170,7 +170,7 @@ export default function LoginPage() {
     }
 
     if (!data.session?.access_token) {
-      setError('CraftCompanion AI did not receive a login session.')
+      setError('CraftCompass AI did not receive a login session.')
       setLoading(false)
       return
     }
@@ -246,7 +246,7 @@ export default function LoginPage() {
             {error && <div style={{ fontSize: 14 }}>{error}</div>}
 
             <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.5, color: '#6b7280' }}>
-              Signing in here will switch CraftCompanion AI to the account and role you enter.
+              Signing in here will switch CraftCompass AI to the account and role you enter.
             </div>
           </>
         )}
