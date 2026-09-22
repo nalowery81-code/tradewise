@@ -101,7 +101,7 @@ async function handleChat(
 
     const straightforwardTechnicalLookup =
       !image &&
-      /\b(hanger|support|spacing|interval|clearance|slope|vent|trap|cleanout|backflow|stud|boring|notching|dfu|fixture unit|pipe|drain|water heater|faucet|valve|minimum|maximum|allowed|required|code|ipc|irc|iac|primer|solvent cement|glue|air chamber|hammer arrestor|water hammer|tepid|tempered water|air gap|trap arm|developed length|thermal expansion)\b/i.test(
+      /\b(hanger|support|spacing|interval|clearance|slope|vent|trap|cleanout|backflow|stud|boring|notching|dfu|fixture unit|pipe|drain|water heater|faucet|valve|minimum|maximum|allowed|required|code|ipc|irc|iac|primer|solvent cement|glue|air chamber|hammer arrestor|water hammer|tepid|tempered water|air gap|trap arm|developed length|thermal expansion|grease interceptor|grease trap|grease line|grease waste|pot sink|prerinse sink|dishwasher|food waste grinder|separator)\b/i.test(
         requestQuestionText
       ) &&
       !managerRelevantSignal
@@ -523,6 +523,8 @@ NON-NEGOTIABLE RULES:
 - Answer first. Keep it light and field-usable.
 - Use tape-measure fractions for inch measurements, normally to the nearest 1/16 inch.
 - Keep common practice separate from code minimums, and omit common-practice commentary unless the evidence supports it.
+- When the verified evidence includes both fixture/equipment eligibility and sizing rules, establish what is allowed to connect before performing or describing sizing. Do not include unrelated sanitary fixtures in a treatment-system load.
+- For grease-interceptor questions specifically, determine eligible grease-laden fixtures/equipment first, then identify the applicable interceptor/device type and listed sizing method, then verify rated flow/retention capacity. Do not invent a universal flow calculation not stated in the evidence.
 - Include a concise Code reference or Code references line with the exact identifiers supplied in the evidence.
 - Do not add unrelated AAV, branch-system, manufacturer, or alternative-method information.
 - Ask at most one short follow-up only if necessary to prevent a wrong application.
