@@ -950,6 +950,36 @@ Rules:
               })
             }
           }
+
+          const sourceDocumentById = new Map(
+            (normalizedSourceDocuments || []).map((document) => [document.id, document])
+          )
+
+          for (const evidence of normalizedCodeEvidence) {
+            const amendmentCitation = String(evidence.citation_text || '')
+              .split('/ IPC')[0]
+              .trim()
+
+            if (!/^675 IAC\s+/i.test(amendmentCitation)) continue
+
+            const document = evidence.source_document_id
+              ? sourceDocumentById.get(evidence.source_document_id)
+              : null
+            if (!document?.source_url) continue
+
+            const amendmentTitle = `Indiana amendment — ${amendmentCitation}`
+            const amendmentAlreadyAdded = sources.some(
+              (source) => source.title === amendmentTitle
+            )
+
+            if (!amendmentAlreadyAdded) {
+              sources.push({
+                title: amendmentTitle,
+                url: document.source_url,
+                type: 'web',
+              })
+            }
+          }
         }
       } catch (normalizedSourceError) {
         console.error('NORMALIZED CODE SOURCE LOOKUP ERROR:', normalizedSourceError)
