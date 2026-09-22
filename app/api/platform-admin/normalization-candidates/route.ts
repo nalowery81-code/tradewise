@@ -147,7 +147,7 @@ export async function PATCH(request: Request) {
       status,
       notes,
       updated_at: new Date().toISOString(),
-      updated_by_auth_user_id: access.user.id,
+      updated_by_auth_user_id: access.userId,
     }, { onConflict: 'normalized_key' })
     .select('normalized_key,status,notes,updated_at')
     .single()
