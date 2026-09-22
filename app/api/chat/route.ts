@@ -409,7 +409,9 @@ If a technician sends a data-plate or equipment-label image:
 
 INDIANA PLUMBING CODE:
 A separate Indiana plumbing-code library is available through file search. It contains the adopted 2006 International Plumbing Code and Indiana amendments in 675 IAC 16-1.4.
-When asked whether plumbing work is code-compliant, legal, permitted, required, prohibited, or acceptable in Indiana, search this library before answering.
+When an answer depends on plumbing code in Indiana — including sizing, DFU limits, slope, venting, traps, fixture requirements, prohibited/required conditions, or code compliance — search BOTH the adopted model code and the Indiana amendments/adoption rule before giving the code conclusion.
+The Indiana amendment/adoption source must always be referenced for an Indiana code answer, even when the amendment check confirms that the underlying adopted IPC provision is unchanged.
+Never present a model-code-only answer as the final Indiana requirement.
 Authority order:
 1. Indiana amendments control wherever they delete, replace, add to, or modify the adopted IPC.
 2. The adopted 2006 IPC applies only as modified by Indiana.
@@ -577,6 +579,54 @@ Rules:
           }
         }
       }
+    }
+
+    try {
+      const sourceText = sources.map((source) => source.title).join(' ').toLowerCase()
+      const codeFamilies = new Set<string>()
+
+      if (/\bipc\b|plumbing code|plumbing-code/.test(sourceText)) codeFamilies.add('Plumbing')
+      if (/\bifgc\b|fuel gas code|fuel-gas/.test(sourceText)) codeFamilies.add('Fuel Gas')
+      if (/\birc\b|residential code|residential-code/.test(sourceText)) codeFamilies.add('Residential')
+
+      if (codeFamilies.size > 0) {
+        const { data: indianaRules, error: indianaRuleError } = await supabaseServer
+          .from('VerifiedSourceDocuments')
+          .select('title, source_url, code_edition_id')
+          .eq('source_type', 'government_rule')
+          .eq('status', 'current')
+
+        if (indianaRuleError) throw indianaRuleError
+
+        const { data: editions, error: editionError } = await supabaseServer
+          .from('VerifiedCodeEditions')
+          .select('id, code_family')
+          .in('code_family', [...codeFamilies])
+
+        if (editionError) throw editionError
+
+        const familyByEditionId = new Map(
+          (editions || []).map((edition) => [edition.id, edition.code_family])
+        )
+
+        for (const rule of indianaRules || []) {
+          const family = familyByEditionId.get(rule.code_edition_id)
+          if (!family || !codeFamilies.has(family) || !rule.source_url) continue
+
+          const alreadyAdded = sources.some(
+            (source) => source.url === rule.source_url || source.title === rule.title
+          )
+          if (!alreadyAdded) {
+            sources.push({
+              title: `${rule.title} — Indiana amendments/adoption rule`,
+              url: rule.source_url,
+              type: 'web',
+            })
+          }
+        }
+      }
+    } catch (amendmentSourceError) {
+      console.error('INDIANA AMENDMENT SOURCE ENFORCEMENT ERROR:', amendmentSourceError)
     }
 
     if (isPhotoStartedConversation) {
