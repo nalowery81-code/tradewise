@@ -1,28 +1,19 @@
 import { supabaseServer } from '../../lib/supabase-server'
+import { requireEffectiveTechnician } from '../../lib/technician-access'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, { ...init, headers: { 'Cache-Control': 'no-store, max-age=0', ...(init?.headers || {}) } })
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) return jsonNoStore({ error: 'Unauthorized' }, { status: 401 })
-
-  const token = authHeader.replace('Bearer ', '')
-  const { data: { user }, error: userError } = await supabaseServer.auth.getUser(token)
-  if (userError || !user) return jsonNoStore({ error: 'Unauthorized' }, { status: 401 })
+  const access = await requireEffectiveTechnician(request)
+  if ('error' in access) return access.error
+  const technician = access.technician
+  const effectiveAuthUserId = access.authUserId
 
   const body = await request.json().catch(() => ({}))
   const conversationId = String(body?.conversationId || '')
   const messageId = String(body?.messageId || '')
   if (!conversationId || !messageId) return jsonNoStore({ error: 'Conversation response is required.' }, { status: 400 })
-
-  const { data: technician } = await supabaseServer
-    .from('Technicians')
-    .select('id')
-    .eq('auth_user_id', user.id)
-    .maybeSingle()
-
-  if (!technician) return jsonNoStore({ error: 'Technician access required.' }, { status: 403 })
 
   const { data: conversation } = await supabaseServer
     .from('Conversations')
@@ -49,7 +40,7 @@ export async function POST(request: Request) {
       conversation_type: 'technician',
       conversation_id: conversationId,
       message_id: messageId,
-      auth_user_id: user.id,
+      auth_user_id: effectiveAuthUserId,
       rating: 'helpful',
       updated_at: new Date().toISOString(),
     }, { onConflict: 'conversation_type,message_id,auth_user_id' })

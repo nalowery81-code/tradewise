@@ -38,8 +38,8 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Platform administrators cannot be impersonated.' }, { status: 400 })
   }
 
-  if (!['owner', 'manager'].includes(target.role || '')) {
-    return Response.json({ error: 'Switch User currently supports owners and managers.' }, { status: 400 })
+  if (!['owner', 'manager', 'technician'].includes(target.role || '')) {
+    return Response.json({ error: 'This user role cannot be impersonated.' }, { status: 400 })
   }
 
   const { data: company } = await supabaseServer

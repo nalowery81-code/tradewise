@@ -1,4 +1,5 @@
 import { supabaseServer } from '../../lib/supabase-server'
+import { requireEffectiveTechnician } from '../../lib/technician-access'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, { ...init, headers: { 'Cache-Control': 'no-store, max-age=0', ...(init?.headers || {}) } })
@@ -22,10 +23,13 @@ export async function POST(request: Request) {
   }
 
   let reporterRole: 'technician' | 'manager' | 'owner'
+  let reporterAuthUserId = user.id
 
   if (conversationType === 'technician') {
-    const { data: technician } = await supabaseServer.from('Technicians').select('id').eq('auth_user_id', user.id).maybeSingle()
-    if (!technician) return jsonNoStore({ error: 'Technician access required.' }, { status: 403 })
+    const access = await requireEffectiveTechnician(request)
+    if ('error' in access) return access.error
+    const technician = access.technician
+    reporterAuthUserId = access.authUserId
 
     const { data: conversation } = await supabaseServer.from('Conversations').select('id').eq('id', conversationId).eq('technician_id', technician.id).maybeSingle()
     if (!conversation) return jsonNoStore({ error: 'Conversation not found.' }, { status: 404 })
@@ -49,7 +53,7 @@ export async function POST(request: Request) {
     conversation_type: conversationType,
     conversation_id: conversationId,
     message_id: messageId,
-    reporter_auth_user_id: user.id,
+    reporter_auth_user_id: reporterAuthUserId,
     reporter_role: reporterRole,
     comment,
     status: 'pending',

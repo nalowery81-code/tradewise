@@ -302,7 +302,7 @@ export default function PlatformAdminUsersPage() {
       return
     }
 
-    window.location.href = '/manager'
+    window.location.href = user.role === 'technician' ? '/technician' : '/manager'
   }
 
   const renderUser = (user: UserRow) => {
@@ -430,7 +430,7 @@ export default function PlatformAdminUsersPage() {
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {!user.isPlatformAdmin && (
                 <>
-                  {user.isActive && ['owner', 'manager'].includes(user.role) && (
+                  {user.isActive && ['owner', 'manager', 'technician'].includes(user.role) && (
                     <button
                       onClick={() => void switchUser(user)}
                       disabled={Boolean(switchingUserId)}

@@ -100,6 +100,7 @@ export default function TechnicianPage() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [technicianId, setTechnicianId] = useState<string | null>(null)
   const [technicianName, setTechnicianName] = useState('')
+  const [impersonating, setImpersonating] = useState(false)
   const [recentConversationsLoading, setRecentConversationsLoading] = useState(true)
   const [expandedRecentGroups, setExpandedRecentGroups] = useState<string[]>([])
   const [recentConversations, setRecentConversations] = useState<
@@ -175,31 +176,27 @@ export default function TechnicianPage() {
 
   useEffect(() => {
     const loadTechnicianIdentity = async () => {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser()
-
-      if (userError || !user) {
-        console.error('AUTH USER LOAD ERROR:', userError)
+      const session = (await supabase.auth.getSession()).data.session
+      if (!session) {
         window.location.replace('/login')
         return
       }
 
-      const { data, error } = await supabase
-        .from('Technicians')
-        .select('id, canonical_name')
-        .eq('auth_user_id', user.id)
-        .single()
+      const response = await fetch('/api/technician/me', {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+      const data = await response.json().catch(() => ({}))
 
-      if (error) {
-        console.error('TECHNICIAN IDENTITY LOAD ERROR:', error)
+      if (!response.ok || !data?.technician) {
+        console.error('TECHNICIAN IDENTITY LOAD ERROR:', data?.error)
         return
       }
 
-      setTechnicianId(data.id)
-      setTechnicianName(data.canonical_name)
-      loadRecentConversations(data.id)
+      setTechnicianId(data.technician.id)
+      setTechnicianName(data.technician.canonical_name)
+      setImpersonating(data.impersonating === true)
+      loadRecentConversations(data.technician.id)
     }
 
     loadTechnicianIdentity()
@@ -587,11 +584,30 @@ export default function TechnicianPage() {
           type="button"
           style={styles.newConversation}
           onClick={async () => {
+            if (impersonating) {
+              const session = (await supabase.auth.getSession()).data.session
+              if (!session) return void window.location.replace('/login')
+
+              const response = await fetch('/api/platform-admin/impersonate', {
+                method: 'DELETE',
+                cache: 'no-store',
+                headers: { Authorization: `Bearer ${session.access_token}` },
+              })
+
+              if (response.ok) {
+                window.location.replace('/platform-admin/users')
+                return
+              }
+
+              window.alert('Could not return to Platform Admin.')
+              return
+            }
+
             await supabase.auth.signOut()
             window.location.replace('/login')
           }}
         >
-          Sign out
+          {impersonating ? '← Return to Platform Admin' : 'Sign out'}
         </button>
       </aside>
 
