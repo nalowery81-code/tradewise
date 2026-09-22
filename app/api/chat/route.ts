@@ -337,6 +337,16 @@ export async function POST(req: Request) {
       }
     }
 
+    const primaryQuestionText = message?.trim() || ''
+    const directVerifiedCodeLookup =
+      !image &&
+      /\b(hanger|support|spacing|interval|clearance|slope|dfu|fixture unit|backflow|vent|trap|cleanout|stud|boring|notching|minimum|maximum|allowed|required|code)\b/i.test(
+        primaryQuestionText
+      ) &&
+      !/\b(calculate|calculation|sizing|rainfall|tributary|combined|total connected|how many|how much|load|capacity|flow rate|gpm)\b/i.test(
+        primaryQuestionText
+      )
+
     const response = await openai.responses.create({
       model: 'gpt-5.6-luna',
       tools: [
@@ -346,7 +356,7 @@ export async function POST(req: Request) {
             ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
             : [INDIANA_CODE_VECTOR_STORE_ID],
         },
-        { type: 'web_search' },
+        ...(directVerifiedCodeLookup ? [] : [{ type: 'web_search' as const }]),
       ],
       instructions: `
 You are CraftCompass AI, an experienced AI field partner for skilled trade technicians.
@@ -562,15 +572,14 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       )
 
     const calculationOrTableRisk =
-      /\b(calculate|calculation|sizing|sized|dfu|fixture unit|roof drain|storm drain|rainfall|slope|leader|conductor|building drain|building sewer|horizontal branch|capacity|tributary|area|load|flow rate|gpm|total connected|pipe size|how many|how much|sum|combined)\b/i.test(
+      /\b(calculate|calculation|sizing|sized|dfu|fixture unit|roof drain|storm drain|rainfall|leader|conductor|building drain|building sewer|horizontal branch|capacity|tributary|area|load|flow rate|gpm|total connected|pipe size|how many|how much|sum|combined)\b/i.test(
         userQuestionText
-      ) ||
-      /\b(table\s+\d+|\d+(?:\.\d+)?\s*(?:dfu|sq\.?\s*ft|square feet|in\.\/hr|inches per hour|gpm|%\s*slope))\b/i.test(
-        draftAnswer
       )
 
     const directLimitLookup =
-      /\b(max(?:imum)?|min(?:imum)?|largest|smallest|how big|what size)\b/i.test(userQuestionText) &&
+      /\b(max(?:imum)?|min(?:imum)?|largest|smallest|how big|what size|spacing|interval|clearance|how far|support|hanger)\b/i.test(
+        userQuestionText
+      ) &&
       !/\b(calculate|calculation|sizing|dfu|fixture unit|rainfall|tributary|combined|total connected|how many|how much)\b/i.test(
         userQuestionText
       )
