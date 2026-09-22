@@ -70,14 +70,17 @@ export async function POST(req: Request) {
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
 
     const requestQuestionText = message?.trim() || ''
-    const straightforwardTechnicalLookup =
-      !image &&
-      /\b(hanger|support|spacing|interval|clearance|slope|vent|trap|cleanout|backflow|stud|boring|notching|dfu|fixture unit|pipe|drain|water heater|faucet|valve|minimum|maximum|allowed|required|code|ipc|irc|iac)\b/i.test(
-        requestQuestionText
-      ) &&
-      !/\b(frustrat|upset|angry|tired|overwhelm|helper|dispatch|schedule|customer|callback|training|manager|boss|parts|waiting|lost time|unsafe|safety concern|went well|could have gone better|need help)\b/i.test(
+    const managerRelevantSignal =
+      /\b(frustrat|upset|angry|tired|overwhelm|helper|dispatch|schedule|customer|callback|training|manager|boss|parts|waiting|lost time|unsafe|safety concern|went well|could have gone better|need help)\b/i.test(
         requestQuestionText
       )
+
+    const straightforwardTechnicalLookup =
+      !image &&
+      /\b(hanger|support|spacing|interval|clearance|slope|vent|trap|cleanout|backflow|stud|boring|notching|dfu|fixture unit|pipe|drain|water heater|faucet|valve|minimum|maximum|allowed|required|code|ipc|irc|iac|primer|solvent cement|glue|air chamber|hammer arrestor|water hammer|tepid|tempered water|air gap|trap arm|developed length|thermal expansion)\b/i.test(
+        requestQuestionText
+      ) &&
+      !managerRelevantSignal
 
     let activeConversationId = conversationId
     const isNewConversation = !activeConversationId
@@ -1082,7 +1085,7 @@ Rules:
     }).select('id').single()
     if (assistantMessageError || !assistantMessage) throw assistantMessageError || new Error('Assistant message was not saved.')
 
-    if (!straightforwardTechnicalLookup) try {
+    if (managerRelevantSignal) try {
       const recentContext = Array.isArray(history)
         ? history
             .filter(
