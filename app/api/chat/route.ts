@@ -57,6 +57,16 @@ export async function POST(req: Request) {
     const technician = access.technician
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
 
+    const requestQuestionText = message?.trim() || ''
+    const straightforwardTechnicalLookup =
+      !image &&
+      /\b(hanger|support|spacing|interval|clearance|slope|vent|trap|cleanout|backflow|stud|boring|notching|dfu|fixture unit|pipe|drain|water heater|faucet|valve|minimum|maximum|allowed|required|code|ipc|irc|iac)\b/i.test(
+        requestQuestionText
+      ) &&
+      !/\b(frustrat|upset|angry|tired|overwhelm|helper|dispatch|schedule|customer|callback|training|manager|boss|parts|waiting|lost time|unsafe|safety concern|went well|could have gone better|need help)\b/i.test(
+        requestQuestionText
+      )
+
     let activeConversationId = conversationId
     const isNewConversation = !activeConversationId
     const isPhotoStartedConversation = isNewConversation && !message?.trim() && !!image
@@ -138,7 +148,7 @@ export async function POST(req: Request) {
     let manufacturerEvidenceEnabled = false
     let matchedManufacturerDocuments: string[] = []
 
-    try {
+    if (!straightforwardTechnicalLookup) try {
       const { data: manufacturerDocuments, error: manufacturerDocumentError } = await supabaseServer
         .from('ManufacturerDocuments')
         .select('manufacturer, model, model_aliases, title, status')
@@ -184,7 +194,7 @@ export async function POST(req: Request) {
 
     let verifiedManufacturerAliases = ''
     const manufacturerMessage = typeof message === 'string' ? message.trim() : ''
-    if (manufacturerMessage) {
+    if (manufacturerMessage && !straightforwardTechnicalLookup) {
       try {
         const tokens: string[] = [...new Set<string>(
           manufacturerMessage
@@ -337,12 +347,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const primaryQuestionText = message?.trim() || ''
+    const primaryQuestionText = requestQuestionText
     const directVerifiedCodeLookup =
-      !image &&
-      /\b(hanger|support|spacing|interval|clearance|slope|dfu|fixture unit|backflow|vent|trap|cleanout|stud|boring|notching|minimum|maximum|allowed|required|code)\b/i.test(
-        primaryQuestionText
-      ) &&
+      straightforwardTechnicalLookup &&
       !/\b(calculate|calculation|sizing|rainfall|tributary|combined|total connected|how many|how much|load|capacity|flow rate|gpm)\b/i.test(
         primaryQuestionText
       )
@@ -766,19 +773,22 @@ Rules:
       if (/\birc\b|residential code|residential-code/.test(sourceText)) codeFamilies.add('Residential')
 
       if (codeFamilies.size > 0) {
-        const { data: indianaRules, error: indianaRuleError } = await supabaseServer
-          .from('VerifiedSourceDocuments')
-          .select('title, source_url, code_edition_id')
-          .eq('source_type', 'government_rule')
-          .eq('status', 'current')
+        const [
+          { data: indianaRules, error: indianaRuleError },
+          { data: editions, error: editionError },
+        ] = await Promise.all([
+          supabaseServer
+            .from('VerifiedSourceDocuments')
+            .select('title, source_url, code_edition_id')
+            .eq('source_type', 'government_rule')
+            .eq('status', 'current'),
+          supabaseServer
+            .from('VerifiedCodeEditions')
+            .select('id, code_family')
+            .in('code_family', [...codeFamilies]),
+        ])
 
         if (indianaRuleError) throw indianaRuleError
-
-        const { data: editions, error: editionError } = await supabaseServer
-          .from('VerifiedCodeEditions')
-          .select('id, code_family')
-          .in('code_family', [...codeFamilies])
-
         if (editionError) throw editionError
 
         const familyByEditionId = new Map(
@@ -854,7 +864,7 @@ Rules:
     }).select('id').single()
     if (assistantMessageError || !assistantMessage) throw assistantMessageError || new Error('Assistant message was not saved.')
 
-    try {
+    if (!straightforwardTechnicalLookup) try {
       const recentContext = Array.isArray(history)
         ? history
             .filter(
