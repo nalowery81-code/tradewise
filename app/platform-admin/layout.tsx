@@ -182,10 +182,22 @@ export default function PlatformAdminLayout({ children }: { children: React.Reac
 
   return (
     <>
+      <style>{`
+        @media (max-width: 1000px) {
+          .platform-feature-controls-button {
+            display: none !important;
+          }
+        }
+      `}</style>
       {children}
 
       {showControlButton && (
-        <button type="button" onClick={() => void openControls()} style={floatingButtonStyle}>
+        <button
+          type="button"
+          className="platform-feature-controls-button"
+          onClick={() => void openControls()}
+          style={floatingButtonStyle}
+        >
           Features
         </button>
       )}
