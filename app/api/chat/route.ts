@@ -53,10 +53,18 @@ export async function POST(req: Request) {
   const requestStartedAt = performance.now()
   let primaryStartedAt: number | null = null
   let primaryFinishedAt: number | null = null
+  const stageTimings: Record<string, number> = {}
+  let stageStartedAt = performance.now()
+  const markStage = (name: string) => {
+    const now = performance.now()
+    stageTimings[name] = Math.round(now - stageStartedAt)
+    stageStartedAt = now
+  }
 
   try {
     const { message, image, history = [], conversationId } = await req.json()
     const access = await requireEffectiveTechnician(req)
+    markStage('authMs')
     if ('error' in access) return access.error
     const technician = access.technician
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
@@ -101,6 +109,8 @@ export async function POST(req: Request) {
       activeConversationId = conversation.id
     }
 
+    markStage('conversationMs')
+
     const { error: userMessageError } = await supabaseServer.from('Messages').insert({
       conversation_id: activeConversationId,
       role: 'user',
@@ -108,6 +118,7 @@ export async function POST(req: Request) {
       image_url: image || null,
     })
     if (userMessageError) throw userMessageError
+    markStage('saveUserMessageMs')
 
     const conversationHistory: any[] = Array.isArray(history)
       ? history
@@ -137,6 +148,7 @@ export async function POST(req: Request) {
     if (image) userContent.push({ type: 'input_image', image_url: image })
 
     const activeGuidance = await getActiveGuidance('technician')
+    markStage('activeGuidanceMs')
     const manufacturerIdentityText = [
       typeof message === 'string' ? message : '',
       ...(Array.isArray(history)
@@ -351,6 +363,8 @@ export async function POST(req: Request) {
       }
     }
 
+    markStage('manufacturerAndRecallMs')
+
     const primaryQuestionText = requestQuestionText
     const directVerifiedCodeLookup =
       straightforwardTechnicalLookup &&
@@ -423,6 +437,8 @@ export async function POST(req: Request) {
         console.error('NORMALIZED CODE LOOKUP ERROR:', normalizedLookupError)
       }
     }
+
+    markStage('normalizedLookupMs')
 
     const normalizedDirectLookup = normalizedCodeEvidence.length > 0
     const normalizedEvidenceText = normalizedCodeEvidence
@@ -1310,6 +1326,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       totalMs: Math.round(responseFinishedAt - requestStartedAt),
       setupMs:
         primaryStartedAt === null ? null : Math.round(primaryStartedAt - requestStartedAt),
+      setupStages: stageTimings,
       primaryMs:
         primaryStartedAt === null || primaryFinishedAt === null
           ? null
