@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import PlatformAdminNav from '../platform-admin-nav'
 
 type GuidanceItem = {
   id: string; created_at: string; updated_at: string; title: string; guidance_text: string;
@@ -71,12 +72,7 @@ export default function GuidanceLibraryPage() {
     <header style={headerStyle}>
       <div style={{fontSize:22,fontWeight:850}}>CraftCompass AI</div>
       <div style={{marginTop:4,color:'#94a3b8',fontSize:11,fontWeight:850,letterSpacing:'.08em'}}>PLATFORM ADMIN · GUIDANCE LIBRARY</div>
-      <nav style={{display:'flex',gap:8,marginTop:14,flexWrap:'wrap'}}>
-        <a href="/platform-admin" style={navStyle}>Dashboard</a><a href="/platform-admin/companies" style={navStyle}>Companies</a>
-        <a href="/platform-admin/users" style={navStyle}>Users</a>
-        <a href="/platform-admin/conversation-audit" style={navStyle}>Conversation Audit</a>
-        <a href="/platform-admin/guidance" style={{...navStyle,background:'#273449'}}>Guidance Library</a>
-      </nav>
+      <PlatformAdminNav variant="header" />
     </header>
     <section style={{maxWidth:1040,margin:'0 auto',padding:'32px 16px 70px'}}>
       <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'flex-end',flexWrap:'wrap'}}>

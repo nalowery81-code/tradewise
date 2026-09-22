@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import PlatformAdminNav from '../platform-admin-nav'
 
 type Company = {
   id: string
@@ -210,14 +211,7 @@ export default function PlatformAdminPage() {
           </div>
         </div>
 
-        <nav style={{ display: 'grid', gap: 7, marginTop: 32 }}>
-          <a href="/platform-admin" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Dashboard</a>
-          <a href="/platform-admin/companies" style={activeNavStyle}>Companies</a>
-          <a href="/platform-admin/users" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Users</a>
-          <a href="/platform-admin/conversation-audit" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Conversation Audit</a>
-          <a href="/platform-admin/guidance" style={{ ...futureNavStyle, textDecoration: 'none', display: 'block' }}>Guidance Library</a>
-          <div style={futureNavStyle}>System</div>
-        </nav>
+        <PlatformAdminNav variant="sidebar" />
 
         <a className="owner-back" href="/manager" style={backStyle}>← Owner Workspace</a>
       </aside>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { groupSimilarConversations } from '../../lib/conversation-grouping'
+import PlatformAdminNav from '../platform-admin-nav'
 
 type AuditConversation = {
   id: string
@@ -448,13 +449,7 @@ export default function ConversationAuditPage() {
           <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
-        <nav style={{ display: 'grid', gap: 7, marginTop: 32 }}>
-          <a href="/platform-admin" style={navStyle}>Dashboard</a>
-          <a href="/platform-admin/companies" style={navStyle}>Companies</a>
-          <a href="/platform-admin/users" style={navStyle}>Users</a>
-          <a href="/platform-admin/conversation-audit" style={activeNavStyle}>Conversation Audit</a>
-          <a href="/platform-admin/guidance" style={navStyle}>Guidance Library</a>
-        </nav>
+        <PlatformAdminNav variant="sidebar" />
         <a href="/manager" style={backStyle}>← Owner Workspace</a>
       </aside>
 

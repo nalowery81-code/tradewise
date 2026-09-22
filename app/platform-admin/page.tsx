@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import PlatformAdminNav from './platform-admin-nav'
 
 type OpenAICostData = {
   configured: boolean
@@ -170,13 +171,7 @@ export default function PlatformAdminDashboard() {
           <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
-        <nav style={{ display: 'grid', gap: 7, marginTop: 30 }}>
-          <a href="/platform-admin" style={activeNav}>Dashboard</a>
-          <a href="/platform-admin/companies" style={navLink}>Companies</a>
-          <a href="/platform-admin/users" style={navLink}>Users</a>
-          <a href="/platform-admin/conversation-audit" style={navLink}>Conversation Audit</a>
-          <a href="/platform-admin/guidance" style={navLink}>Guidance Library</a>
-        </nav>
+        <PlatformAdminNav variant="sidebar" />
         <a href="/manager" style={backLink}>← Owner Workspace</a>
       </aside>
 
