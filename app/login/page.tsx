@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import BrandLogo from '../components/brand-logo'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -23,7 +24,7 @@ export default function LoginPage() {
     })
 
     if (!roleResponse.ok) {
-      setError('Could not determine your CraftCompass AI role.')
+      setError('Could not determine your CraftCompanion AI role.')
       return false
     }
 
@@ -117,7 +118,7 @@ export default function LoginPage() {
     }
 
     if (!session?.access_token) {
-      setError('CraftCompass AI did not receive a login session.')
+      setError('CraftCompanion AI did not receive a login session.')
       setLoading(false)
       return
     }
@@ -148,7 +149,7 @@ export default function LoginPage() {
       return
     }
 
-    setOtpStatus('Check your email for a CraftCompass AI sign-in code or link.')
+    setOtpStatus('Check your email for a CraftCompanion AI sign-in code or link.')
     setLoading(false)
   }
 
@@ -169,7 +170,7 @@ export default function LoginPage() {
     }
 
     if (!data.session?.access_token) {
-      setError('CraftCompass AI did not receive a login session.')
+      setError('CraftCompanion AI did not receive a login session.')
       setLoading(false)
       return
     }
@@ -179,9 +180,9 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 14 }}>
-        <h1 style={{ fontSize: 36, marginBottom: 8 }}>CraftCompass AI</h1>
+    <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: 'linear-gradient(180deg, #f8fbfc 0%, #eef6f7 100%)' }}>
+      <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 390, display: 'flex', flexDirection: 'column', gap: 14, background: '#ffffff', border: '1px solid #dbe7ea', borderRadius: 24, padding: '28px 26px', boxShadow: '0 18px 50px rgba(11,45,66,0.10)' }}>
+        <BrandLogo width={250} style={{ margin: '0 auto 6px' }} />
 
         {checkingSession ? (
           <div style={{ fontSize: 14, color: '#6b7280' }}>Checking your sign-in...</div>
@@ -245,7 +246,7 @@ export default function LoginPage() {
             {error && <div style={{ fontSize: 14 }}>{error}</div>}
 
             <div style={{ marginTop: 4, fontSize: 13, lineHeight: 1.5, color: '#6b7280' }}>
-              Signing in here will switch CraftCompass AI to the account and role you enter.
+              Signing in here will switch CraftCompanion AI to the account and role you enter.
             </div>
           </>
         )}
