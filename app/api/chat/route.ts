@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { supabaseServer } from '../../lib/supabase-server'
 import { getActiveGuidance } from '../../lib/active-guidance'
 import { recordAIUsage } from '../../lib/ai-usage'
+import { VERIFIED_PROBLEM_SOLVING_LOOP } from '../../lib/verified-problem-solving'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
