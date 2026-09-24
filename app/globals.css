@@ -1,14 +1,37 @@
 @import "tailwindcss";
 
 :root {
+  /* CraftCompass AI brand foundation */
+  --cc-deep-navy: #082B4D;
+  --cc-midnight: #020509;
+  --cc-craft-cyan: #12E2EB;
+  --cc-signal-blue: #086195;
+  --cc-safety-orange: #FAA85B;
+  --cc-verified-green: #16A34A;
+
   --background: #ffffff;
   --foreground: #171717;
+  --cc-surface: #ffffff;
+  --cc-surface-muted: #f5f8fa;
+  --cc-border: #dbe2e8;
+  --cc-text-muted: #526170;
+
+  --cc-radius-sm: 8px;
+  --cc-radius-md: 14px;
+  --cc-radius-lg: 20px;
+  --cc-shadow-soft: 0 2px 10px rgba(2, 5, 9, 0.06);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --color-cc-navy: var(--cc-deep-navy);
+  --color-cc-midnight: var(--cc-midnight);
+  --color-cc-cyan: var(--cc-craft-cyan);
+  --color-cc-blue: var(--cc-signal-blue);
+  --color-cc-orange: var(--cc-safety-orange);
+  --color-cc-green: var(--cc-verified-green);
+  --font-sans: Arial, Helvetica, sans-serif;
   --font-mono: var(--font-geist-mono);
 }
 
@@ -16,6 +39,10 @@
   :root {
     --background: #0a0a0a;
     --foreground: #ededed;
+    --cc-surface: #101820;
+    --cc-surface-muted: #0b1117;
+    --cc-border: #263746;
+    --cc-text-muted: #a9b7c3;
   }
 }
 
