@@ -669,7 +669,10 @@ export default function TechnicianPage() {
         }}
       >
         <div style={styles.drawerHeader}>
-          <div style={styles.drawerBrand}>CraftCompass AI</div>
+          <div>
+            <div style={styles.drawerBrand}>CraftCompass AI</div>
+            <div style={styles.drawerTagline}>Real Skills. Smart Solutions.</div>
+          </div>
 
           <button
             type="button"
@@ -749,7 +752,7 @@ export default function TechnicianPage() {
         </div>
 
         <div style={styles.privacyNote}>
-          <strong>Beta privacy</strong>
+          <strong style={styles.privacyTitle}>Privacy</strong>
           <span>
             Conversations are saved so your history works. Work-related takeaways may be summarized for your manager, but managers do not see your raw chat by default. Avoid sharing highly sensitive personal information.
           </span>
@@ -803,14 +806,6 @@ export default function TechnicianPage() {
       <section style={styles.content}>
         {messages.length === 0 && (
           <div style={styles.hero}>
-            <div style={{ marginBottom: 18 }}>
-              <CraftCompassGuide
-                state="welcome"
-                size={92}
-                caption="Ready to help"
-              />
-            </div>
-
             <div style={styles.brandBlock}>
               <div style={styles.brandName}>CraftCompass AI</div>
               <div style={styles.brandTagline}>Real Skills. Smart Solutions.</div>
@@ -1213,13 +1208,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   drawerHeader: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: '22px',
   },
   drawerBrand: {
-    fontSize: '22px',
+    fontSize: '20px',
+    fontWeight: 800,
+    color: '#123047',
+    letterSpacing: '-0.025em',
+  },
+  drawerTagline: {
+    marginTop: 4,
+    fontSize: 11,
     fontWeight: 700,
+    color: '#527080',
+    letterSpacing: '0.01em',
   },
   iconButton: {
     width: 38,
@@ -1316,16 +1320,16 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '0 clamp(18px, 4vw, 48px) 165px',
+    padding: '0 clamp(18px, 4vw, 48px) 145px',
   },
   hero: {
     width: '100%',
     maxWidth: 900,
-    marginTop: 'clamp(90px, 17vh, 180px)',
+    marginTop: 'clamp(54px, 10vh, 96px)',
     textAlign: 'center',
   },
   brandBlock: {
-    marginBottom: 42,
+    marginBottom: 28,
   },
   brandName: {
     fontSize: 'clamp(42px, 9vw, 68px)',
@@ -1350,7 +1354,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   subGreeting: {
     fontSize: 'clamp(18px, 4vw, 23px)',
-    marginTop: 14,
+    marginTop: 10,
     color: '#64748b',
     fontWeight: 400,
   },
@@ -1532,22 +1536,30 @@ const styles: Record<string, React.CSSProperties> = {
   },
   privacyNote: {
     display: 'grid',
-    gap: 6,
+    gap: 5,
     margin: '0 0 14px',
     flexShrink: 0,
-    padding: '12px 13px',
-    borderRadius: 12,
-    background: '#f8fafc',
-    border: '1px solid #e2e8f0',
+    padding: '10px 4px 12px',
+    borderRadius: 0,
+    background: 'transparent',
+    border: 'none',
+    borderTop: '1px solid #e8edf1',
     color: '#64748b',
-    fontSize: 12,
+    fontSize: 11,
     lineHeight: 1.45,
+  },
+  privacyTitle: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: '0.02em',
   },
   footerText: {
     textAlign: 'center',
-    fontSize: 11,
-    color: '#94a3b8',
-    marginTop: 8,
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 7,
     padding: '0 10px',
+    lineHeight: 1.35,
   },
 }

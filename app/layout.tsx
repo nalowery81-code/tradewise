@@ -35,28 +35,6 @@ export default function RootLayout({
         <ImpersonationBanner />
         <SessionControls />
         {children}
-        <div
-          aria-label="CraftCompass AI"
-          style={{
-            position: "fixed",
-            right: 12,
-            bottom: 12,
-            zIndex: 250,
-            border: "1px solid #dbe2e8",
-            borderRadius: 999,
-            padding: "6px 10px",
-            background: "rgba(255,255,255,0.94)",
-            color: "#172033",
-            fontFamily: "Arial, Helvetica, sans-serif",
-            fontSize: 12,
-            fontWeight: 800,
-            letterSpacing: "0.01em",
-            boxShadow: "0 2px 10px rgba(15,23,42,0.06)",
-            pointerEvents: "none",
-          }}
-        >
-          CraftCompass AI
-        </div>
       </body>
     </html>
   );
