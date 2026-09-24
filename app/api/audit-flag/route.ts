@@ -1,17 +1,11 @@
 import { supabaseServer } from '../../lib/supabase-server'
 import { requireEffectiveTechnician } from '../../lib/technician-access'
+import { requireManagementAccess } from '../../lib/management-auth'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, { ...init, headers: { 'Cache-Control': 'no-store, max-age=0', ...(init?.headers || {}) } })
 
 export async function POST(request: Request) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader?.startsWith('Bearer ')) return jsonNoStore({ error: 'Unauthorized' }, { status: 401 })
-
-  const token = authHeader.replace('Bearer ', '')
-  const { data: { user }, error: userError } = await supabaseServer.auth.getUser(token)
-  if (userError || !user) return jsonNoStore({ error: 'Unauthorized' }, { status: 401 })
-
   const body = await request.json().catch(() => ({}))
   const conversationType = String(body?.conversationType || '')
   const conversationId = String(body?.conversationId || '')
@@ -23,7 +17,7 @@ export async function POST(request: Request) {
   }
 
   let reporterRole: 'technician' | 'manager' | 'owner'
-  let reporterAuthUserId = user.id
+  let reporterAuthUserId = ''
 
   if (conversationType === 'technician') {
     const access = await requireEffectiveTechnician(request)
@@ -38,15 +32,31 @@ export async function POST(request: Request) {
     if (!message) return jsonNoStore({ error: 'CraftCompass response not found.' }, { status: 404 })
     reporterRole = 'technician'
   } else {
-    const { data: profile } = await supabaseServer.from('UserProfiles').select('id, role').eq('auth_user_id', user.id).eq('is_active', true).maybeSingle()
-    if (!profile || !['manager', 'owner'].includes(profile.role || '')) return jsonNoStore({ error: 'Management access required.' }, { status: 403 })
+    const access = await requireManagementAccess(request)
+    if ('error' in access) return access.error
 
-    const { data: conversation } = await supabaseServer.from('ManagementConversations').select('id').eq('id', conversationId).eq('profile_id', profile.id).maybeSingle()
+    const { data: conversation } = await supabaseServer
+      .from('ManagementConversations')
+      .select('id')
+      .eq('id', conversationId)
+      .eq('company_id', access.profile.company_id)
+      .eq('profile_id', access.profile.id)
+      .maybeSingle()
+
     if (!conversation) return jsonNoStore({ error: 'Conversation not found.' }, { status: 404 })
 
-    const { data: message } = await supabaseServer.from('ManagementMessages').select('id').eq('id', messageId).eq('conversation_id', conversationId).eq('role', 'assistant').maybeSingle()
+    const { data: message } = await supabaseServer
+      .from('ManagementMessages')
+      .select('id')
+      .eq('id', messageId)
+      .eq('conversation_id', conversationId)
+      .eq('role', 'assistant')
+      .maybeSingle()
+
     if (!message) return jsonNoStore({ error: 'CraftCompass response not found.' }, { status: 404 })
-    reporterRole = profile.role as 'manager' | 'owner'
+
+    reporterAuthUserId = access.userId
+    reporterRole = access.profile.role
   }
 
   const { data, error } = await supabaseServer.from('ConversationAuditFlags').insert({
