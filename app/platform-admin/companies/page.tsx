@@ -19,6 +19,8 @@ type Company = {
 export default function PlatformAdminPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [companyName, setCompanyName] = useState('')
+  const [newOwnerName, setNewOwnerName] = useState('')
+  const [newOwnerEmail, setNewOwnerEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -70,31 +72,40 @@ export default function PlatformAdminPage() {
 
   const createCompany = async (event: React.FormEvent) => {
     event.preventDefault()
-    if (!companyName.trim()) return
+    if (!companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim()) return
 
     setCreating(true)
     setError('')
     const token = await getToken()
 
-    const response = await fetch('/api/platform-admin/companies', {
+    const response = await fetch('/api/platform-admin/companies/onboard', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: companyName }),
+      body: JSON.stringify({
+        name: companyName.trim(),
+        ownerName: newOwnerName.trim(),
+        ownerEmail: newOwnerEmail.trim().toLowerCase(),
+        timezone: 'America/Indiana/Indianapolis',
+        trades: ['plumbing'],
+        jurisdictions: [{ country: 'US', state: 'IN' }],
+      }),
     })
 
     const data = await response.json().catch(() => ({}))
 
     if (!response.ok) {
-      setError(data.error || 'Could not create company.')
+      setError(data.error || 'Could not onboard company.')
       setCreating(false)
       return
     }
 
     setCompanies((current) => [...current, data.company])
     setCompanyName('')
+    setNewOwnerName('')
+    setNewOwnerEmail('')
     setCreating(false)
   }
 
@@ -229,17 +240,42 @@ export default function PlatformAdminPage() {
               </p>
             </div>
 
-            <form className="platform-admin-create" onSubmit={createCompany} style={{ display: 'flex', gap: 9, flexWrap: 'wrap' }}>
-              <input
-                value={companyName}
-                onChange={(event) => setCompanyName(event.target.value)}
-                placeholder="Company name"
-                maxLength={120}
-                style={inputStyle}
-              />
-              <button type="submit" disabled={creating} style={primaryButtonStyle}>
-                {creating ? 'Creating…' : '+ New Company'}
-              </button>
+            <form className="platform-admin-create" onSubmit={createCompany} style={{ display: 'grid', gap: 9, width: 'min(100%, 560px)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 9 }}>
+                <input
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  placeholder="Company name"
+                  maxLength={120}
+                  style={{ ...inputStyle, minWidth: 0 }}
+                />
+                <input
+                  value={newOwnerName}
+                  onChange={(event) => setNewOwnerName(event.target.value)}
+                  placeholder="Owner name"
+                  maxLength={120}
+                  style={{ ...inputStyle, minWidth: 0 }}
+                />
+                <input
+                  type="email"
+                  value={newOwnerEmail}
+                  onChange={(event) => setNewOwnerEmail(event.target.value)}
+                  placeholder="owner@company.com"
+                  style={{ ...inputStyle, minWidth: 0 }}
+                />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ color: '#64748b', fontSize: 12 }}>
+                  Starts with Plumbing · Indiana · Eastern Time. The owner can update company settings later.
+                </span>
+                <button
+                  type="submit"
+                  disabled={creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim()}
+                  style={{ ...primaryButtonStyle, opacity: creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim() ? 0.55 : 1 }}
+                >
+                  {creating ? 'Creating & inviting…' : '+ Onboard Company'}
+                </button>
+              </div>
             </form>
           </div>
 
