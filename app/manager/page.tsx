@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import CraftCompassGuide from '../components/craftcompass-guide'
 
-type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string }
+type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string; guideState?: 'error' }
 type TechnicianDirectoryItem = {
   id: string
   name: string
@@ -456,11 +456,12 @@ export default function ManagerPage() {
           id: response.ok ? data.assistantMessageId : undefined,
           role: 'assistant',
           text: response.ok ? data.reply : data.error || 'I had trouble reading the team data. Try that again.',
+          guideState: response.ok ? undefined : 'error',
         },
       ])
     } catch (error) {
       console.error('MANAGER CHAT ERROR:', error)
-      setMessages((current) => [...current, { role: 'assistant', text: 'I could not connect to the manager assistant. Try that again.' }])
+      setMessages((current) => [...current, { role: 'assistant', text: 'I could not connect to the manager assistant. Try that again.', guideState: 'error' }])
     } finally {
       setSending(false)
     }
@@ -779,6 +780,15 @@ export default function ManagerPage() {
             {messages.map((item, index) => (
               <div key={`${item.role}-${index}`} style={{ display: 'flex', justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
                 <div style={item.role === 'user' ? userBubbleStyle : assistantBubbleStyle}>
+                  {item.role === 'assistant' && item.guideState === 'error' && (
+                    <div style={{ marginBottom: 10 }}>
+                      <CraftCompassGuide
+                        state="error"
+                        size={42}
+                        caption="Could not verify"
+                      />
+                    </div>
+                  )}
                   {item.text}
                   {item.role === 'assistant' && item.id && (
                     <div style={{ marginTop: 10, paddingTop: 9, borderTop: '1px solid #e5e7eb' }}>
