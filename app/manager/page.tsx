@@ -69,6 +69,49 @@ const getLatestTechnicianActivity = (technician: TechnicianDirectoryItem) => {
   )
 }
 
+const ManagerAnswerText = ({ text }: { text: string }) => {
+  const lines = text.replace(/\r/g, '').split('\n')
+
+  return (
+    <div>
+      {lines.map((rawLine, index) => {
+        const line = rawLine.trim()
+        if (!line) return <div key={index} style={{ height: 8 }} />
+
+        const isSectionHeading =
+          line.length <= 64 &&
+          !/^[-•]/.test(line) &&
+          !/^\d+[.)]\s/.test(line) &&
+          (line.endsWith(':') || /^[A-Z][A-Za-z .'-]{1,40}$/.test(line))
+
+        if (isSectionHeading) {
+          return (
+            <div
+              key={index}
+              style={{
+                marginTop: index === 0 ? 0 : 10,
+                marginBottom: 5,
+                color: 'var(--cc-deep-navy)',
+                fontWeight: 800,
+                fontSize: 16,
+                lineHeight: 1.35,
+              }}
+            >
+              {line.replace(/:$/, '')}
+            </div>
+          )
+        }
+
+        return (
+          <div key={index} style={{ marginBottom: 6, lineHeight: 1.62 }}>
+            {rawLine}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 const SummaryBody = ({ body }: { body: string }) => {
   const items = body
     .split(/\n+/)
@@ -852,7 +895,7 @@ export default function ManagerPage() {
                       />
                     </div>
                   )}
-                  {item.text}
+                  {item.role === 'assistant' ? <ManagerAnswerText text={item.text} /> : item.text}
                   {item.role === 'assistant' && item.id && (
                     <div style={{ marginTop: 10, paddingTop: 9, borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <button

@@ -401,6 +401,7 @@ Rules:
 - Instead, end with a natural manager takeaway that states what the evidence DOES support. Example style: "Overall, Dan appears to be handling difficult work well, while his recent reflections point to support and process issues that are worth addressing."
 - Prefer useful manager actions: who may need a check-in, what system issue may need attention, what training may help, and what positive behavior should be reinforced.
 - For broad questions, give the manager the most important findings first.
+- When an answer discusses more than one technician, separate them clearly. Put each technician's current name on its own standalone line ending with a colon, then place only that technician's findings beneath it. Do not blend multiple technicians into one summary paragraph unless giving a final team-wide takeaway.
 - Use plain text headings and bullets when helpful. Do not use Markdown heading markers (#) or bold markers (**).
 - Do not expose raw internal data formatting or technical implementation details.
 
