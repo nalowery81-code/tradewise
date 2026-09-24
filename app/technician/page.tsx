@@ -7,6 +7,7 @@ import FeedbackRequestPrompt from '../components/feedback-request'
 import CraftCompassGuide from '../components/craftcompass-guide'
 import BrandLogo from '../components/brand-logo'
 import { groupSimilarConversations } from '../lib/conversation-grouping'
+import { type Jurisdiction, jurisdictionKey, jurisdictionLabel, normalizeJurisdiction } from '../lib/jurisdiction'
 
 function renderInlineMarkdown(text: string) {
   const normalized = text.replace(/\\([*_#-])/g, '$1')
@@ -177,6 +178,9 @@ export default function TechnicianPage() {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [technicianId, setTechnicianId] = useState<string | null>(null)
   const [technicianName, setTechnicianName] = useState('')
+  const [companyJurisdictions, setCompanyJurisdictions] = useState<Jurisdiction[]>([])
+  const [defaultJurisdiction, setDefaultJurisdiction] = useState<Jurisdiction | null>(null)
+  const [activeJurisdiction, setActiveJurisdiction] = useState<Jurisdiction | null>(null)
   const [impersonating, setImpersonating] = useState(false)
   const [recentConversationsLoading, setRecentConversationsLoading] = useState(true)
   const [expandedRecentGroups, setExpandedRecentGroups] = useState<string[]>([])
@@ -187,6 +191,7 @@ export default function TechnicianPage() {
       created_at: string
       updated_at: string
       status: string
+      jurisdiction?: Jurisdiction | null
     }[]
   >([])
 
@@ -286,6 +291,16 @@ export default function TechnicianPage() {
 
       setTechnicianId(data.technician.id)
       setTechnicianName(data.technician.canonical_name)
+
+      const jurisdictions = (Array.isArray(data.companyJurisdictions) ? data.companyJurisdictions : [])
+        .map(normalizeJurisdiction)
+        .filter((item: Jurisdiction | null): item is Jurisdiction => Boolean(item))
+      const technicianDefault = normalizeJurisdiction(data.technician.default_jurisdiction)
+      const initialJurisdiction = technicianDefault || (jurisdictions.length === 1 ? jurisdictions[0] : null)
+
+      setCompanyJurisdictions(jurisdictions)
+      setDefaultJurisdiction(technicianDefault)
+      setActiveJurisdiction(initialJurisdiction)
       setImpersonating(data.impersonating === true)
       loadRecentConversations(data.technician.id)
     }
@@ -311,6 +326,7 @@ export default function TechnicianPage() {
     setAttachOpen(false)
     setDrawerOpen(false)
     setConversationId(null)
+    setActiveJurisdiction(defaultJurisdiction || (companyJurisdictions.length === 1 ? companyJurisdictions[0] : null))
   }
 
   const loadConversation = async (id: string) => {
@@ -333,6 +349,11 @@ export default function TechnicianPage() {
 
       setConversationId(id)
       setMessages(data.messages || [])
+      setActiveJurisdiction(
+        normalizeJurisdiction(data.jurisdiction) ||
+        defaultJurisdiction ||
+        (companyJurisdictions.length === 1 ? companyJurisdictions[0] : null)
+      )
       setDrawerOpen(false)
     } catch (error) {
       console.error('CONVERSATION LOAD ERROR:', error)
@@ -543,6 +564,7 @@ export default function TechnicianPage() {
           image: imageData,
           history: messages.slice(-12),
           conversationId,
+          jurisdiction: activeJurisdiction,
         }),
       })
 
@@ -618,6 +640,7 @@ export default function TechnicianPage() {
       }
 
       setConversationId(data.conversationId)
+      setActiveJurisdiction(normalizeJurisdiction(data.jurisdiction) || activeJurisdiction)
       loadRecentConversations()
 
       const responseDurationMs =
@@ -653,6 +676,33 @@ export default function TechnicianPage() {
       setSending(false)
       setWorkingSteps([])
       requestStartedAtRef.current = null
+    }
+  }
+
+  const changeJurisdiction = async (value: string) => {
+    const selected = companyJurisdictions.find((item) => jurisdictionKey(item) === value) || null
+    setActiveJurisdiction(selected)
+
+    if (!conversationId || !selected) return
+
+    try {
+      const session = (await supabase.auth.getSession()).data.session
+      if (!session) return void window.location.replace('/login')
+
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ jurisdiction: selected }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) window.alert(data.error || 'Could not update the job jurisdiction.')
+    } catch (error) {
+      console.error('JURISDICTION UPDATE ERROR:', error)
+      window.alert('Could not update the job jurisdiction.')
     }
   }
 
@@ -801,7 +851,34 @@ export default function TechnicianPage() {
         </button>
 
         <div style={styles.headerBrand}>CraftCompass AI</div>
-        <div style={{ width: 42 }} />
+        {companyJurisdictions.length > 1 ? (
+          <select
+            aria-label="Job jurisdiction"
+            value={jurisdictionKey(activeJurisdiction)}
+            onChange={(event) => void changeJurisdiction(event.target.value)}
+            style={{
+              maxWidth: 150,
+              border: '1px solid #cbd5e1',
+              borderRadius: 9,
+              padding: '7px 8px',
+              background: '#ffffff',
+              color: '#123047',
+              fontSize: 12,
+              fontWeight: 700,
+            }}
+          >
+            <option value="">Select state</option>
+            {companyJurisdictions.map((jurisdiction) => (
+              <option key={jurisdictionKey(jurisdiction)} value={jurisdictionKey(jurisdiction)}>
+                {jurisdictionLabel(jurisdiction)}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <div style={{ minWidth: 42, textAlign: 'right', color: '#64748b', fontSize: 12, fontWeight: 700 }}>
+            {activeJurisdiction ? jurisdictionLabel(activeJurisdiction) : ''}
+          </div>
+        )}
       </header>
 
       <section style={styles.content}>

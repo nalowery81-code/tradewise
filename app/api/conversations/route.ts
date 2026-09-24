@@ -9,7 +9,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabaseServer
       .from('Conversations')
-      .select('id, title, created_at, updated_at, status')
+      .select('id, title, created_at, updated_at, status, jurisdiction')
       .eq('technician_id', technician.id)
       .order('created_at', { ascending: false })
       .limit(50)

@@ -4,6 +4,7 @@ import { supabaseServer } from '../../lib/supabase-server'
 import { getActiveGuidance } from '../../lib/active-guidance'
 import { recordAIUsage } from '../../lib/ai-usage'
 import { requireEffectiveTechnician } from '../../lib/technician-access'
+import { jurisdictionAllowed, jurisdictionLabel, jurisdictionKey, normalizeJurisdiction } from '../../lib/jurisdiction'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
@@ -85,13 +86,41 @@ async function handleChat(
   }
 
   try {
-    const { message, image, history = [], conversationId } = await req.json()
+    const { message, image, history = [], conversationId, jurisdiction: requestedJurisdictionInput } = await req.json()
     onProgress({ label: 'Connecting securely' })
     const access = await requireEffectiveTechnician(req)
     markStage('authMs')
     if ('error' in access) return access.error
     const technician = access.technician
     if (!message?.trim() && !image) return Response.json({ error: 'A message or image is required.' }, { status: 400 })
+
+    const { data: company, error: companyJurisdictionError } = await supabaseServer
+      .from('Companies')
+      .select('jurisdictions')
+      .eq('id', technician.company_id)
+      .single()
+
+    if (companyJurisdictionError || !company) {
+      return Response.json({ error: 'Could not load company jurisdiction settings.' }, { status: 500 })
+    }
+
+    const companyJurisdictions = (Array.isArray(company.jurisdictions) ? company.jurisdictions : [])
+      .map(normalizeJurisdiction)
+      .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+    const requestedJurisdiction =
+      requestedJurisdictionInput == null ? null : normalizeJurisdiction(requestedJurisdictionInput)
+
+    if (requestedJurisdictionInput != null && !requestedJurisdiction) {
+      return Response.json({ error: 'Choose a valid job jurisdiction.' }, { status: 400 })
+    }
+
+    if (requestedJurisdiction && !jurisdictionAllowed(companyJurisdictions, requestedJurisdiction)) {
+      return Response.json({ error: 'That jurisdiction is not enabled for this company.' }, { status: 400 })
+    }
+
+    const technicianDefaultJurisdiction = normalizeJurisdiction(technician.default_jurisdiction)
+    const soleCompanyJurisdiction = companyJurisdictions.length === 1 ? companyJurisdictions[0] : null
 
     const requestQuestionText = message?.trim() || ''
     const managerRelevantSignal =
@@ -109,18 +138,53 @@ async function handleChat(
     onProgress({ label: 'Understanding your field question' })
 
     let activeConversationId = conversationId
+    let activeJurisdiction =
+      requestedJurisdiction ||
+      technicianDefaultJurisdiction ||
+      soleCompanyJurisdiction
     const isNewConversation = !activeConversationId
     const isPhotoStartedConversation = isNewConversation && !message?.trim() && !!image
 
     if (activeConversationId) {
       const { data: existingConversation, error: conversationError } = await supabaseServer
         .from('Conversations')
-        .select('id')
+        .select('id, jurisdiction')
         .eq('id', activeConversationId)
         .eq('technician_id', technician.id)
         .single()
 
-      if (conversationError || !existingConversation) return Response.json({ error: 'Conversation not found' }, { status: 404 })
+      if (conversationError || !existingConversation) {
+        return Response.json({ error: 'Conversation not found' }, { status: 404 })
+      }
+
+      const storedJurisdiction = normalizeJurisdiction(existingConversation.jurisdiction)
+      activeJurisdiction =
+        requestedJurisdiction ||
+        storedJurisdiction ||
+        technicianDefaultJurisdiction ||
+        soleCompanyJurisdiction
+
+      if (activeJurisdiction && jurisdictionKey(activeJurisdiction) !== jurisdictionKey(storedJurisdiction)) {
+        const { error: jurisdictionUpdateError } = await supabaseServer
+          .from('Conversations')
+          .update({ jurisdiction: activeJurisdiction, updated_at: new Date().toISOString() })
+          .eq('id', activeConversationId)
+          .eq('technician_id', technician.id)
+
+        if (jurisdictionUpdateError) throw jurisdictionUpdateError
+      }
+    }
+
+    const jurisdictionSensitiveCodeQuestion =
+      /\b(code|ipc|irc|ifgc|iac|amendment|section|table|minimum|maximum|required|allowed|prohibited|clearance|spacing|slope|dfu|fixture unit|trap arm|vent size|pipe size|support|hanger)\b/i.test(
+        requestQuestionText
+      )
+
+    if (jurisdictionSensitiveCodeQuestion && companyJurisdictions.length > 1 && !activeJurisdiction) {
+      return Response.json(
+        { error: 'Choose the job jurisdiction before asking a code-specific question.' },
+        { status: 409 }
+      )
     }
 
     if (!activeConversationId) {
@@ -130,13 +194,18 @@ async function handleChat(
           title: message?.trim()?.slice(0, 80) || 'New conversation',
           status: 'active',
           technician_id: technician.id,
+          jurisdiction: activeJurisdiction,
         })
-        .select('id')
+        .select('id, jurisdiction')
         .single()
 
       if (conversationError) throw conversationError
       activeConversationId = conversation.id
+      activeJurisdiction = normalizeJurisdiction(conversation.jurisdiction) || activeJurisdiction
     }
+
+    const activeJurisdictionState = activeJurisdiction?.state?.toUpperCase() || ''
+    const indianaCodeAllowed = activeJurisdictionState === 'IN'
 
     markStage('conversationMs')
 
@@ -396,6 +465,7 @@ async function handleChat(
 
     const primaryQuestionText = requestQuestionText
     const directVerifiedCodeLookup =
+      indianaCodeAllowed &&
       straightforwardTechnicalLookup &&
       !/\b(calculate|calculation|sizing|rainfall|tributary|combined|total connected|how many|how much|load|capacity|flow rate|gpm)\b/i.test(
         primaryQuestionText
@@ -560,12 +630,17 @@ ${activeGuidance || 'No additional Admin-approved guidance is active.'}
       tools: normalizedDirectLookup
         ? []
         : [
-            {
-              type: 'file_search',
-              vector_store_ids: manufacturerEvidenceEnabled
-                ? [MANUFACTURER_VECTOR_STORE_ID, INDIANA_CODE_VECTOR_STORE_ID]
-                : [INDIANA_CODE_VECTOR_STORE_ID],
-            },
+            ...(
+              manufacturerEvidenceEnabled || indianaCodeAllowed
+                ? [{
+                    type: 'file_search' as const,
+                    vector_store_ids: [
+                      ...(manufacturerEvidenceEnabled ? [MANUFACTURER_VECTOR_STORE_ID] : []),
+                      ...(indianaCodeAllowed ? [INDIANA_CODE_VECTOR_STORE_ID] : []),
+                    ],
+                  }]
+                : []
+            ),
             ...(directVerifiedCodeLookup ? [] : [{ type: 'web_search' as const }]),
           ],
       instructions: normalizedDirectLookup
@@ -575,6 +650,14 @@ ${activeGuidance || 'No additional Admin-approved guidance is active.'}
           : `
 You are CraftCompass AI, an experienced AI field partner for skilled trade technicians.
 CraftCompass AI is trade-agnostic and may help with plumbing, HVAC, refrigeration, electrical, boilers, maintenance, painting, handyman work, and other skilled trades.
+
+ACTIVE JOB JURISDICTION:
+${activeJurisdiction ? jurisdictionLabel(activeJurisdiction) : 'Not selected'}
+- Treat this as the governing jurisdiction for jurisdiction-sensitive code and regulatory guidance.
+- The verified Indiana code library may be used as controlling evidence ONLY when the active jurisdiction is Indiana.
+- For a non-Indiana jurisdiction, do not present Indiana code, Indiana amendments, or Indiana adoption rules as controlling.
+- When a non-Indiana code answer is requested and no normalized verified library exists for that jurisdiction yet, use only clearly applicable authoritative sources you can verify; otherwise say the requirement is not yet verified rather than guessing.
+- If the active jurisdiction is not selected and the company has more than one jurisdiction, do not guess which state's code applies.
 
 CORE PERSONALITY:
 - Sound like a seasoned veteran in the technician's phone: friendly, empathetic, calm, capable, and never smug.
@@ -825,6 +908,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
       )
 
     const numericCodeVerificationNeeded =
+      indianaCodeAllowed &&
       !directVerifiedCodeLookup &&
       !simpleUnitConversion &&
       !directLimitLookup &&
@@ -908,6 +992,7 @@ NON-NEGOTIABLE RULES:
       )
 
     if (
+      indianaCodeAllowed &&
       !directVerifiedCodeLookup &&
       codeClaimLikely &&
       !codeReferencePattern.test(answerResponse.output_text || '')
@@ -1092,7 +1177,7 @@ Rules:
       if (/\bifgc\b|fuel gas code|fuel-gas/.test(sourceText)) codeFamilies.add('Fuel Gas')
       if (/\birc\b|residential code|residential-code/.test(sourceText)) codeFamilies.add('Residential')
 
-      if (codeFamilies.size > 0) {
+      if (indianaCodeAllowed && codeFamilies.size > 0) {
         const [
           { data: indianaRules, error: indianaRuleError },
           { data: editions, error: editionError },
@@ -1498,6 +1583,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       assistantMessageId: assistantMessage.id,
       sources,
       timing,
+      jurisdiction: activeJurisdiction,
     })
   } catch (error: any) {
     console.error('TRADEWISE CHAT API ERROR:', error)
