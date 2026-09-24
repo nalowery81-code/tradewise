@@ -102,6 +102,33 @@ const ManagerAnswerText = ({ text }: { text: string }) => {
           )
         }
 
+        const bulletMatch = line.match(/^[-•]\s+(.+)$/)
+        if (bulletMatch) {
+          const bulletText = bulletMatch[1]
+          const sentenceEnd = bulletText.search(/[.!?](?:\s|$)/)
+          const actionText = sentenceEnd >= 0 ? bulletText.slice(0, sentenceEnd + 1) : bulletText
+          const detailText = sentenceEnd >= 0 ? bulletText.slice(sentenceEnd + 1).trim() : ''
+
+          return (
+            <div
+              key={index}
+              style={{
+                marginBottom: 8,
+                lineHeight: 1.62,
+                display: 'flex',
+                gap: 8,
+                alignItems: 'flex-start',
+              }}
+            >
+              <span aria-hidden="true" style={{ color: 'var(--cc-signal-blue)', fontWeight: 900 }}>•</span>
+              <div>
+                <span style={{ fontWeight: 800, color: 'var(--cc-deep-navy)' }}>{actionText}</span>
+                {detailText ? <span>{' '}{detailText}</span> : null}
+              </div>
+            </div>
+          )
+        }
+
         return (
           <div key={index} style={{ marginBottom: 6, lineHeight: 1.62 }}>
             {rawLine}
