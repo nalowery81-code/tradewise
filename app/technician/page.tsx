@@ -164,6 +164,7 @@ export default function TechnicianPage() {
       helpful?: boolean
       image?: string
       responseDurationMs?: number
+      guideState?: 'error'
       sources?: {
         title: string
         url?: string
@@ -506,6 +507,7 @@ export default function TechnicianPage() {
           role: 'assistant',
           text: 'I could not prepare that photo. Try another photo or send your question without it.',
           responseDurationMs: durationMs,
+          guideState: 'error',
         },
       ])
       return
@@ -608,6 +610,7 @@ export default function TechnicianPage() {
               streamedError ||
               data?.error ||
               'I had trouble responding. Try that again.',
+            guideState: 'error',
           },
         ])
         return
@@ -642,6 +645,7 @@ export default function TechnicianPage() {
           role: 'assistant',
           text: 'I could not connect. Try sending that again.',
           responseDurationMs,
+          guideState: 'error',
         },
       ])
     } finally {
@@ -830,6 +834,16 @@ export default function TechnicianPage() {
               }}
             >
               <div style={item.role === 'user' ? styles.userBubble : styles.assistantBubble}>
+                {item.role === 'assistant' && item.guideState === 'error' && (
+                  <div style={{ marginBottom: 10 }}>
+                    <CraftCompassGuide
+                      state="error"
+                      size={42}
+                      caption="Could not verify"
+                    />
+                  </div>
+                )}
+
                 {item.image && (
                   <img
                     src={item.image}
