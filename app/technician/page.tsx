@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import FeedbackRequestPrompt from '../components/feedback-request'
 import CraftCompassGuide from '../components/craftcompass-guide'
+import BrandLogo from '../components/brand-logo'
 import { groupSimilarConversations } from '../lib/conversation-grouping'
 
 function renderInlineMarkdown(text: string) {
@@ -806,6 +807,17 @@ export default function TechnicianPage() {
       <section style={styles.content}>
         {messages.length === 0 && (
           <div style={styles.hero}>
+            <div style={styles.heroMascot} aria-hidden="true">
+              <BrandLogo
+                width={176}
+                style={{
+                  maxWidth: 'none',
+                  margin: '0 auto',
+                  transform: 'translateY(-1px)',
+                }}
+              />
+            </div>
+
             <div style={styles.brandBlock}>
               <div style={styles.brandName}>CraftCompass AI</div>
               <div style={styles.brandTagline}>Real Skills. Smart Solutions.</div>
@@ -1325,11 +1337,17 @@ const styles: Record<string, React.CSSProperties> = {
   hero: {
     width: '100%',
     maxWidth: 900,
-    marginTop: 'clamp(54px, 10vh, 96px)',
+    marginTop: 'clamp(32px, 6vh, 58px)',
     textAlign: 'center',
   },
+  heroMascot: {
+    width: 176,
+    height: 126,
+    margin: '0 auto 12px',
+    overflow: 'hidden',
+  },
   brandBlock: {
-    marginBottom: 28,
+    marginBottom: 26,
   },
   brandName: {
     fontSize: 'clamp(42px, 9vw, 68px)',
