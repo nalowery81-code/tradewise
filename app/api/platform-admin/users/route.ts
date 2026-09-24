@@ -193,6 +193,27 @@ export async function PATCH(request: Request) {
         .update({ canonical_name: name })
         .eq('id', linkedTechnician.id)
       if (techUpdateError) throw techUpdateError
+
+      const [reflectionRename, followUpRename, managerNoteRename] = await Promise.all([
+        supabaseServer
+          .from('Reflections')
+          .update({ technician_name: name })
+          .eq('company_id', companyId)
+          .eq('technician_id', linkedTechnician.id),
+        supabaseServer
+          .from('ManagerFollowUps')
+          .update({ technician_name: name })
+          .eq('company_id', companyId)
+          .eq('technician_id', linkedTechnician.id),
+        supabaseServer
+          .from('ManagerNotes')
+          .update({ technician_name: name })
+          .eq('company_id', companyId)
+          .eq('technician_id', linkedTechnician.id),
+      ])
+
+      const renameError = reflectionRename.error || followUpRename.error || managerNoteRename.error
+      if (renameError) throw renameError
     }
 
     // New technician role, or a technician moving companies: connect to an existing

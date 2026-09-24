@@ -331,6 +331,34 @@ export async function POST(request: Request) {
       reflections = (data || []) as Reflection[]
     }
 
+    const reflectionTechnicianIds = Array.from(
+      new Set(reflections.map((reflection) => reflection.technician_id).filter((id): id is string => Boolean(id)))
+    )
+
+    if (reflectionTechnicianIds.length > 0) {
+      const { data: currentTechnicians, error: currentTechniciansError } = await supabaseServer
+        .from('Technicians')
+        .select('id, canonical_name')
+        .eq('company_id', companyId)
+        .in('id', reflectionTechnicianIds)
+
+      if (currentTechniciansError) {
+        console.error('MANAGER CURRENT TECHNICIAN NAME LOAD ERROR:', currentTechniciansError)
+        return Response.json({ error: 'Could not resolve current technician names.' }, { status: 500 })
+      }
+
+      const currentNameById = new Map(
+        (currentTechnicians || []).map((technician) => [technician.id, technician.canonical_name])
+      )
+
+      reflections = reflections.map((reflection) => ({
+        ...reflection,
+        technician_name:
+          (reflection.technician_id && currentNameById.get(reflection.technician_id)) ||
+          reflection.technician_name,
+      }))
+    }
+
     const reflectionEpisodes = collapseNearDuplicateReflections(reflections)
 
     const reflectionContext = reflectionEpisodes
