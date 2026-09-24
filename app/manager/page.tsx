@@ -483,30 +483,22 @@ export default function ManagerPage() {
     {
       label: 'Team Summary',
       prompt: 'Give me a weekly summary of what the team is dealing with.',
-      icon: '▥',
       tint: '#f3f8ff',
-      accent: '#2563eb',
     },
     {
       label: 'Follow-up',
       prompt: 'Who on the team may need a follow-up?',
-      icon: '◎',
       tint: '#f2fbf6',
-      accent: '#16a34a',
     },
     {
       label: 'Recurring Issues',
       prompt: 'What recurring issues are showing up?',
-      icon: '!',
       tint: '#fff9ed',
-      accent: '#f59e0b',
     },
     {
       label: 'Training Opportunities',
       prompt: 'Where do you see training opportunities?',
-      icon: '→',
       tint: '#f8f5ff',
-      accent: '#7c3aed',
     },
   ]
 
@@ -813,17 +805,6 @@ export default function ManagerPage() {
                     background: starter.tint,
                   }}
                 >
-                  <span
-                    aria-hidden="true"
-                    style={{
-                      ...starterIconStyle,
-                      color: starter.accent,
-                      borderColor: `${starter.accent}22`,
-                      background: '#ffffffaa',
-                    }}
-                  >
-                    {starter.icon}
-                  </span>
                   <span>{starter.label}</span>
                 </button>
               ))}
@@ -909,9 +890,8 @@ const managerBrandNameStyle: React.CSSProperties = { color: '#123047', fontSize:
 const managerTaglineStyle: React.CSSProperties = { marginTop: 8, color: '#64748b', fontSize: 'clamp(14px, 2vw, 18px)', fontWeight: 700 }
 const managerQuestionStyle: React.CSSProperties = { margin: '24px 0 0', color: '#102746', fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.12, fontWeight: 800, letterSpacing: '-0.025em' }
 const managerIntroStyle: React.CSSProperties = { margin: '10px 0 0', color: '#64748b', fontSize: 16, lineHeight: 1.5 }
-const starterGridStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginTop: 24, marginBottom: 28 }
-const starterStyle: React.CSSProperties = { minHeight: 112, padding: '18px 20px', borderRadius: 18, border: '1px solid #dbe3ea', cursor: 'pointer', fontSize: 17, fontWeight: 800, textAlign: 'center', lineHeight: 1.3, color: '#102746', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 16px rgba(15,23,42,0.04)' }
-const starterIconStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: 12, border: '1px solid', display: 'grid', placeItems: 'center', fontSize: 20, fontWeight: 900, lineHeight: 1 }
+const starterGridStyle: React.CSSProperties = { width: '100%', maxWidth: 760, display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 14, marginTop: 24, marginBottom: 28 }
+const starterStyle: React.CSSProperties = { minHeight: 96, padding: '18px 20px', borderRadius: 18, border: '1px solid #dbe3ea', cursor: 'pointer', fontSize: 17, fontWeight: 800, textAlign: 'center', lineHeight: 1.3, color: '#102746', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(15,23,42,0.04)' }
 const userBubbleStyle: React.CSSProperties = { maxWidth: '78%', background: '#e7edf2', borderRadius: 18, padding: '12px 16px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }
 const assistantBubbleStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '18px 20px', lineHeight: 1.62, whiteSpace: 'pre-wrap', boxShadow: '0 4px 18px rgba(0,0,0,0.04)' }
 const readingStyle: React.CSSProperties = { width: 'fit-content', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '12px 16px', color: '#6b7280' }
