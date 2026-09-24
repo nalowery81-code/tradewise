@@ -106,7 +106,7 @@ export async function GET(
   }
 
   const authIds = (profiles || []).map((profile) => profile.auth_user_id).filter(Boolean)
-  const authMap = new Map<string, { last_sign_in_at?: string | null }>()
+  const authMap = new Map<string, { last_sign_in_at?: string | null; email?: string | null; user_metadata?: Record<string, unknown> }>()
   if (authIds.length > 0) {
     const { data: authUsers, error: authError } = await supabaseServer.auth.admin.listUsers({
       page: 1,
@@ -116,15 +116,41 @@ export async function GET(
       console.error('COMPANY CONTROL CENTER AUTH USERS ERROR:', authError)
     } else {
       for (const user of authUsers.users) {
-        if (authIds.includes(user.id)) authMap.set(user.id, { last_sign_in_at: user.last_sign_in_at })
+        if (authIds.includes(user.id)) {
+          authMap.set(user.id, {
+            last_sign_in_at: user.last_sign_in_at,
+            email: user.email,
+            user_metadata: user.user_metadata || {},
+          })
+        }
       }
     }
   }
 
-  const pendingInvites = (profiles || []).filter((profile) => {
-    if (profile.is_active === false || !profile.auth_user_id) return false
-    return !authMap.get(profile.auth_user_id)?.last_sign_in_at
-  }).length
+  const pendingInviteDetails = (profiles || [])
+    .filter((profile) => {
+      if (profile.is_active === false || !profile.auth_user_id) return false
+      return !authMap.get(profile.auth_user_id)?.last_sign_in_at
+    })
+    .map((profile) => {
+      const authUser = authMap.get(profile.auth_user_id)
+      const metadataName =
+        typeof authUser?.user_metadata?.full_name === 'string'
+          ? String(authUser.user_metadata.full_name).trim()
+          : ''
+      const email = authUser?.email || ''
+
+      return {
+        profileId: profile.id,
+        authUserId: profile.auth_user_id,
+        role: profile.role,
+        name: metadataName || (email ? email.split('@')[0] : 'Pending user'),
+        email,
+        invitedAt: profile.created_at,
+      }
+    })
+
+  const pendingInvites = pendingInviteDetails.length
 
   const seats = await getCompanySeatSummary(id)
 
@@ -179,6 +205,7 @@ export async function GET(
     },
     seats,
     pendingInvites,
+    pendingInviteDetails,
     usage: {
       ...usage,
       windowDays: 14,

@@ -36,6 +36,14 @@ type ControlData = {
     overPlan: boolean
   }
   pendingInvites: number
+  pendingInviteDetails: {
+    profileId: string
+    authUserId: string
+    role: 'owner' | 'manager' | 'technician'
+    name: string
+    email: string
+    invitedAt: string
+  }[]
   usage: {
     calls: number
     totalTokens: number
@@ -75,6 +83,19 @@ const featureLabels: Record<string, string> = {
   owner_add_technician: 'Owner Add Technician',
 }
 
+const featureDescriptions: Record<string, string> = {
+  manager_search: 'Lets managers search company technician activity, conversations, reflections, and related management context.',
+  manager_history: 'Shows managers their prior CraftCompass management conversations and generated responses.',
+  manager_follow_up: 'Enables manager follow-up workflows for technician issues, coaching items, and unresolved actions.',
+  manager_technicians: 'Lets managers view the technicians assigned to them and access technician-specific management context.',
+  manager_notes: 'Allows managers to create and review private management notes tied to technicians.',
+  owner_overview: 'Gives owners the company-level overview with team trends, activity, and management insight.',
+  owner_company: 'Lets owners access company administration such as roster, company information, and account-level settings.',
+  owner_assignments: 'Lets owners manage which technicians are assigned to each manager.',
+  owner_add_manager: 'Allows owners to invite or add manager accounts to the company.',
+  owner_add_technician: 'Allows owners to invite or add technician accounts to the company.',
+}
+
 export default function CompanyControlCenterPage() {
   const params = useParams<{ id: string }>()
   const companyId = params?.id || ''
@@ -92,6 +113,8 @@ export default function CompanyControlCenterPage() {
   const [trades, setTrades] = useState<string[]>(['plumbing'])
   const [jurisdictions, setJurisdictions] = useState<JurisdictionValue[]>([{ country: 'US', state: 'IN' }])
   const [timezone, setTimezone] = useState('America/Indiana/Indianapolis')
+  const [pendingInvitesOpen, setPendingInvitesOpen] = useState(false)
+  const [inviteActionProfileId, setInviteActionProfileId] = useState('')
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -201,6 +224,46 @@ export default function CompanyControlCenterPage() {
     window.location.href = '/manager/company'
   }
 
+  const managePendingInvite = async (profileId: string, action: 'resend' | 'delete') => {
+    if (!data || inviteActionProfileId) return
+
+    const pending = data.pendingInviteDetails.find((item) => item.profileId === profileId)
+    if (!pending) return
+
+    if (action === 'delete') {
+      const confirmed = window.confirm(
+        `Delete the pending ${pending.role} invite for ${pending.name || pending.email}? This removes the pending login but preserves technician roster/history where applicable.`
+      )
+      if (!confirmed) return
+    }
+
+    setInviteActionProfileId(profileId)
+    setError('')
+    setStatus('')
+
+    const token = await getToken()
+    const response = await fetch(`/api/platform-admin/companies/${companyId}/pending-invites`, {
+      method: 'POST',
+      cache: 'no-store',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ profileId, action }),
+    })
+    const result = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      setError(result.error || `Could not ${action} pending invite.`)
+      setInviteActionProfileId('')
+      return
+    }
+
+    setStatus(action === 'resend' ? `Invite resent to ${pending.email}.` : `Pending invite for ${pending.name} deleted.`)
+    setInviteActionProfileId('')
+    await load()
+  }
+
   if (loading) return <Shell><div style={noticeStyle}>Loading company control center…</div></Shell>
   if (!data) return <Shell><div style={errorStyle}>{error || 'Company not found.'}</div></Shell>
 
@@ -227,7 +290,12 @@ export default function CompanyControlCenterPage() {
         </div>
 
         <div style={metricsGridStyle}>
-          <Metric label="Seats used" value={String(totalSeatsUsed)} sub={`${data.pendingInvites} pending invite${data.pendingInvites === 1 ? '' : 's'}`} />
+          <Metric
+            label="Seats used"
+            value={String(totalSeatsUsed)}
+            sub={`${data.pendingInvites} pending invite${data.pendingInvites === 1 ? '' : 's'}`}
+            onSubClick={data.pendingInvites > 0 ? () => setPendingInvitesOpen(true) : undefined}
+          />
           <Metric label="AI calls · 14d" value={data.usage.calls.toLocaleString()} sub={`${data.usage.totalTokens.toLocaleString()} tokens`} />
           <Metric label="Verified jurisdictions" value={`${data.health.sourceCoverageVerified}/${data.health.sourceCoverageTotal}`} sub="configured coverage" />
           <Metric label="Tenant isolation" value="Healthy" sub="company-scoped access" />
@@ -331,6 +399,8 @@ export default function CompanyControlCenterPage() {
               <button
                 key={key}
                 type="button"
+                title={featureDescriptions[key] || 'Controls access to this company feature.'}
+                aria-label={`${featureLabels[key] || key}: ${featureDescriptions[key] || 'Company feature control'}`}
                 onClick={() => setFeatureFlags((current) => ({ ...current, [key]: !current[key] }))}
                 style={featureRowStyle}
               >
@@ -349,6 +419,55 @@ export default function CompanyControlCenterPage() {
           </button>
         </div>
       </div>
+
+      {pendingInvitesOpen && (
+        <div style={modalBackdropStyle} onClick={() => !inviteActionProfileId && setPendingInvitesOpen(false)}>
+          <div style={pendingModalStyle} onClick={(event) => event.stopPropagation()}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:12 }}>
+              <div>
+                <div style={eyebrowStyle}>Company Access</div>
+                <h2 style={{ margin:'5px 0 4px', fontSize:24 }}>Pending invites</h2>
+                <div style={helperStyle}>{company.name} · users who have not signed in yet</div>
+              </div>
+              <button type="button" onClick={() => setPendingInvitesOpen(false)} style={closeButtonStyle}>×</button>
+            </div>
+
+            <div style={{ display:'grid', gap:10, marginTop:18 }}>
+              {data.pendingInviteDetails.length === 0 ? (
+                <div style={helperStyle}>No pending invites.</div>
+              ) : data.pendingInviteDetails.map((invite) => (
+                <div key={invite.profileId} style={pendingInviteRowStyle}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontWeight:850 }}>{invite.name}</div>
+                    <div style={{ marginTop:2, color:'#475569', fontSize:12 }}>{invite.email}</div>
+                    <div style={{ marginTop:4, color:'#94a3b8', fontSize:11 }}>
+                      {titleCase(invite.role)} · invited {new Date(invite.invitedAt).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', gap:7, flexWrap:'wrap', justifyContent:'flex-end' }}>
+                    <button
+                      type="button"
+                      disabled={Boolean(inviteActionProfileId)}
+                      onClick={() => void managePendingInvite(invite.profileId, 'resend')}
+                      style={secondaryButtonStyle}
+                    >
+                      {inviteActionProfileId === invite.profileId ? 'Working…' : 'Resend'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={Boolean(inviteActionProfileId)}
+                      onClick={() => void managePendingInvite(invite.profileId, 'delete')}
+                      style={dangerButtonStyle}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </Shell>
   )
 }
@@ -374,8 +493,28 @@ function Shell({ children }: { children: React.ReactNode }) {
   )
 }
 
-function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
-  return <div style={metricStyle}><div style={eyebrowStyle}>{label}</div><div style={{ marginTop: 7, fontSize: 28, fontWeight: 850 }}>{value}</div><div style={helperStyle}>{sub}</div></div>
+function Metric({
+  label,
+  value,
+  sub,
+  onSubClick,
+}: {
+  label: string
+  value: string
+  sub: string
+  onSubClick?: () => void
+}) {
+  return (
+    <div style={metricStyle}>
+      <div style={eyebrowStyle}>{label}</div>
+      <div style={{ marginTop: 7, fontSize: 28, fontWeight: 850 }}>{value}</div>
+      {onSubClick ? (
+        <button type="button" onClick={onSubClick} style={metricSubButtonStyle}>{sub}</button>
+      ) : (
+        <div style={helperStyle}>{sub}</div>
+      )}
+    </div>
+  )
 }
 function SmallMetric({ label, value }: { label: string; value: number }) {
   return <div style={smallMetricStyle}><div style={helperStyle}>{label}</div><div style={{ marginTop: 3, fontSize: 20, fontWeight: 850 }}>{value.toLocaleString()}</div></div>
@@ -415,6 +554,12 @@ const switchKnobStyle: React.CSSProperties = { display:'block', width:18, height
 const eyebrowStyle: React.CSSProperties = { color:'#64748b', fontSize:11, fontWeight:850, textTransform:'uppercase', letterSpacing:'.07em' }
 const backLinkStyle: React.CSSProperties = { display:'inline-block', marginBottom:14, color:'#475569', fontSize:13, fontWeight:750, textDecoration:'none' }
 const primaryButtonStyle: React.CSSProperties = { border:0, borderRadius:9, padding:'11px 15px', background:'#082B4D', color:'#fff', fontSize:13, fontWeight:800, cursor:'pointer' }
+const dangerButtonStyle: React.CSSProperties = { border:'1px solid #fecaca', borderRadius:9, padding:'10px 12px', background:'#fff', color:'#b91c1c', fontSize:13, fontWeight:800, cursor:'pointer' }
+const metricSubButtonStyle: React.CSSProperties = { border:0, padding:0, marginTop:2, background:'transparent', color:'#086195', fontSize:12, lineHeight:1.45, fontWeight:800, cursor:'pointer', textDecoration:'underline' }
+const modalBackdropStyle: React.CSSProperties = { position:'fixed', inset:0, zIndex:80, display:'grid', placeItems:'center', padding:18, background:'rgba(15,23,42,.48)' }
+const pendingModalStyle: React.CSSProperties = { width:'min(620px,100%)', maxHeight:'calc(100vh - 36px)', overflowY:'auto', borderRadius:16, padding:22, background:'#fff', boxShadow:'0 24px 70px rgba(15,23,42,.28)' }
+const pendingInviteRowStyle: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, padding:13, border:'1px solid #e2e8f0', borderRadius:11, background:'#f8fafc' }
+const closeButtonStyle: React.CSSProperties = { width:34, height:34, border:'1px solid #e2e8f0', borderRadius:9, background:'#fff', color:'#475569', fontSize:22, lineHeight:1, cursor:'pointer' }
 const secondaryButtonStyle: React.CSSProperties = { border:'1px solid #cbd5e1', borderRadius:9, padding:'10px 12px', background:'#fff', color:'#334155', fontSize:13, fontWeight:800, cursor:'pointer' }
 const linkButtonStyle: React.CSSProperties = { border:0, padding:0, background:'transparent', color:'#086195', fontSize:12, fontWeight:800, cursor:'pointer' }
 const neutralBadgeStyle: React.CSSProperties = { display:'inline-block', padding:'5px 9px', borderRadius:999, background:'#eef2f6', color:'#475569', fontSize:11, fontWeight:800, textTransform:'capitalize' }
