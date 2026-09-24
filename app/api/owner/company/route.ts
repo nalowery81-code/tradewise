@@ -80,7 +80,12 @@ export async function GET(request: Request) {
         email,
         technicianId: profile.technician_id || technician?.id || null,
         createdAt: profile.created_at,
-        accountStatus: profile.is_active === false || authBanned ? 'inactive' as const : 'active' as const,
+        accountStatus:
+          profile.is_active === false || authBanned
+            ? 'inactive' as const
+            : user && !user.last_sign_in_at
+              ? 'pending_invite' as const
+              : 'active' as const,
         deactivatedAt: profile.deactivated_at || null,
       }
     })

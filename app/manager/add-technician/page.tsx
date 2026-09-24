@@ -12,6 +12,11 @@ export default function AddTechnicianPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
+    const presetName = new URLSearchParams(window.location.search).get('name')
+    if (presetName) setName(presetName)
+  }, [])
+
+  useEffect(() => {
     const checkAccess = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {

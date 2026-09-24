@@ -18,7 +18,7 @@ type CompanyMember = {
   email: string
   technicianId: string | null
   createdAt: string
-  accountStatus?: 'active' | 'inactive' | 'no_login'
+  accountStatus?: 'active' | 'inactive' | 'pending_invite' | 'no_login'
   deactivatedAt?: string | null
 }
 
@@ -249,6 +249,7 @@ export default function CompanyPage() {
   const renderMember = (member: CompanyMember) => {
     const needsLogin = member.role === 'technician' && member.accountStatus === 'no_login'
     const isInactive = member.accountStatus === 'inactive'
+    const isPendingInvite = member.accountStatus === 'pending_invite'
     const canManage = member.role !== 'owner' && !needsLogin && !!member.authUserId
     const isOpen = managedProfileId === member.profileId
 
@@ -263,7 +264,17 @@ export default function CompanyPage() {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {needsLogin ? (
-              <div style={needsInviteBadgeStyle}>Needs invite</div>
+              <>
+                <div style={needsInviteBadgeStyle}>Needs invite</div>
+                <a
+                  href={`/manager/add-technician?name=${encodeURIComponent(member.name)}`}
+                  style={inviteLinkStyle}
+                >
+                  Invite
+                </a>
+              </>
+            ) : isPendingInvite ? (
+              <div style={pendingInviteBadgeStyle}>Pending invite</div>
             ) : (
               <div style={isInactive ? inactiveBadgeStyle : activeBadgeStyle}>
                 {isInactive ? 'Inactive' : 'Active'}
@@ -426,6 +437,8 @@ const roleBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9
 const activeBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#ecfdf5', color: '#166534', border: '1px solid #bbf7d0', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
 const inactiveBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
 const needsInviteBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#fff7ed', color: '#9a3412', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const pendingInviteBadgeStyle: React.CSSProperties = { borderRadius: 999, padding: '5px 9px', background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }
+const inviteLinkStyle: React.CSSProperties = { borderRadius: 9, padding: '6px 10px', background: '#ffffff', color: '#172033', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }
 const manageButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 9, padding: '6px 10px', background: '#ffffff', color: '#172033', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
 const managePanelStyle: React.CSSProperties = { display: 'grid', gap: 10, padding: '12px 14px 14px', borderTop: '1px solid #e5e7eb', background: '#ffffff' }
 const actionButtonStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 9, padding: '8px 11px', background: '#ffffff', color: '#172033', fontSize: 12, fontWeight: 700, cursor: 'pointer' }
