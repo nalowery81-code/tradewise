@@ -852,7 +852,7 @@ export default function TechnicianPage() {
                       fontWeight: 600,
                     }}
                   >
-                    Verified in {(item.responseDurationMs / 1000).toFixed(1)}s
+                    Answered in {(item.responseDurationMs / 1000).toFixed(1)}s
                   </div>
                 )}
 
@@ -892,17 +892,11 @@ export default function TechnicianPage() {
                       gap: 6,
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 700,
-                        color: '#64748b',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      Verified sources
-                    </div>
+                    <CraftCompassGuide
+                      state="verified"
+                      size={38}
+                      caption="Verified sources"
+                    />
 
                     {item.sources.map((source, sourceIndex) =>
                       source.type === 'web' && source.url ? (
