@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
-import PlatformAdminNav from '../../platform-admin-nav'
+import PlatformAdminShell from '../../platform-admin-shell'
 import CompanyScopeEditor, { type JurisdictionValue } from '../../../components/company-scope-editor'
 import {
   COMPANY_FEATURE_KEYS,
@@ -264,7 +264,7 @@ export default function CompanyControlCenterPage() {
     await load()
   }
 
-  if (loading) return <Shell><div style={noticeStyle}>Loading company control center…</div></Shell>
+  if (loading) return <PlatformAdminShell maxWidth={1180} contentPadding="42px clamp(24px, 5vw, 72px) 70px"><div style={noticeStyle}>Loading company control center…</div></PlatformAdminShell>
   if (!data) return <Shell><div style={errorStyle}>{error || 'Company not found.'}</div></Shell>
 
   const company = data.company
@@ -474,27 +474,6 @@ export default function CompanyControlCenterPage() {
         </div>
       )}
     </Shell>
-  )
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <style>{`
-        @media (max-width: 900px) {
-          .company-control-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
-          .company-control-content { margin-left: 0 !important; padding: 24px 16px 50px !important; }
-        }
-      `}</style>
-      <aside className="company-control-sidebar" style={sidebarStyle}>
-        <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
-        <div style={{ marginTop: 5, color: '#64748b', fontSize: 11, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase' }}>Platform Admin</div>
-        <PlatformAdminNav variant="sidebar" />
-      </aside>
-      <section className="company-control-content" style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>
-        {children}
-      </section>
-    </main>
   )
 }
 

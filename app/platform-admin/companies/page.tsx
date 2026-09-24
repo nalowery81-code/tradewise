@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import PlatformAdminNav from '../platform-admin-nav'
+import PlatformAdminShell from '../platform-admin-shell'
 import CompanyScopeEditor, { type JurisdictionValue } from '../../components/company-scope-editor'
 
 type Company = {
@@ -175,60 +175,16 @@ export default function PlatformAdminPage() {
   const totalTechnicians = companies.reduce((total, company) => total + company.technicians, 0)
 
   return (
-    <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
+    <PlatformAdminShell maxWidth={1180} contentPadding="42px clamp(24px, 5vw, 72px) 70px">
       <style>{`
         @media (max-width: 760px) {
-          .platform-admin-sidebar {
-            position: static !important;
-            width: auto !important;
-            min-height: auto !important;
-            padding: 18px 16px !important;
-          }
-          .platform-admin-sidebar nav {
-            margin-top: 16px !important;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-          }
-          .platform-admin-sidebar .owner-back {
-            margin-top: 14px !important;
-          }
-          .platform-admin-content {
-            margin-left: 0 !important;
-            padding: 26px 16px 50px !important;
-          }
-          .platform-admin-metrics {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-          .platform-admin-table {
-            overflow-x: auto !important;
-          }
-          .platform-admin-table > div {
-            min-width: 850px;
-          }
-          .platform-admin-create {
-            width: 100%;
-          }
-          .platform-admin-create input {
-            min-width: 0 !important;
-            flex: 1 1 190px;
-          }
+          .platform-admin-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+          .platform-admin-table { overflow-x: auto !important; }
+          .platform-admin-table > div { min-width: 850px; }
+          .platform-admin-create { width: 100%; }
+          .platform-admin-create input { min-width: 0 !important; flex: 1 1 190px; }
         }
       `}</style>
-
-      <aside className="platform-admin-sidebar" style={sidebarStyle}>
-        <div>
-          <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
-          <div style={{ marginTop: 5, color: '#64748b', fontSize: 11, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase' }}>
-            Platform Admin
-          </div>
-        </div>
-
-        <PlatformAdminNav variant="sidebar" />
-
-        <a className="owner-back" href="/platform-admin/owner-workspace" style={backStyle}>← Owner Workspace</a>
-      </aside>
-
-      <section className="platform-admin-content" style={{ marginLeft: 244, padding: '42px clamp(24px, 5vw, 72px) 70px' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto' }}>
           <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap' }}>
             <div>
               <div style={{ color: '#64748b', fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -452,7 +408,7 @@ export default function PlatformAdminPage() {
           </div>
         </div>
       )}
-    </main>
+    </PlatformAdminShell>
   )
 }
 
@@ -498,48 +454,6 @@ function Badge({ text }: { text: string }) {
       {text}
     </span>
   )
-}
-
-const sidebarStyle: React.CSSProperties = {
-  position: 'fixed',
-  inset: '0 auto 0 0',
-  width: 244,
-  padding: '30px 20px 22px',
-  boxSizing: 'border-box',
-  background: '#111827',
-  color: '#f8fafc',
-  borderRight: '1px solid #1f2937',
-  display: 'flex',
-  flexDirection: 'column',
-}
-
-const activeNavStyle: React.CSSProperties = {
-  display: 'block',
-  padding: '11px 12px',
-  borderRadius: 9,
-  background: '#273449',
-  color: '#ffffff',
-  textDecoration: 'none',
-  fontSize: 14,
-  fontWeight: 800,
-}
-
-const futureNavStyle: React.CSSProperties = {
-  padding: '11px 12px',
-  color: '#64748b',
-  fontSize: 14,
-  fontWeight: 700,
-}
-
-const backStyle: React.CSSProperties = {
-  marginTop: 'auto',
-  padding: '10px 12px',
-  border: '1px solid #334155',
-  borderRadius: 9,
-  color: '#cbd5e1',
-  textDecoration: 'none',
-  fontSize: 13,
-  fontWeight: 700,
 }
 
 const inputStyle: React.CSSProperties = {

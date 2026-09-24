@@ -15,30 +15,36 @@ export default function PlatformAdminShell({
     <main style={pageStyle}>
       <style>{`
         @media (max-width: 900px) {
-          .platform-admin-shared-sidebar {
+          .platform-admin-shell-sidebar {
             position: static !important;
             width: auto !important;
             min-height: auto !important;
+            padding: 20px 16px 16px !important;
           }
-          .platform-admin-shared-content {
+          .platform-admin-shell-content {
             margin-left: 0 !important;
             padding: 22px 14px 48px !important;
+          }
+          .platform-admin-owner-link {
+            margin-top: 16px !important;
           }
         }
       `}</style>
 
-      <aside className="platform-admin-shared-sidebar" style={sidebarStyle}>
+      <aside className="platform-admin-shell-sidebar" style={sidebarStyle}>
         <div>
-          <div style={{ fontSize: 23, fontWeight: 850 }}>CraftCompass AI</div>
-          <div style={{ marginTop: 5, color: '#94a3b8', fontSize: 11, fontWeight: 850, letterSpacing: '.08em', textTransform: 'uppercase' }}>
-            Platform Admin
-          </div>
+          <div style={brandStyle}>CraftCompass AI</div>
+          <div style={adminLabelStyle}>Platform Admin</div>
         </div>
-        <PlatformAdminNav variant="sidebar" />
-        <a href="/platform-admin/owner-workspace" style={ownerWorkspaceStyle}>← Owner Workspace</a>
+
+        <PlatformAdminNav />
+
+        <a className="platform-admin-owner-link" href="/platform-admin/owner-workspace" style={ownerWorkspaceStyle}>
+          ← Owner Workspace
+        </a>
       </aside>
 
-      <section className="platform-admin-shared-content" style={{ marginLeft: 244, padding: contentPadding }}>
+      <section className="platform-admin-shell-content" style={{ marginLeft: 244, padding: contentPadding }}>
         <div style={{ maxWidth, margin: '0 auto' }}>{children}</div>
       </section>
     </main>
@@ -66,6 +72,24 @@ const sidebarStyle: React.CSSProperties = {
   flexDirection: 'column',
 }
 
+const brandStyle: React.CSSProperties = {
+  fontSize: 23,
+  lineHeight: 1.15,
+  fontWeight: 850,
+  letterSpacing: '-0.02em',
+  whiteSpace: 'nowrap',
+}
+
+const adminLabelStyle: React.CSSProperties = {
+  marginTop: 7,
+  color: '#94a3b8',
+  fontSize: 11,
+  lineHeight: 1.2,
+  fontWeight: 850,
+  letterSpacing: '.09em',
+  textTransform: 'uppercase',
+}
+
 const ownerWorkspaceStyle: React.CSSProperties = {
   display: 'block',
   marginTop: 'auto',
@@ -75,5 +99,6 @@ const ownerWorkspaceStyle: React.CSSProperties = {
   color: '#e2e8f0',
   textDecoration: 'none',
   fontSize: 12,
+  lineHeight: 1.25,
   fontWeight: 800,
 }

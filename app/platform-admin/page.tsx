@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import PlatformAdminNav from './platform-admin-nav'
+import PlatformAdminShell from './platform-admin-shell'
 
 type OpenAICostData = {
   configured: boolean
@@ -175,31 +175,15 @@ export default function PlatformAdminDashboard() {
     : null
 
   return (
-    <main style={pageStyle}>
+    <PlatformAdminShell maxWidth={1380} contentPadding="32px clamp(20px, 3.5vw, 54px) 64px">
       <style>{`
         @media (max-width: 1000px) {
-          .admin-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
-          .admin-main { margin-left: 0 !important; }
           .health-grid, .two-col, .quality-grid, .cost-layout, .cost-metrics { grid-template-columns: 1fr 1fr !important; }
         }
         @media (max-width: 650px) {
           .health-grid, .two-col, .quality-grid, .cost-layout, .cost-metrics { grid-template-columns: 1fr !important; }
-          .admin-main { padding: 22px 14px 48px !important; }
         }
       `}</style>
-
-      <aside className="admin-sidebar" style={sidebarStyle}>
-        <div>
-          <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
-          <div style={{ marginTop: 4, color: 'var(--cc-craft-cyan)', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em' }}>Real Skills. Smart Solutions.</div>
-          <div style={eyebrowStyle}>Platform Admin</div>
-        </div>
-        <PlatformAdminNav variant="sidebar" />
-        <a href="/platform-admin/owner-workspace" style={backLink}>← Owner Workspace</a>
-      </aside>
-
-      <section className="admin-main" style={mainStyle}>
-        <div style={{ maxWidth: 1380, margin: '0 auto' }}>
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
             <div>
               <div style={eyebrowLight}>CraftCompass Platform</div>
@@ -521,9 +505,7 @@ export default function PlatformAdminDashboard() {
               </section>
             </>
           )}
-        </div>
-      </section>
-    </main>
+    </PlatformAdminShell>
   )
 }
 
@@ -623,13 +605,7 @@ function ActionCard({ title, detail, href, tone }: { title: string; detail: stri
 }
 
 const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f6f8fb', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }
-const sidebarStyle: React.CSSProperties = { position: 'fixed', inset: '0 auto 0 0', width: 238, minHeight: '100vh', padding: '28px 18px 20px', boxSizing: 'border-box', background: '#111827', color: '#fff', display: 'flex', flexDirection: 'column' }
-const eyebrowStyle: React.CSSProperties = { marginTop: 5, color: '#94a3b8', fontSize: 10, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.1em' }
 const eyebrowLight: React.CSSProperties = { color: '#52708f', fontSize: 11, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.09em' }
-const activeNav: React.CSSProperties = { padding: '11px 12px', borderRadius: 9, background: '#273449', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 850 }
-const navLink: React.CSSProperties = { padding: '11px 12px', borderRadius: 9, color: '#a8b4c5', textDecoration: 'none', fontSize: 13, fontWeight: 750 }
-const backLink: React.CSSProperties = { marginTop: 'auto', padding: '10px 12px', border: '1px solid #334155', borderRadius: 9, color: '#cbd5e1', textDecoration: 'none', fontSize: 12, fontWeight: 750 }
-const mainStyle: React.CSSProperties = { marginLeft: 238, padding: '32px clamp(20px, 3.5vw, 54px) 64px' }
 const statusPill: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, fontSize: 12, fontWeight: 900 }
 const healthGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1.2fr repeat(4, 1fr)', gap: 10, marginTop: 22 }
 const healthCardStyle: React.CSSProperties = { padding: 15, border: '1px solid #e2e8f0', borderRadius: 13, background: '#fff', minHeight: 100 }

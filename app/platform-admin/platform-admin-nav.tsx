@@ -2,68 +2,61 @@
 
 import { usePathname } from 'next/navigation'
 
-type Variant = 'sidebar' | 'header'
-
 const items = [
   { href: '/platform-admin', label: 'Dashboard' },
   { href: '/platform-admin/companies', label: 'Companies' },
   { href: '/platform-admin/users', label: 'Users' },
   { href: '/platform-admin/conversation-audit', label: 'Conversation Audit' },
   { href: '/platform-admin/guidance', label: 'Guidance Library' },
-  { href: '/platform-admin/normalization-candidates', label: 'Normalization Candidates' },
+  { href: '/platform-admin/normalization-candidates', label: 'Normalization Queue' },
 ]
 
-export default function PlatformAdminNav({ variant = 'sidebar' }: { variant?: Variant }) {
+export default function PlatformAdminNav() {
   const pathname = usePathname()
 
   return (
     <>
       <style>{`
         .platform-admin-nav {
-          gap: 8px;
-        }
-        .platform-admin-nav-sidebar {
           display: grid;
-          margin-top: 30px;
-        }
-        .platform-admin-nav-header {
-          display: flex;
-          flex-wrap: wrap;
-          margin-top: 14px;
+          gap: 6px;
+          margin-top: 28px;
+          width: 100%;
         }
         .platform-admin-nav a {
           box-sizing: border-box;
+          width: 100%;
           min-width: 0;
           border-radius: 9px;
-          padding: 11px 12px;
+          padding: 10px 12px;
           color: #a8b4c5;
           text-decoration: none;
           font-size: 13px;
           font-weight: 800;
           line-height: 1.25;
+          white-space: nowrap;
+        }
+        .platform-admin-nav a:hover {
+          background: #1f2a3a;
+          color: #f8fafc;
         }
         .platform-admin-nav a[data-active="true"] {
           background: #273449;
           color: #ffffff;
         }
-        @media (max-width: 1000px) {
-          .platform-admin-nav-sidebar,
-          .platform-admin-nav-header {
-            display: grid !important;
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-            width: 100%;
-            gap: 8px !important;
-            margin-top: 20px !important;
+        @media (max-width: 900px) {
+          .platform-admin-nav {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 7px;
+            margin-top: 18px;
           }
           .platform-admin-nav a {
-            width: 100%;
-            padding: 12px 14px;
-            text-align: left;
+            white-space: normal;
           }
         }
       `}</style>
 
-      <nav className={`platform-admin-nav platform-admin-nav-${variant}`}>
+      <nav className="platform-admin-nav" aria-label="Platform Admin">
         {items.map((item) => {
           const active =
             item.href === '/platform-admin'

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import PlatformAdminNav from '../platform-admin-nav'
+import PlatformAdminShell from '../platform-admin-shell'
 
 type Candidate = {
   normalizedKey: string
@@ -82,15 +82,7 @@ export default function NormalizationCandidatesPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
-      <aside style={{ position: 'fixed', inset: '0 auto 0 0', width: 244, background: '#111827', color: '#fff', padding: '30px 20px 22px', boxSizing: 'border-box' }}>
-        <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
-        <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Platform Admin</div>
-        <PlatformAdminNav variant="sidebar" />
-      </aside>
-
-      <section style={{ marginLeft: 244, padding: '34px 34px 60px' }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto' }}>
+    <PlatformAdminShell maxWidth={1280} contentPadding="34px 34px 60px">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>
               <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Verified knowledge growth</div>
@@ -163,9 +155,7 @@ export default function NormalizationCandidatesPage() {
               </article>
             ))}
           </div>
-        </div>
-      </section>
-    </main>
+    </PlatformAdminShell>
   )
 }
 

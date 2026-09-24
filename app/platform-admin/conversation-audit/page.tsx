@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import { groupSimilarConversations } from '../../lib/conversation-grouping'
-import PlatformAdminNav from '../platform-admin-nav'
+import PlatformAdminShell from '../platform-admin-shell'
 
 type AuditConversation = {
   id: string
@@ -443,7 +443,7 @@ export default function ConversationAuditPage() {
   const needsAuditCount = conversations.filter((item) => (item.pendingFlagCount || 0) > 0).length
 
   return (
-    <main style={pageStyle}>
+    <PlatformAdminShell maxWidth={1540} contentPadding="24px clamp(18px, 2.6vw, 36px) 34px">
       <style>{`
         @media (max-width: 1100px) {
           .audit-layout { grid-template-columns: minmax(300px, .9fr) minmax(0, 1.4fr) !important; }
@@ -451,25 +451,11 @@ export default function ConversationAuditPage() {
         }
         @media (max-width: 900px) {
           .audit-layout { grid-template-columns: 1fr !important; height: auto !important; }
-          .audit-sidebar { position: static !important; width: auto !important; min-height: auto !important; }
-          .audit-content { margin-left: 0 !important; padding: 20px 14px 46px !important; }
           .audit-filters { grid-template-columns: 1fr !important; }
           .audit-scroll { max-height: 60vh !important; }
           .audit-transcript-body { max-height: none !important; min-height: 360px !important; }
         }
       `}</style>
-
-      <aside className="audit-sidebar" style={sidebarStyle}>
-        <div>
-          <div style={{ fontSize: 23, fontWeight: 800 }}>CraftCompass AI</div>
-          <div style={eyebrowStyle}>Platform Admin</div>
-        </div>
-        <PlatformAdminNav variant="sidebar" />
-        <a href="/platform-admin/owner-workspace" style={backStyle}>← Owner Workspace</a>
-      </aside>
-
-      <section className="audit-content" style={{ marginLeft: 244, padding: '24px clamp(18px, 2.6vw, 36px) 34px' }}>
-        <div style={{ maxWidth: 1540, margin: '0 auto' }}>
           <div>
             <div style={{ ...eyebrowStyle, color: '#64748b' }}>Quality & Safety</div>
             <h1 style={{ margin: '5px 0 5px', fontSize: 34, letterSpacing: '-0.035em' }}>Conversation Audit</h1>
@@ -857,18 +843,12 @@ export default function ConversationAuditPage() {
               )}
             </section>
           </div>
-        </div>
-      </section>
-    </main>
+    </PlatformAdminShell>
   )
 }
 
 const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }
-const sidebarStyle: React.CSSProperties = { position: 'fixed', inset: '0 auto 0 0', width: 244, minHeight: '100vh', padding: '30px 20px 22px', boxSizing: 'border-box', background: '#111827', color: '#f8fafc', borderRight: '1px solid #1f2937', display: 'flex', flexDirection: 'column' }
 const eyebrowStyle: React.CSSProperties = { marginTop: 5, color: '#94a3b8', fontSize: 11, fontWeight: 800, letterSpacing: '.09em', textTransform: 'uppercase' }
-const navStyle: React.CSSProperties = { display: 'block', padding: '11px 12px', borderRadius: 9, color: '#94a3b8', textDecoration: 'none', fontSize: 14, fontWeight: 700 }
-const activeNavStyle: React.CSSProperties = { ...navStyle, background: '#273449', color: '#fff', fontWeight: 800 }
-const backStyle: React.CSSProperties = { marginTop: 'auto', padding: '10px 12px', border: '1px solid #334155', borderRadius: 9, color: '#cbd5e1', textDecoration: 'none', fontSize: 13, fontWeight: 700 }
 const summaryLineStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 9, flexWrap: 'wrap', marginTop: 10, color: '#475569', fontSize: 13 }
 const summaryDotStyle: React.CSSProperties = { color: '#cbd5e1' }
 const filtersStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(300px, 1fr) 190px 160px auto', gap: 9, marginTop: 14 }
