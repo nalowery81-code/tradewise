@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     const [{ data: company, error: companyError }, { data: profiles, error: profilesError }, { data: technicians, error: techniciansError }] = await Promise.all([
       supabaseServer
         .from('Companies')
-        .select('id, name, created_at, updated_at')
+        .select('id, name, timezone, trades, jurisdictions, settings, created_at, updated_at')
         .eq('id', companyId)
         .single(),
       supabaseServer
@@ -125,18 +125,87 @@ export async function PATCH(request: Request) {
     if ('error' in auth) return auth.error
 
     const body = await request.json()
-    const name = typeof body?.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : ''
 
-    if (!name || name.length < 2) {
-      return Response.json({ error: 'Company name is required.' }, { status: 400 })
+    const updates: Record<string, unknown> = {}
+
+    if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+      const name = typeof body?.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : ''
+      if (!name || name.length < 2) {
+        return Response.json({ error: 'Company name must be at least 2 characters.' }, { status: 400 })
+      }
+      updates.name = name
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'timezone')) {
+      const timezone = typeof body?.timezone === 'string' ? body.timezone.trim() : ''
+      if (!timezone) {
+        return Response.json({ error: 'Timezone is required.' }, { status: 400 })
+      }
+
+      try {
+        new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format()
+      } catch {
+        return Response.json({ error: 'Enter a valid IANA timezone.' }, { status: 400 })
+      }
+
+      updates.timezone = timezone
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'trades')) {
+      const trades = Array.isArray(body?.trades)
+        ? [...new Set(
+            body.trades
+              .filter((trade: unknown): trade is string => typeof trade === 'string')
+              .map((trade: string) => trade.trim().toLowerCase())
+              .filter(Boolean)
+          )]
+        : []
+
+      if (trades.length === 0) {
+        return Response.json({ error: 'At least one trade is required.' }, { status: 400 })
+      }
+
+      updates.trades = trades
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'jurisdictions')) {
+      if (!Array.isArray(body?.jurisdictions)) {
+        return Response.json({ error: 'Jurisdictions must be an array.' }, { status: 400 })
+      }
+
+      const jurisdictions = body.jurisdictions
+        .filter((jurisdiction: unknown) => jurisdiction && typeof jurisdiction === 'object' && !Array.isArray(jurisdiction))
+        .map((jurisdiction: Record<string, unknown>) => ({
+          country: typeof jurisdiction.country === 'string' ? jurisdiction.country.trim().toUpperCase() : '',
+          state: typeof jurisdiction.state === 'string' ? jurisdiction.state.trim().toUpperCase() : '',
+          locality: typeof jurisdiction.locality === 'string' ? jurisdiction.locality.trim() : undefined,
+        }))
+        .filter((jurisdiction: { country: string; state: string }) => jurisdiction.country && jurisdiction.state)
+
+      if (jurisdictions.length === 0) {
+        return Response.json({ error: 'At least one valid jurisdiction is required.' }, { status: 400 })
+      }
+
+      updates.jurisdictions = jurisdictions
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body, 'settings')) {
+      if (!body?.settings || typeof body.settings !== 'object' || Array.isArray(body.settings)) {
+        return Response.json({ error: 'Company settings must be an object.' }, { status: 400 })
+      }
+      updates.settings = body.settings
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return Response.json({ error: 'No company settings were provided.' }, { status: 400 })
     }
 
     const updatedAt = new Date().toISOString()
     const { data, error } = await supabaseServer
       .from('Companies')
-      .update({ name, updated_at: updatedAt })
+      .update({ ...updates, updated_at: updatedAt })
       .eq('id', auth.profile.company_id)
-      .select('id, name, created_at, updated_at')
+      .select('id, name, timezone, trades, jurisdictions, settings, created_at, updated_at')
       .single()
 
     if (error || !data) {
