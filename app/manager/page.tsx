@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import CraftCompassGuide from '../components/craftcompass-guide'
 import BrandLogo from '../components/brand-logo'
 
-type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string; guideState?: 'error' }
+type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string; guideState?: 'error'; helpful?: boolean }
 type TechnicianDirectoryItem = {
   id: string
   name: string
@@ -405,6 +405,28 @@ export default function ManagerPage() {
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     window.location.replace('/login')
+  }
+
+  const markManagerHelpful = async (messageId?: string) => {
+    if (!messageId || !managementConversationId) return
+    const session = await getSession()
+    if (!session) return window.location.replace('/login')
+
+    const response = await fetch('/api/answer-feedback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({
+        conversationType: 'management',
+        conversationId: managementConversationId,
+        messageId,
+      }),
+    })
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) return window.alert(data.error || 'Could not save feedback.')
+
+    setMessages((current) => current.map((item) =>
+      item.id === messageId ? { ...item, helpful: true } : item
+    ))
   }
 
   const flagManagerAnswer = async (messageId?: string) => {
@@ -831,7 +853,24 @@ export default function ManagerPage() {
                   )}
                   {item.text}
                   {item.role === 'assistant' && item.id && (
-                    <div style={{ marginTop: 10, paddingTop: 9, borderTop: '1px solid #e5e7eb' }}>
+                    <div style={{ marginTop: 10, paddingTop: 9, borderTop: '1px solid #e5e7eb', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => void markManagerHelpful(item.id)}
+                        disabled={item.helpful}
+                        style={{
+                          border: '1px solid #86efac',
+                          borderRadius: 8,
+                          padding: '6px 9px',
+                          background: item.helpful ? '#166534' : '#f0fdf4',
+                          color: item.helpful ? '#fff' : '#166534',
+                          fontSize: 11,
+                          fontWeight: 700,
+                          cursor: item.helpful ? 'default' : 'pointer',
+                        }}
+                      >
+                        {item.helpful ? '👍 Helpful ✓' : '👍 Helpful'}
+                      </button>
                       <button type="button" onClick={() => void flagManagerAnswer(item.id)} style={flagButtonStyle}>That's not right</button>
                     </div>
                   )}
