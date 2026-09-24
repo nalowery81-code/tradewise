@@ -788,7 +788,15 @@ export default function ManagerPage() {
                 </div>
               </div>
             ))}
-            {sending && <div style={readingStyle}>Reading the team data...</div>}
+            {sending && (
+              <div style={readingStyle}>
+                <CraftCompassGuide
+                  state="working"
+                  size={48}
+                  caption="Reading the team data"
+                />
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
         )}
