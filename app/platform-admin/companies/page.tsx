@@ -18,6 +18,10 @@ type Company = {
   plan_code?: string
   subscription_status?: string
   seat_limits?: { owners?: number; managers?: number; technicians?: number }
+  accessTechnicians?: number
+  included?: { owners: number; managers: number; technicians: number }
+  overage?: { owners: number; managers: number; technicians: number }
+  overPlan?: boolean
 }
 
 export default function PlatformAdminPage() {
@@ -277,13 +281,16 @@ export default function PlatformAdminPage() {
                   <div>
                     <div style={{ fontWeight: 800 }}>{company.name}</div>
                     <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
-                      {company.owners}/{company.seat_limits?.owners ?? '—'} owner · {company.managers}/{company.seat_limits?.managers ?? '—'} manager · {company.technicians}/{company.seat_limits?.technicians ?? '—'} tech
+                      {company.owners}/{company.included?.owners ?? company.seat_limits?.owners ?? '—'} owner included · {company.managers}/{company.included?.managers ?? company.seat_limits?.managers ?? '—'} manager included · {company.accessTechnicians ?? company.technicians}/{company.included?.technicians ?? company.seat_limits?.technicians ?? '—'} tech included
                     </div>
                   </div>
                   <div><Badge text={company.account_type} /></div>
                   <div style={numberStyle}>{company.users}</div>
                   <div style={numberStyle}>{company.technicians}</div>
-                  <div><Badge text={company.status} /></div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <Badge text={company.status} />
+                    {company.overPlan && <OverPlanBadge />}
+                  </div>
                   <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
                     {company.owners === 0 && (
                       <button
@@ -355,7 +362,7 @@ export default function PlatformAdminPage() {
             </div>
 
             <div style={{ marginTop: 18 }}>
-              <div style={{ color: '#334155', fontSize: 13, fontWeight: 850 }}>Subscription & seats</div>
+              <div style={{ color: '#334155', fontSize: 13, fontWeight: 850 }}>Plan allowances</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10, marginTop: 9 }}>
                 <label style={modalLabelStyle}>
                   Plan
@@ -363,7 +370,7 @@ export default function PlatformAdminPage() {
                 </label>
                 {(['owners','managers','technicians'] as const).map((role) => (
                   <label key={role} style={modalLabelStyle}>
-                    {role[0].toUpperCase() + role.slice(1)} seats
+                    {role[0].toUpperCase() + role.slice(1)} included
                     <input
                       type="number"
                       min={role === 'owners' ? 1 : 0}
@@ -455,6 +462,24 @@ function Metric({ label, value }: { label: string; value: number }) {
       <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{label}</div>
       <div style={{ marginTop: 8, fontSize: 30, fontWeight: 850 }}>{value}</div>
     </div>
+  )
+}
+
+function OverPlanBadge() {
+  return (
+    <span style={{
+      display: 'inline-block',
+      padding: '5px 9px',
+      borderRadius: 999,
+      background: '#fff7ed',
+      color: '#9a3412',
+      fontSize: 11,
+      fontWeight: 850,
+      textTransform: 'uppercase',
+      letterSpacing: '0.03em',
+    }}>
+      Over plan
+    </span>
   )
 }
 

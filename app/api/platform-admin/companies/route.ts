@@ -53,13 +53,31 @@ export async function GET(request: Request) {
       (tech) => tech.company_id === company.id && !historicalManagerTechnicianIds.has(tech.id)
     )
 
+    const owners = companyProfiles.filter((profile) => profile.role === 'owner' && profile.is_active !== false).length
+    const managers = companyProfiles.filter((profile) => profile.role === 'manager' && profile.is_active !== false).length
+    const accessTechnicians = companyProfiles.filter((profile) => profile.role === 'technician' && profile.is_active !== false).length
+    const included = {
+      owners: Number(company.seat_limits?.owners ?? 1),
+      managers: Number(company.seat_limits?.managers ?? 2),
+      technicians: Number(company.seat_limits?.technicians ?? 8),
+    }
+    const overage = {
+      owners: Math.max(0, owners - included.owners),
+      managers: Math.max(0, managers - included.managers),
+      technicians: Math.max(0, accessTechnicians - included.technicians),
+    }
+
     return {
       ...company,
       feature_flags: normalizeCompanyFeatureFlags(company.feature_flags),
       users: companyProfiles.length,
-      owners: companyProfiles.filter((profile) => profile.role === 'owner' && profile.is_active !== false).length,
-      managers: companyProfiles.filter((profile) => profile.role === 'manager' && profile.is_active !== false).length,
+      owners,
+      managers,
       technicians: companyTechnicians.length,
+      accessTechnicians,
+      included,
+      overage,
+      overPlan: overage.owners > 0 || overage.managers > 0 || overage.technicians > 0,
     }
   })
 

@@ -28,9 +28,12 @@ type ControlData = {
     feature_flags: CompanyFeatureFlags
   }
   seats: {
+    included: SeatCounts
     limits: SeatCounts
     used: SeatCounts
     available: SeatCounts
+    overage: SeatCounts
+    overPlan: boolean
   }
   pendingInvites: number
   usage: {
@@ -54,6 +57,8 @@ type ControlData = {
     companyStatus: string
     sourceCoverageVerified: number
     sourceCoverageTotal: number
+    overPlan: boolean
+    overage: SeatCounts
   }
 }
 
@@ -115,7 +120,7 @@ export default function CompanyControlCenterPage() {
     setCompanyNameDraft(result.company.name || '')
     setPlanCode(result.company.plan_code || 'mvp')
     setSubscriptionStatus(result.company.subscription_status || 'manual')
-    setSeatLimits(result.seats?.limits || result.company.seat_limits || { owners: 1, managers: 2, technicians: 8 })
+    setSeatLimits(result.seats?.included || result.seats?.limits || result.company.seat_limits || { owners: 1, managers: 2, technicians: 8 })
     setFeatureFlags(normalizeCompanyFeatureFlags(result.company.feature_flags))
     setTrades(Array.isArray(result.company.trades) && result.company.trades.length ? result.company.trades : ['plumbing'])
     setJurisdictions(Array.isArray(result.company.jurisdictions) && result.company.jurisdictions.length ? result.company.jurisdictions : [{ country: 'US', state: 'IN' }])
@@ -213,6 +218,7 @@ export default function CompanyControlCenterPage() {
               <Badge text={company.account_type} />
               <Badge text={company.status} />
               <Badge text={company.subscription_status} />
+              {data.seats.overPlan && <OverPlanBadge />}
             </div>
           </div>
           <button type="button" onClick={() => void enterOwnerWorkspace()} disabled={entering} style={secondaryButtonStyle}>
@@ -232,7 +238,7 @@ export default function CompanyControlCenterPage() {
 
         <div style={twoColumnStyle}>
           <section style={cardStyle}>
-            <CardTitle title="Subscription & seats" sub="CraftCompass owns these limits; billing will map to them later." />
+            <CardTitle title="Plan allowances" sub="Included billing allowances only. CraftCompass flags overages without blocking access." />
             <div style={formGridStyle}>
               <label style={labelStyle}>Plan code
                 <input value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={inputStyle} />
@@ -246,15 +252,17 @@ export default function CompanyControlCenterPage() {
             <div style={{ ...formGridStyle, marginTop: 12 }}>
               {(['owners','managers','technicians'] as const).map((role) => (
                 <label key={role} style={labelStyle}>
-                  {role[0].toUpperCase() + role.slice(1)} seats
+                  {role[0].toUpperCase() + role.slice(1)} included
                   <input
                     type="number"
-                    min={data.seats.used[role]}
+                    min={0}
                     value={seatLimits[role]}
                     onChange={(e) => setSeatLimits((current) => ({ ...current, [role]: Math.max(0, Number(e.target.value || 0)) }))}
                     style={inputStyle}
                   />
-                  <span style={helperStyle}>{data.seats.used[role]} used · {Math.max(0, seatLimits[role] - data.seats.used[role])} available</span>
+                  <span style={data.seats.used[role] > seatLimits[role] ? overageTextStyle : helperStyle}>
+                    {data.seats.used[role]} used · {Math.max(0, data.seats.used[role] - seatLimits[role])} over plan
+                  </span>
                 </label>
               ))}
             </div>
@@ -378,6 +386,9 @@ function CardTitle({ title, sub }: { title: string; sub: string }) {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return <div style={infoRowStyle}><span style={helperStyle}>{label}</span><span style={{ fontWeight: 750, textAlign: 'right' }}>{value}</span></div>
 }
+function OverPlanBadge() {
+  return <span style={warningBadgeStyle}>Over plan</span>
+}
 function Badge({ text }: { text: string }) {
   return <span style={neutralBadgeStyle}>{text.replaceAll('_',' ')}</span>
 }
@@ -392,6 +403,7 @@ const formGridStyle: React.CSSProperties = { display:'grid', gridTemplateColumns
 const labelStyle: React.CSSProperties = { display:'grid', gap:6, color:'#475569', fontSize:12, fontWeight:800 }
 const inputStyle: React.CSSProperties = { width:'100%', boxSizing:'border-box', padding:'10px 11px', border:'1px solid #cbd5e1', borderRadius:9, background:'#fff', color:'#172033', fontSize:13 }
 const helperStyle: React.CSSProperties = { color:'#64748b', fontSize:12, lineHeight:1.45 }
+const overageTextStyle: React.CSSProperties = { color:'#9a3412', fontSize:12, lineHeight:1.45, fontWeight:800 }
 const usageGridStyle: React.CSSProperties = { display:'grid', gridTemplateColumns:'repeat(2,minmax(0,1fr))', gap:10, marginBottom:12 }
 const smallMetricStyle: React.CSSProperties = { padding:12, borderRadius:10, background:'#f8fafc', border:'1px solid #eef2f6' }
 const coverageRowStyle: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, padding:'11px 12px', border:'1px solid #eef2f6', borderRadius:10, background:'#f8fafc' }

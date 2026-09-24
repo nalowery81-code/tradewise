@@ -1,6 +1,5 @@
 import { requirePlatformAdmin } from '../../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../../lib/supabase-server'
-import { requireAvailableCompanySeat } from '../../../../lib/company-seats'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
@@ -58,13 +57,6 @@ export async function POST(request: Request) {
 
     if (company.status === 'disabled') {
       return jsonNoStore({ error: 'You cannot add users to a disabled company.' }, { status: 400 })
-    }
-
-    if (isActive) {
-      const seatCheck = await requireAvailableCompanySeat(companyId, role as 'owner' | 'manager' | 'technician')
-      if (!seatCheck.ok) {
-        return jsonNoStore({ error: seatCheck.error, seats: seatCheck.summary }, { status: 409 })
-      }
     }
 
     if (role === 'technician') {

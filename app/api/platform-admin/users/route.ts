@@ -1,6 +1,5 @@
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../lib/supabase-server'
-import { requireAvailableCompanySeat } from '../../../lib/company-seats'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, { ...init, headers: { 'Cache-Control': 'no-store', ...(init?.headers || {}) } })
@@ -91,13 +90,6 @@ export async function PATCH(request: Request) {
       return jsonNoStore({ error: 'Platform administrator cannot be deactivated here.' }, { status: 400 })
     }
 
-    if (isActive && target.is_active === false && ['owner', 'manager', 'technician'].includes(target.role)) {
-      const seatCheck = await requireAvailableCompanySeat(target.company_id, target.role as 'owner' | 'manager' | 'technician')
-      if (!seatCheck.ok) {
-        return jsonNoStore({ error: seatCheck.error, seats: seatCheck.summary }, { status: 409 })
-      }
-    }
-
     const { error } = await supabaseServer.from('UserProfiles').update({ is_active: isActive }).eq('id', profileId)
     if (error) return jsonNoStore({ error: 'Could not update user.' }, { status: 500 })
 
@@ -159,13 +151,6 @@ export async function PATCH(request: Request) {
   const oldRole = target.role
   const companyChanged = oldCompanyId !== companyId
   const roleChanged = oldRole !== role
-
-  if (isActive && (target.is_active === false || companyChanged || roleChanged)) {
-    const seatCheck = await requireAvailableCompanySeat(companyId, role as 'owner' | 'manager' | 'technician')
-    if (!seatCheck.ok) {
-      return jsonNoStore({ error: seatCheck.error, seats: seatCheck.summary }, { status: 409 })
-    }
-  }
 
   const { data: linkedTechnician, error: linkedTechnicianError } = await supabaseServer
     .from('Technicians')

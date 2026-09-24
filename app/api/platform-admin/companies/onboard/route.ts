@@ -77,7 +77,7 @@ export async function POST(request: Request) {
       ) ||
       seatLimits.owners < 1
     ) {
-      return jsonNoStore({ error: 'Seat limits must be whole numbers, with at least one owner seat.' }, { status: 400 })
+      return jsonNoStore({ error: 'Plan allowances must be whole numbers, with at least one included owner.' }, { status: 400 })
     }
 
     try {

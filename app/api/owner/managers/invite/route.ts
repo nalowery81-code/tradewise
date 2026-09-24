@@ -1,6 +1,5 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../../lib/management-auth'
-import { requireAvailableCompanySeat } from '../../../../lib/company-seats'
 
 const getInviteRedirectUrl = () => {
   const baseUrl =
@@ -28,11 +27,6 @@ export async function POST(request: Request) {
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return Response.json({ error: 'Enter a valid email address.' }, { status: 400 })
-    }
-
-    const seatCheck = await requireAvailableCompanySeat(companyId, 'manager')
-    if (!seatCheck.ok) {
-      return Response.json({ error: seatCheck.error, seats: seatCheck.summary }, { status: 409 })
     }
 
     const { data: inviteData, error: inviteError } = await supabaseServer.auth.admin.inviteUserByEmail(

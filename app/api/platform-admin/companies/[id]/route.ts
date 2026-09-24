@@ -189,6 +189,8 @@ export async function GET(
       companyStatus: company.status,
       sourceCoverageVerified: sourceCoverage.filter((item) => item.verified).length,
       sourceCoverageTotal: sourceCoverage.length,
+      overPlan: seats.overPlan,
+      overage: seats.overage,
     },
   })
 }
@@ -252,20 +254,9 @@ export async function PATCH(
   if (Object.prototype.hasOwnProperty.call(body, 'seatLimits')) {
     const seatLimits = normalizeSeatLimits(body.seatLimits)
     if (!seatLimits) {
-      return jsonNoStore({ error: 'Seat limits must be whole numbers of zero or more.' }, { status: 400 })
+      return jsonNoStore({ error: 'Plan allowances must be whole numbers of zero or more.' }, { status: 400 })
     }
 
-    const current = await getCompanySeatSummary(id)
-    if (
-      seatLimits.owners < current.used.owners ||
-      seatLimits.managers < current.used.managers ||
-      seatLimits.technicians < current.used.technicians
-    ) {
-      return jsonNoStore(
-        { error: 'Seat limits cannot be lower than currently active or pending seats.', seats: current },
-        { status: 409 }
-      )
-    }
     updates.seat_limits = seatLimits
   }
 
