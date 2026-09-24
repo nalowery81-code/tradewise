@@ -657,7 +657,7 @@ export default function TechnicianPage() {
   }
 
   return (
-    <main style={styles.page}>
+    <main data-page="technician" style={styles.page}>
       <FeedbackRequestPrompt />
       {drawerOpen && (
         <div style={styles.backdrop} onClick={() => setDrawerOpen(false)} />

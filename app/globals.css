@@ -55,27 +55,27 @@ body {
 /* Technician desktop layout: keep navigation visible on large screens only.
    Phone and tablet behavior stays unchanged. */
 @media (min-width: 1200px) {
-  main > aside {
+  main[data-page="technician"] > aside {
     transform: translateX(0) !important;
     box-shadow: none !important;
     border-right: 1px solid #e5e7eb;
   }
 
-  main > aside button[aria-label="Close menu"] {
+  main[data-page="technician"] > aside button[aria-label="Close menu"] {
     display: none !important;
   }
 
-  main > header,
-  main > section {
+  main[data-page="technician"] > header,
+  main[data-page="technician"] > section {
     margin-left: 330px;
   }
 
-  main > header button[aria-label="Open menu"] {
+  main[data-page="technician"] > header button[aria-label="Open menu"] {
     visibility: hidden;
     pointer-events: none;
   }
 
-  main > section + div {
+  main[data-page="technician"] > section + div {
     left: 330px !important;
   }
 }
