@@ -879,11 +879,26 @@ export default function ManagerPage() {
             ))}
             {sending && (
               <div style={readingStyle}>
-                <CraftCompassGuide
-                  state="working"
-                  size={48}
-                  caption="Reading the team data"
-                />
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: 74,
+                    height: 54,
+                    overflow: 'hidden',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  <BrandLogo
+                    width={74}
+                    style={{
+                      maxWidth: 'none',
+                      margin: '0 auto',
+                    }}
+                  />
+                </div>
+                <div style={{ color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800 }}>
+                  Reading the team data
+                </div>
               </div>
             )}
             <div ref={bottomRef} />
