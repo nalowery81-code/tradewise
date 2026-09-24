@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import CraftCompassGuide from '../components/craftcompass-guide'
 import BrandLogo from '../components/brand-logo'
+import LoadingRing from '../components/loading-ring'
 
 type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string; guideState?: 'error'; helpful?: boolean }
 type TechnicianDirectoryItem = {
@@ -896,6 +897,7 @@ export default function ManagerPage() {
                     }}
                   />
                 </div>
+                <LoadingRing size={42} />
                 <div style={{ color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800 }}>
                   Reading the team data
                 </div>
@@ -953,7 +955,7 @@ const starterGridStyle: React.CSSProperties = { width: '100%', maxWidth: 760, di
 const starterStyle: React.CSSProperties = { minHeight: 96, padding: '18px 20px', borderRadius: 18, border: '1px solid rgba(8, 43, 77, 0.22)', cursor: 'pointer', fontSize: 17, fontWeight: 800, textAlign: 'center', lineHeight: 1.3, color: 'var(--cc-deep-navy)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(2, 5, 9, 0.08)', transition: 'transform 150ms ease, box-shadow 150ms ease' }
 const userBubbleStyle: React.CSSProperties = { maxWidth: '78%', background: '#e7edf2', borderRadius: 18, padding: '12px 16px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }
 const assistantBubbleStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '18px 20px', lineHeight: 1.62, whiteSpace: 'pre-wrap', boxShadow: '0 4px 18px rgba(0,0,0,0.04)' }
-const readingStyle: React.CSSProperties = { width: 'fit-content', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '12px 16px', color: '#6b7280' }
+const readingStyle: React.CSSProperties = { width: 'fit-content', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '12px 16px', color: '#6b7280', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 4px 18px rgba(2,5,9,0.05)' }
 const composerStyle: React.CSSProperties = { maxWidth: 760, margin: '0 auto', background: '#ffffff', border: '1px solid #d1d5db', borderRadius: 22, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 4px 18px rgba(0,0,0,0.06)' }
 const inputStyle: React.CSSProperties = { flex: 1, border: 'none', outline: 'none', resize: 'none', fontSize: 16, fontFamily: 'inherit', padding: '10px 8px', background: 'transparent' }
 const sendButtonStyle: React.CSSProperties = { width: 40, height: 40, borderRadius: '50%', border: 'none', background: '#111827', color: '#ffffff', cursor: 'pointer', fontSize: 18 }
