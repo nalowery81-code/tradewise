@@ -483,22 +483,26 @@ export default function ManagerPage() {
     {
       label: 'Team Summary',
       prompt: 'Give me a weekly summary of what the team is dealing with.',
-      tint: 'rgba(8, 97, 149, 0.12)',
+      tint: 'rgba(8, 97, 149, 0.18)',
+      accent: '#086195',
     },
     {
       label: 'Follow-up',
       prompt: 'Who on the team may need a follow-up?',
-      tint: 'rgba(22, 163, 74, 0.12)',
+      tint: 'rgba(22, 163, 74, 0.18)',
+      accent: '#16A34A',
     },
     {
       label: 'Recurring Issues',
       prompt: 'What recurring issues are showing up?',
-      tint: 'rgba(250, 168, 91, 0.18)',
+      tint: 'rgba(250, 168, 91, 0.28)',
+      accent: '#FAA85B',
     },
     {
       label: 'Training Opportunities',
       prompt: 'Where do you see training opportunities?',
-      tint: 'rgba(18, 226, 235, 0.14)',
+      tint: 'rgba(18, 226, 235, 0.22)',
+      accent: '#12E2EB',
     },
   ]
 
@@ -803,6 +807,7 @@ export default function ManagerPage() {
                   style={{
                     ...starterStyle,
                     background: starter.tint,
+                    borderColor: starter.accent,
                   }}
                 >
                   <span>{starter.label}</span>
@@ -873,7 +878,7 @@ export default function ManagerPage() {
   )
 }
 
-const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f7f7f8', fontFamily: 'Arial, Helvetica, sans-serif', color: '#1f2937' }
+const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f5fafc', fontFamily: 'Arial, Helvetica, sans-serif', color: '#1f2937' }
 const loadingPageStyle: React.CSSProperties = { ...pageStyle, display: 'flex', alignItems: 'center', justifyContent: 'center' }
 const sidebarStyle: React.CSSProperties = { position: 'fixed', top: 0, left: 0, bottom: 0, width: 250, background: '#ffffff', borderRight: '1px solid #e5e7eb', padding: '18px 14px', zIndex: 20, flexDirection: 'column' }
 const sidebarHeaderStyle: React.CSSProperties = { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22, padding: '0 8px' }
