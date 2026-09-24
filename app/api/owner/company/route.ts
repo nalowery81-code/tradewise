@@ -1,5 +1,6 @@
 import { supabaseServer } from '../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../lib/management-auth'
+import { getCompanySeatSummary } from '../../../lib/company-seats'
 
 export async function GET(request: Request) {
   try {
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const [{ data: company, error: companyError }, { data: profiles, error: profilesError }, { data: technicians, error: techniciansError }] = await Promise.all([
       supabaseServer
         .from('Companies')
-        .select('id, name, timezone, trades, jurisdictions, settings, created_at, updated_at')
+        .select('id, name, timezone, trades, jurisdictions, settings, plan_code, subscription_status, seat_limits, created_at, updated_at')
         .eq('id', companyId)
         .single(),
       supabaseServer
@@ -109,6 +110,8 @@ export async function GET(request: Request) {
 
     const members = [...profileMembers, ...rosterOnlyTechnicians]
 
+    const seats = await getCompanySeatSummary(companyId)
+
     return Response.json({
       company,
       members,
@@ -117,6 +120,7 @@ export async function GET(request: Request) {
         managers: members.filter((member) => member.role === 'manager').length,
         technicians: members.filter((member) => member.role === 'technician').length,
       },
+      seats,
     })
   } catch (error: any) {
     console.error('OWNER COMPANY API ERROR:', error)
@@ -210,7 +214,7 @@ export async function PATCH(request: Request) {
       .from('Companies')
       .update({ ...updates, updated_at: updatedAt })
       .eq('id', auth.profile.company_id)
-      .select('id, name, timezone, trades, jurisdictions, settings, created_at, updated_at')
+      .select('id, name, timezone, trades, jurisdictions, settings, plan_code, subscription_status, seat_limits, created_at, updated_at')
       .single()
 
     if (error || !data) {

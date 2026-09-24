@@ -1,5 +1,6 @@
 import { supabaseServer } from '../../../../lib/supabase-server'
 import { requireManagementAccess } from '../../../../lib/management-auth'
+import { requireAvailableCompanySeat } from '../../../../lib/company-seats'
 
 const getInviteRedirectUrl = () => {
   const baseUrl =
@@ -43,6 +44,11 @@ export async function POST(request: Request) {
         { error: `${existingTechnician.canonical_name} already has a CraftCompass AI login.` },
         { status: 409 }
       )
+    }
+
+    const seatCheck = await requireAvailableCompanySeat(companyId, 'technician')
+    if (!seatCheck.ok) {
+      return Response.json({ error: seatCheck.error, seats: seatCheck.summary }, { status: 409 })
     }
 
     const { data: inviteData, error: inviteError } = await supabaseServer.auth.admin.inviteUserByEmail(

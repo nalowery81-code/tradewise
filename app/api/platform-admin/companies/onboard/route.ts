@@ -88,8 +88,11 @@ export async function POST(request: Request) {
         trades,
         jurisdictions: normalizedJurisdictions,
         settings: {},
+        plan_code: 'mvp',
+        subscription_status: 'manual',
+        seat_limits: { owners: 1, managers: 2, technicians: 8 },
       })
-      .select('id, name, account_type, status, created_at, feature_flags, timezone, trades, jurisdictions')
+      .select('id, name, account_type, status, created_at, feature_flags, timezone, trades, jurisdictions, plan_code, subscription_status, seat_limits')
       .single()
 
     if (companyError || !company) {

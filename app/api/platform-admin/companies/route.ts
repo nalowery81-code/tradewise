@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     await Promise.all([
       supabaseServer
         .from('Companies')
-        .select('id, name, account_type, status, created_at, feature_flags')
+        .select('id, name, account_type, status, created_at, feature_flags, plan_code, subscription_status, seat_limits')
         .order('created_at', { ascending: true }),
       supabaseServer
         .from('UserProfiles')
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabaseServer
     .from('Companies')
     .insert({ name, account_type: 'demo', status: 'active', feature_flags: DEFAULT_COMPANY_FEATURES })
-    .select('id, name, account_type, status, created_at, feature_flags')
+    .select('id, name, account_type, status, created_at, feature_flags, plan_code, subscription_status, seat_limits')
     .single()
 
   if (error) {

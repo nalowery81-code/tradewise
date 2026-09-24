@@ -14,6 +14,9 @@ type Company = {
   owners: number
   managers: number
   technicians: number
+  plan_code?: string
+  subscription_status?: string
+  seat_limits?: { owners?: number; managers?: number; technicians?: number }
 }
 
 export default function PlatformAdminPage() {
@@ -308,7 +311,7 @@ export default function PlatformAdminPage() {
                   <div>
                     <div style={{ fontWeight: 800 }}>{company.name}</div>
                     <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
-                      {company.owners} owner{company.owners === 1 ? '' : 's'} · {company.managers} manager{company.managers === 1 ? '' : 's'}
+                      {company.owners}/{company.seat_limits?.owners ?? '—'} owner · {company.managers}/{company.seat_limits?.managers ?? '—'} manager · {company.technicians}/{company.seat_limits?.technicians ?? '—'} tech
                     </div>
                   </div>
                   <div><Badge text={company.account_type} /></div>
