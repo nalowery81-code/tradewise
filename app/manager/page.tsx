@@ -853,7 +853,7 @@ export default function ManagerPage() {
       </section>
 
       {showComposer && (
-        <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, background: 'linear-gradient(to top, #f7f7f8 78%, rgba(247,247,248,0))', padding: '14px 20px 22px', paddingLeft: isDesktop && sidebarOpen ? 298 : 20 }}>
+        <div style={{ position: 'fixed', left: isDesktop && sidebarOpen ? 250 : 0, right: 0, bottom: 0, background: 'linear-gradient(to top, #f5fafc 78%, rgba(245,250,252,0))', padding: '14px 20px 22px' }}>
           <div style={composerStyle}>
             <textarea
               value={message}
