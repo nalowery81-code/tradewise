@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import CraftCompassGuide from '../components/craftcompass-guide'
+import BrandLogo from '../components/brand-logo'
 
 type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string; guideState?: 'error' }
 type TechnicianDirectoryItem = {
@@ -478,11 +479,35 @@ export default function ManagerPage() {
     'Weekly Team Review', 'Technician Development', 'Training & Coaching', 'Recurring Job Issues',
     'Team Performance Trends', 'Customer Experience', 'Safety & Risk', 'Operations Follow-Up',
   ]
-  const starters = [
-    'Give me a weekly summary of what the team is dealing with.',
-    'Who on the team may need a follow-up?',
-    'What recurring issues are showing up?',
-    'Where do you see training opportunities?',
+  const starterCards = [
+    {
+      label: 'Team Summary',
+      prompt: 'Give me a weekly summary of what the team is dealing with.',
+      icon: '▥',
+      tint: '#f3f8ff',
+      accent: '#2563eb',
+    },
+    {
+      label: 'Follow-up',
+      prompt: 'Who on the team may need a follow-up?',
+      icon: '◎',
+      tint: '#f2fbf6',
+      accent: '#16a34a',
+    },
+    {
+      label: 'Recurring Issues',
+      prompt: 'What recurring issues are showing up?',
+      icon: '!',
+      tint: '#fff9ed',
+      accent: '#f59e0b',
+    },
+    {
+      label: 'Training Opportunities',
+      prompt: 'Where do you see training opportunities?',
+      icon: '→',
+      tint: '#f8f5ff',
+      accent: '#7c3aed',
+    },
   ]
 
   const managerSummarySections = splitManagerSummary(profileSummary)
@@ -577,9 +602,9 @@ export default function ManagerPage() {
       </header>
 
       <section style={{
-        maxWidth: 760,
+        maxWidth: managerView === 'chat' && messages.length === 0 && !selectedHistoryCategory ? 980 : 760,
         margin: '0 auto',
-        padding: showComposer ? 'clamp(34px, 7vw, 76px) 16px 160px' : 'clamp(34px, 7vw, 76px) 16px 60px',
+        padding: showComposer ? 'clamp(26px, 5vw, 58px) 16px 160px' : 'clamp(34px, 7vw, 76px) 16px 60px',
         transform: isDesktop && sidebarOpen ? 'translateX(139px)' : 'none',
       }}>
         {managerView === 'follow-ups' ? (
@@ -759,25 +784,51 @@ export default function ManagerPage() {
             <p style={subtleTextStyle}>Conversations and insights related to this area will appear here.</p>
           </div>
         ) : messages.length === 0 ? (
-          <>
-            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
-              <CraftCompassGuide
-                state="manager"
-                size={82}
-                caption="Team insight"
+          <div style={managerHomeStyle}>
+            <div style={managerMascotStyle} aria-hidden="true">
+              <BrandLogo
+                width={210}
+                style={{
+                  maxWidth: 'none',
+                  margin: '0 auto',
+                }}
               />
             </div>
-            <div style={{ textAlign: 'center', marginBottom: 34 }}>
-              <div style={{ color: 'var(--cc-deep-navy)', fontSize: 14, fontWeight: 800, letterSpacing: '0.01em', marginBottom: 10 }}>
-                Real Skills. Smart Solutions.
-              </div>
-              <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>What would you like to know about your team?</h1>
-              <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask CraftCompass AI about technicians, trends, training, or team performance.</p>
+
+            <div style={managerBrandNameStyle}>CraftCompass AI</div>
+            <div style={managerTaglineStyle}>Real Skills. Smart Solutions.</div>
+
+            <h1 style={managerQuestionStyle}>What would you like to know about your team?</h1>
+            <p style={managerIntroStyle}>Ask CraftCompass about technicians, trends, training, or team performance.</p>
+
+            <div style={starterGridStyle}>
+              {starterCards.map((starter) => (
+                <button
+                  key={starter.label}
+                  type="button"
+                  onClick={() => void handleSend(starter.prompt)}
+                  disabled={sending}
+                  style={{
+                    ...starterStyle,
+                    background: starter.tint,
+                  }}
+                >
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      ...starterIconStyle,
+                      color: starter.accent,
+                      borderColor: `${starter.accent}22`,
+                      background: '#ffffffaa',
+                    }}
+                  >
+                    {starter.icon}
+                  </span>
+                  <span>{starter.label}</span>
+                </button>
+              ))}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12, marginBottom: 28 }}>
-              {starters.map((starter) => <button key={starter} type="button" onClick={() => void handleSend(starter)} disabled={sending} style={starterStyle}>{starter}</button>)}
-            </div>
-          </>
+          </div>
         ) : (
           <div style={{ display: 'grid', gap: 18 }}>
             {messages.map((item, index) => (
@@ -852,7 +903,15 @@ const signOutStyle: React.CSSProperties = { width: '100%', border: '1px solid #e
 const headerStyle: React.CSSProperties = { height: 64, borderBottom: '1px solid #e5e7eb', background: '#ffffff', display: 'flex', alignItems: 'center', padding: '0 20px', fontWeight: 700, fontSize: 20 }
 const menuButtonStyle: React.CSSProperties = { marginRight: 12, border: 'none', background: 'transparent', fontSize: 22, cursor: 'pointer' }
 const backButtonStyle: React.CSSProperties = { border: 'none', background: 'transparent', padding: 0, marginBottom: 18, cursor: 'pointer', fontSize: 14, color: '#6b7280' }
-const starterStyle: React.CSSProperties = { padding: 18, borderRadius: 16, border: '1px solid #d1d5db', background: '#ffffff', cursor: 'pointer', fontSize: 15, fontWeight: 600, textAlign: 'left', lineHeight: 1.45 }
+const managerHomeStyle: React.CSSProperties = { width: '100%', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }
+const managerMascotStyle: React.CSSProperties = { width: 210, height: 150, margin: '0 auto 4px', overflow: 'hidden' }
+const managerBrandNameStyle: React.CSSProperties = { color: '#123047', fontSize: 'clamp(38px, 6vw, 58px)', lineHeight: 1, fontWeight: 850, letterSpacing: '-0.05em' }
+const managerTaglineStyle: React.CSSProperties = { marginTop: 8, color: '#64748b', fontSize: 'clamp(14px, 2vw, 18px)', fontWeight: 700 }
+const managerQuestionStyle: React.CSSProperties = { margin: '24px 0 0', color: '#102746', fontSize: 'clamp(28px, 4vw, 40px)', lineHeight: 1.12, fontWeight: 800, letterSpacing: '-0.025em' }
+const managerIntroStyle: React.CSSProperties = { margin: '10px 0 0', color: '#64748b', fontSize: 16, lineHeight: 1.5 }
+const starterGridStyle: React.CSSProperties = { width: '100%', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14, marginTop: 24, marginBottom: 28 }
+const starterStyle: React.CSSProperties = { minHeight: 112, padding: '18px 20px', borderRadius: 18, border: '1px solid #dbe3ea', cursor: 'pointer', fontSize: 17, fontWeight: 800, textAlign: 'center', lineHeight: 1.3, color: '#102746', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, boxShadow: '0 4px 16px rgba(15,23,42,0.04)' }
+const starterIconStyle: React.CSSProperties = { width: 42, height: 42, borderRadius: 12, border: '1px solid', display: 'grid', placeItems: 'center', fontSize: 20, fontWeight: 900, lineHeight: 1 }
 const userBubbleStyle: React.CSSProperties = { maxWidth: '78%', background: '#e7edf2', borderRadius: 18, padding: '12px 16px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }
 const assistantBubbleStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 18, padding: '18px 20px', lineHeight: 1.62, whiteSpace: 'pre-wrap', boxShadow: '0 4px 18px rgba(0,0,0,0.04)' }
 const readingStyle: React.CSSProperties = { width: 'fit-content', background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '12px 16px', color: '#6b7280' }
