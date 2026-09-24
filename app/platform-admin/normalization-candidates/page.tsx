@@ -83,13 +83,13 @@ export default function NormalizationCandidatesPage() {
 
   return (
     <main style={{ minHeight: '100vh', background: '#f8fafc', color: '#0f172a' }}>
-      <aside style={{ position: 'fixed', inset: '0 auto 0 0', width: 250, background: '#172033', color: '#fff', padding: '28px 20px', boxSizing: 'border-box' }}>
+      <aside style={{ position: 'fixed', inset: '0 auto 0 0', width: 244, background: '#111827', color: '#fff', padding: '30px 20px 22px', boxSizing: 'border-box' }}>
         <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
         <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 12, fontWeight: 800, textTransform: 'uppercase' }}>Platform Admin</div>
         <PlatformAdminNav variant="sidebar" />
       </aside>
 
-      <section style={{ marginLeft: 250, padding: '34px 34px 60px' }}>
+      <section style={{ marginLeft: 244, padding: '34px 34px 60px' }}>
         <div style={{ maxWidth: 1280, margin: '0 auto' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, flexWrap: 'wrap', alignItems: 'flex-end' }}>
             <div>

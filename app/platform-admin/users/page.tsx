@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import PlatformAdminNav from '../platform-admin-nav'
+import PlatformAdminShell from '../platform-admin-shell'
 
 type UserRow = {
   id: string
@@ -452,14 +452,8 @@ export default function PlatformAdminUsersPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <header style={{ background: '#111827', color: '#fff', padding: '18px 20px' }}>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>CraftCompass AI</div>
-        <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 11, fontWeight: 800, letterSpacing: '.08em' }}>PLATFORM ADMIN · USERS</div>
-        <PlatformAdminNav variant="header" />
-      </header>
-
-      <section style={{ maxWidth: 1000, margin: '0 auto', padding: '32px 16px 60px' }}>
+    <PlatformAdminShell maxWidth={1080}>
+      <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 34 }}>Users</h1>
@@ -575,7 +569,7 @@ export default function PlatformAdminUsersPage() {
           )}
         </div>
       </section>
-    </main>
+    </PlatformAdminShell>
   )
 }
 

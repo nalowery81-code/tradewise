@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabase'
-import PlatformAdminNav from '../platform-admin-nav'
+import PlatformAdminShell from '../platform-admin-shell'
 
 type GuidanceItem = {
   id: string; created_at: string; updated_at: string; title: string; guidance_text: string;
@@ -68,13 +68,8 @@ export default function GuidanceLibraryPage() {
     setItems(current=>current.map(row=>row.id===item.id?data.guidance:row));setStatus('Guidance updated.')
   }
 
-  return <main style={pageStyle}>
-    <header style={headerStyle}>
-      <div style={{fontSize:22,fontWeight:850}}>CraftCompass AI</div>
-      <div style={{marginTop:4,color:'#94a3b8',fontSize:11,fontWeight:850,letterSpacing:'.08em'}}>PLATFORM ADMIN · GUIDANCE LIBRARY</div>
-      <PlatformAdminNav variant="header" />
-    </header>
-    <section style={{maxWidth:1040,margin:'0 auto',padding:'32px 16px 70px'}}>
+  return <PlatformAdminShell maxWidth={1180}>
+    <section>
       <div style={{display:'flex',justifyContent:'space-between',gap:16,alignItems:'flex-end',flexWrap:'wrap'}}>
         <div><h1 style={{margin:0,fontSize:34}}>Guidance Library</h1><p style={{color:'#64748b',lineHeight:1.55,maxWidth:720}}>Admin-approved lessons used by CraftCompass in future technician and management answers.</p></div>
         <select value={filter} onChange={e=>setFilter(e.target.value)} style={controlStyle}>
@@ -161,7 +156,7 @@ export default function GuidanceLibraryPage() {
           </section>)}
       </div>
     </section>
-  </main>
+  </PlatformAdminShell>
 }
 const pageStyle:React.CSSProperties={minHeight:'100vh',background:'#f7f7f8',color:'#172033',fontFamily:'Arial, Helvetica, sans-serif'}
 const headerStyle:React.CSSProperties={background:'#111827',color:'#fff',padding:'18px 20px'}

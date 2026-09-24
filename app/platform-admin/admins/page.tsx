@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import PlatformAdminShell from '../platform-admin-shell'
 
 export default function PlatformAdminsPage() {
   const [name, setName] = useState('CraftCompass Admin')
@@ -58,8 +59,8 @@ export default function PlatformAdminsPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#f7f7f8', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }}>
-      <section style={{ maxWidth: 720, margin: '0 auto', padding: '54px 20px 80px' }}>
+    <PlatformAdminShell maxWidth={760}>
+      <section>
         <a href="/platform-admin/users" style={{ color: '#475569', textDecoration: 'none', fontSize: 13, fontWeight: 700 }}>← Back to Users</a>
 
         <div style={{ marginTop: 26, padding: 28, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 18 }}>
@@ -100,7 +101,7 @@ export default function PlatformAdminsPage() {
           {status && <div style={{ marginTop: 16, padding: 12, borderRadius: 10, background: '#f0fdf4', color: '#166534', fontSize: 13, lineHeight: 1.5 }}>{status}</div>}
         </div>
       </section>
-    </main>
+    </PlatformAdminShell>
   )
 }
 
