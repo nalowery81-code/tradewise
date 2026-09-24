@@ -102,35 +102,36 @@ const ManagerAnswerText = ({ text }: { text: string }) => {
           )
         }
 
-        const bulletMatch = line.match(/^[-•]\s+(.+)$/)
-        if (bulletMatch) {
-          const bulletText = bulletMatch[1]
-          const sentenceEnd = bulletText.search(/[.!?](?:\s|$)/)
-          const actionText = sentenceEnd >= 0 ? bulletText.slice(0, sentenceEnd + 1) : bulletText
-          const detailText = sentenceEnd >= 0 ? bulletText.slice(sentenceEnd + 1).trim() : ''
-
+        const labeledAction = line.match(/^[-•]?\s*([^:]{2,60}):\s*(.+)$/)
+        if (labeledAction) {
           return (
             <div
               key={index}
               style={{
-                marginBottom: 8,
-                lineHeight: 1.62,
-                display: 'flex',
-                gap: 8,
-                alignItems: 'flex-start',
+                marginBottom: 12,
+                paddingLeft: 2,
               }}
             >
-              <span aria-hidden="true" style={{ color: 'var(--cc-signal-blue)', fontWeight: 900 }}>•</span>
-              <div>
-                <span style={{ fontWeight: 800, color: 'var(--cc-deep-navy)' }}>{actionText}</span>
-                {detailText ? <span>{' '}{detailText}</span> : null}
+              <div
+                style={{
+                  color: 'var(--cc-deep-navy)',
+                  fontWeight: 800,
+                  fontSize: 15,
+                  lineHeight: 1.35,
+                  marginBottom: 3,
+                }}
+              >
+                {labeledAction[1].trim()}
+              </div>
+              <div style={{ lineHeight: 1.58, color: '#334155' }}>
+                {labeledAction[2].trim()}
               </div>
             </div>
           )
         }
 
         return (
-          <div key={index} style={{ marginBottom: 6, lineHeight: 1.62 }}>
+          <div key={index} style={{ marginBottom: 7, lineHeight: 1.58 }}>
             {rawLine}
           </div>
         )
