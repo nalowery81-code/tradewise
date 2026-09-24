@@ -799,6 +799,14 @@ export default function TechnicianPage() {
       <section style={styles.content}>
         {messages.length === 0 && (
           <div style={styles.hero}>
+            <div style={{ marginBottom: 18 }}>
+              <CraftCompassGuide
+                state="welcome"
+                size={92}
+                caption="Ready to help"
+              />
+            </div>
+
             <div style={styles.brandBlock}>
               <div style={styles.brandName}>CraftCompass AI</div>
               <div style={styles.brandTagline}>Your AI partner in the trades</div>
