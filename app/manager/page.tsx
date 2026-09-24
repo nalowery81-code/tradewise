@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import CraftCompassGuide from '../components/craftcompass-guide'
 
 type ManagerMessage = { id?: string; role: 'user' | 'assistant'; text: string }
 type TechnicianDirectoryItem = {
@@ -758,6 +759,13 @@ export default function ManagerPage() {
           </div>
         ) : messages.length === 0 ? (
           <>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 18 }}>
+              <CraftCompassGuide
+                state="manager"
+                size={82}
+                caption="Team insight"
+              />
+            </div>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
               <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>What would you like to know about your team?</h1>
               <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask CraftCompass AI about technicians, trends, training, or team performance.</p>
