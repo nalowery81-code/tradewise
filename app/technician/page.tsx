@@ -916,7 +916,7 @@ export default function TechnicianPage() {
                   >
                     <CraftCompassGuide
                       state="verified"
-                      size={38}
+                      size={32}
                       caption="Verified sources"
                     />
 
