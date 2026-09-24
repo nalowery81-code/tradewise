@@ -169,6 +169,7 @@ export default function PlatformAdminDashboard() {
       <aside className="admin-sidebar" style={sidebarStyle}>
         <div>
           <div style={{ fontSize: 22, fontWeight: 900 }}>CraftCompass AI</div>
+          <div style={{ marginTop: 4, color: 'var(--cc-craft-cyan)', fontSize: 11, fontWeight: 800, letterSpacing: '0.04em' }}>Real Skills. Smart Solutions.</div>
           <div style={eyebrowStyle}>Platform Admin</div>
         </div>
         <PlatformAdminNav variant="sidebar" />
@@ -180,6 +181,7 @@ export default function PlatformAdminDashboard() {
           <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 18, flexWrap: 'wrap' }}>
             <div>
               <div style={eyebrowLight}>CraftCompass Platform</div>
+              <div style={{ marginTop: 6, color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800 }}>Real Skills. Smart Solutions.</div>
               <h1 style={{ margin: '6px 0 5px', fontSize: 38, letterSpacing: '-0.04em' }}>Platform Admin</h1>
               <p style={{ margin: 0, color: '#64748b' }}>See platform health, quality, changes, and what needs attention.</p>
             </div>

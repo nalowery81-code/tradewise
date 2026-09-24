@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
+import BrandLogo from '../components/brand-logo'
 
 export default function SetupAccountPage() {
   const [ready, setReady] = useState(false)
@@ -108,7 +109,8 @@ export default function SetupAccountPage() {
   return (
     <main style={pageStyle}>
       <div style={cardStyle}>
-        <div style={brandStyle}>CraftCompass AI</div>
+        <BrandLogo width={150} style={{ margin: '0 auto 4px' }} />
+        <div style={taglineStyle}>Real Skills. Smart Solutions.</div>
         <h1 style={titleStyle}>Finish setting up your account</h1>
         <p style={textStyle}>Choose the password you will use to sign in to CraftCompass.</p>
 
@@ -183,7 +185,7 @@ const cardStyle: React.CSSProperties = {
   boxShadow: '0 10px 35px rgba(15,23,42,0.07)',
 }
 
-const brandStyle: React.CSSProperties = { fontWeight: 800, fontSize: 18, color: '#172033' }
+const taglineStyle: React.CSSProperties = { textAlign: 'center', color: 'var(--cc-deep-navy)', fontWeight: 800, fontSize: 13, letterSpacing: '0.01em', marginBottom: 18 }
 const titleStyle: React.CSSProperties = { margin: '18px 0 8px', fontSize: 28, lineHeight: 1.15 }
 const textStyle: React.CSSProperties = { margin: '0 0 22px', color: '#64748b', lineHeight: 1.55 }
 const noticeStyle: React.CSSProperties = { background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, lineHeight: 1.55, color: '#475569' }

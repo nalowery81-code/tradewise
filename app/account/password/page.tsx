@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
+import BrandLogo from '../../components/brand-logo'
 
 export default function ChangePasswordPage() {
   const router = useRouter()
@@ -64,7 +65,10 @@ export default function ChangePasswordPage() {
   return (
     <main style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24, background: '#f7f7f8', fontFamily: 'Arial, Helvetica, sans-serif', color: '#1f2937' }}>
       <div style={{ width: '100%', maxWidth: 430, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 20, padding: '28px 26px', boxShadow: '0 10px 35px rgba(15,23,42,0.07)' }}>
-        <div style={{ fontWeight: 800, fontSize: 18, color: '#172033' }}>CraftCompass AI</div>
+        <BrandLogo width={150} style={{ margin: '0 auto 4px' }} />
+        <div style={{ textAlign: 'center', color: 'var(--cc-deep-navy)', fontWeight: 800, fontSize: 13, letterSpacing: '0.01em', marginBottom: 18 }}>
+          Real Skills. Smart Solutions.
+        </div>
         <h1 style={{ margin: '18px 0 8px', fontSize: 28 }}>Change password</h1>
         <p style={{ margin: '0 0 20px', color: '#64748b', lineHeight: 1.5 }}>You are signed in as <strong>{email}</strong>.</p>
 
