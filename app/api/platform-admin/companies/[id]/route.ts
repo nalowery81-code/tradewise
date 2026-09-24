@@ -1,10 +1,10 @@
-import { requirePlatformAdmin } from '../../../../../lib/platform-admin-auth'
-import { supabaseServer } from '../../../../../lib/supabase-server'
-import { getCompanySeatSummary } from '../../../../../lib/company-seats'
+import { requirePlatformAdmin } from '../../../../lib/platform-admin-auth'
+import { supabaseServer } from '../../../../lib/supabase-server'
+import { getCompanySeatSummary } from '../../../../lib/company-seats'
 import {
   COMPANY_FEATURE_KEYS,
   normalizeCompanyFeatureFlags,
-} from '../../../../../lib/company-features'
+} from '../../../../lib/company-features'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
