@@ -79,6 +79,7 @@ export default function CompanyControlCenterPage() {
   const [entering, setEntering] = useState(false)
   const [error, setError] = useState('')
   const [status, setStatus] = useState('')
+  const [companyNameDraft, setCompanyNameDraft] = useState('')
   const [planCode, setPlanCode] = useState('')
   const [subscriptionStatus, setSubscriptionStatus] = useState('manual')
   const [seatLimits, setSeatLimits] = useState<SeatCounts>({ owners: 1, managers: 2, technicians: 8 })
@@ -111,6 +112,7 @@ export default function CompanyControlCenterPage() {
     }
 
     setData(result)
+    setCompanyNameDraft(result.company.name || '')
     setPlanCode(result.company.plan_code || 'mvp')
     setSubscriptionStatus(result.company.subscription_status || 'manual')
     setSeatLimits(result.seats?.limits || result.company.seat_limits || { owners: 1, managers: 2, technicians: 8 })
@@ -145,6 +147,7 @@ export default function CompanyControlCenterPage() {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
+        name: companyNameDraft,
         planCode,
         subscriptionStatus,
         seatLimits,
@@ -258,7 +261,16 @@ export default function CompanyControlCenterPage() {
           </section>
 
           <section style={cardStyle}>
-            <CardTitle title="Operating configuration" sub="Company-level trade and jurisdiction scope used across CraftCompass." />
+            <CardTitle title="Company configuration" sub="Edit this company's identity, trades, jurisdictions, and timezone." />
+            <label style={{ ...labelStyle, marginBottom: 14 }}>
+              Company name
+              <input
+                value={companyNameDraft}
+                onChange={(event) => setCompanyNameDraft(event.target.value)}
+                maxLength={120}
+                style={inputStyle}
+              />
+            </label>
             <CompanyScopeEditor
               trades={trades}
               onTradesChange={setTrades}

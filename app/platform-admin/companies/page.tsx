@@ -28,6 +28,9 @@ export default function PlatformAdminPage() {
   const [newTrades, setNewTrades] = useState<string[]>(['plumbing'])
   const [newJurisdictions, setNewJurisdictions] = useState<JurisdictionValue[]>([{ country: 'US', state: 'IN' }])
   const [newTimezone, setNewTimezone] = useState('America/Indiana/Indianapolis')
+  const [newPlanCode, setNewPlanCode] = useState('mvp')
+  const [newSeatLimits, setNewSeatLimits] = useState({ owners: 1, managers: 2, technicians: 8 })
+  const [onboardingOpen, setOnboardingOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -98,6 +101,8 @@ export default function PlatformAdminPage() {
         timezone: newTimezone,
         trades: newTrades,
         jurisdictions: newJurisdictions,
+        planCode: newPlanCode,
+        seatLimits: newSeatLimits,
       }),
     })
 
@@ -116,6 +121,9 @@ export default function PlatformAdminPage() {
     setNewTrades(['plumbing'])
     setNewJurisdictions([{ country: 'US', state: 'IN' }])
     setNewTimezone('America/Indiana/Indianapolis')
+    setNewPlanCode('mvp')
+    setNewSeatLimits({ owners: 1, managers: 2, technicians: 8 })
+    setOnboardingOpen(false)
     setCreating(false)
   }
 
@@ -228,53 +236,16 @@ export default function PlatformAdminPage() {
               </p>
             </div>
 
-            <form className="platform-admin-create" onSubmit={createCompany} style={{ display: 'grid', gap: 9, width: 'min(100%, 560px)' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 9 }}>
-                <input
-                  value={companyName}
-                  onChange={(event) => setCompanyName(event.target.value)}
-                  placeholder="Company name"
-                  maxLength={120}
-                  style={{ ...inputStyle, minWidth: 0 }}
-                />
-                <input
-                  value={newOwnerName}
-                  onChange={(event) => setNewOwnerName(event.target.value)}
-                  placeholder="Owner name"
-                  maxLength={120}
-                  style={{ ...inputStyle, minWidth: 0 }}
-                />
-                <input
-                  type="email"
-                  value={newOwnerEmail}
-                  onChange={(event) => setNewOwnerEmail(event.target.value)}
-                  placeholder="owner@company.com"
-                  style={{ ...inputStyle, minWidth: 0 }}
-                />
-              </div>
-              <div style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
-                <CompanyScopeEditor
-                  trades={newTrades}
-                  onTradesChange={setNewTrades}
-                  jurisdictions={newJurisdictions}
-                  onJurisdictionsChange={setNewJurisdictions}
-                  timezone={newTimezone}
-                  onTimezoneChange={setNewTimezone}
-                />
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span style={{ color: '#64748b', fontSize: 12 }}>
-                  Configure company scope now; these settings drive future trade and jurisdiction behavior.
-                </span>
-                <button
-                  type="submit"
-                  disabled={creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim()}
-                  style={{ ...primaryButtonStyle, opacity: creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim() ? 0.55 : 1 }}
-                >
-                  {creating ? 'Creating & inviting…' : '+ Onboard Company'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="button"
+              onClick={() => {
+                setOnboardingOpen(true)
+                setError('')
+              }}
+              style={primaryButtonStyle}
+            >
+              + Onboard Company
+            </button>
           </div>
 
           <div className="platform-admin-metrics" style={metricsGridStyle}>
@@ -341,6 +312,88 @@ export default function PlatformAdminPage() {
 
         </div>
       </section>
+
+      {onboardingOpen && (
+        <div style={modalBackdropStyle} onClick={() => !creating && setOnboardingOpen(false)}>
+          <form
+            onSubmit={createCompany}
+            style={onboardingModalCardStyle}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div style={{ color: '#64748b', fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+              New Company
+            </div>
+            <h2 style={{ margin: '7px 0 8px', fontSize: 28 }}>Onboard company</h2>
+            <p style={{ margin: '0 0 18px', color: '#64748b', lineHeight: 1.5 }}>
+              Create the company workspace, configure its platform scope, and invite the first owner.
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 10 }}>
+              <label style={modalLabelStyle}>
+                Company name
+                <input value={companyName} onChange={(event) => setCompanyName(event.target.value)} maxLength={120} style={{ ...inputStyle, minWidth: 0 }} />
+              </label>
+              <label style={modalLabelStyle}>
+                Owner name
+                <input value={newOwnerName} onChange={(event) => setNewOwnerName(event.target.value)} maxLength={120} style={{ ...inputStyle, minWidth: 0 }} />
+              </label>
+              <label style={modalLabelStyle}>
+                Owner email
+                <input type="email" value={newOwnerEmail} onChange={(event) => setNewOwnerEmail(event.target.value)} style={{ ...inputStyle, minWidth: 0 }} />
+              </label>
+            </div>
+
+            <div style={{ marginTop: 18, padding: 14, border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
+              <CompanyScopeEditor
+                trades={newTrades}
+                onTradesChange={setNewTrades}
+                jurisdictions={newJurisdictions}
+                onJurisdictionsChange={setNewJurisdictions}
+                timezone={newTimezone}
+                onTimezoneChange={setNewTimezone}
+              />
+            </div>
+
+            <div style={{ marginTop: 18 }}>
+              <div style={{ color: '#334155', fontSize: 13, fontWeight: 850 }}>Subscription & seats</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(145px, 1fr))', gap: 10, marginTop: 9 }}>
+                <label style={modalLabelStyle}>
+                  Plan
+                  <input value={newPlanCode} onChange={(event) => setNewPlanCode(event.target.value)} style={{ ...inputStyle, minWidth: 0 }} />
+                </label>
+                {(['owners','managers','technicians'] as const).map((role) => (
+                  <label key={role} style={modalLabelStyle}>
+                    {role[0].toUpperCase() + role.slice(1)} seats
+                    <input
+                      type="number"
+                      min={role === 'owners' ? 1 : 0}
+                      value={newSeatLimits[role]}
+                      onChange={(event) => setNewSeatLimits((current) => ({
+                        ...current,
+                        [role]: Math.max(role === 'owners' ? 1 : 0, Number(event.target.value || 0)),
+                      }))}
+                      style={{ ...inputStyle, minWidth: 0 }}
+                    />
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {error && <div style={errorStyle}>{error}</div>}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 9, marginTop: 20 }}>
+              <button type="button" disabled={creating} onClick={() => setOnboardingOpen(false)} style={secondaryButtonStyle}>Cancel</button>
+              <button
+                type="submit"
+                disabled={creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim()}
+                style={{ ...primaryButtonStyle, opacity: creating || !companyName.trim() || !newOwnerName.trim() || !newOwnerEmail.trim() ? 0.55 : 1 }}
+              >
+                {creating ? 'Creating & inviting…' : 'Create & Invite Owner'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {inviteCompany && (
         <div style={modalBackdropStyle} onClick={() => setInviteCompany(null)}>
@@ -557,6 +610,16 @@ const modalBackdropStyle: React.CSSProperties = {
   background: 'rgba(15, 23, 42, 0.45)',
 }
 
+const onboardingModalCardStyle: React.CSSProperties = {
+  width: 'min(760px, 100%)',
+  maxHeight: 'calc(100vh - 36px)',
+  overflowY: 'auto',
+  borderRadius: 18,
+  padding: 24,
+  background: '#ffffff',
+  boxShadow: '0 24px 70px rgba(15,23,42,0.22)',
+}
+
 const modalCardStyle: React.CSSProperties = {
   width: '100%',
   maxWidth: 440,
@@ -564,6 +627,14 @@ const modalCardStyle: React.CSSProperties = {
   padding: 24,
   background: '#ffffff',
   boxShadow: '0 24px 70px rgba(15,23,42,0.22)',
+}
+
+const modalLabelStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 7,
+  color: '#334155',
+  fontSize: 12,
+  fontWeight: 800,
 }
 
 const labelStyle: React.CSSProperties = {

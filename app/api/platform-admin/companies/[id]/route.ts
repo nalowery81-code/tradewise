@@ -204,6 +204,14 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}))
   const updates: Record<string, unknown> = {}
 
+  if (Object.prototype.hasOwnProperty.call(body, 'name')) {
+    const name = typeof body.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : ''
+    if (name.length < 2 || name.length > 120) {
+      return jsonNoStore({ error: 'Company name must be between 2 and 120 characters.' }, { status: 400 })
+    }
+    updates.name = name
+  }
+
   if (Object.prototype.hasOwnProperty.call(body, 'timezone')) {
     const timezone = typeof body.timezone === 'string' ? body.timezone.trim() : ''
     if (!timezone) return jsonNoStore({ error: 'Timezone is required.' }, { status: 400 })
@@ -302,7 +310,7 @@ export async function PATCH(
     .from('Companies')
     .update(updates)
     .eq('id', id)
-    .select('id, plan_code, subscription_status, seat_limits, feature_flags, timezone, trades, jurisdictions, updated_at')
+    .select('id, name, plan_code, subscription_status, seat_limits, feature_flags, timezone, trades, jurisdictions, updated_at')
     .single()
 
   if (error || !data) {

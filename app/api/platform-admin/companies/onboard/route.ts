@@ -41,6 +41,15 @@ export async function POST(request: Request) {
     const jurisdictions = Array.isArray(body?.jurisdictions) && body.jurisdictions.length
       ? body.jurisdictions
       : [{ country: 'US', state: 'IN' }]
+    const planCode = typeof body?.planCode === 'string' ? body.planCode.trim().toLowerCase() : 'mvp'
+    const rawSeatLimits = body?.seatLimits && typeof body.seatLimits === 'object' && !Array.isArray(body.seatLimits)
+      ? body.seatLimits
+      : { owners: 1, managers: 2, technicians: 8 }
+    const seatLimits = {
+      owners: Number(rawSeatLimits.owners),
+      managers: Number(rawSeatLimits.managers),
+      technicians: Number(rawSeatLimits.technicians),
+    }
 
     if (name.length < 2 || name.length > 120) {
       return jsonNoStore({ error: 'Company name must be between 2 and 120 characters.' }, { status: 400 })
@@ -56,6 +65,19 @@ export async function POST(request: Request) {
 
     if (!trades.length) {
       return jsonNoStore({ error: 'At least one trade is required.' }, { status: 400 })
+    }
+
+    if (!planCode || planCode.length > 40) {
+      return jsonNoStore({ error: 'Enter a valid plan code.' }, { status: 400 })
+    }
+
+    if (
+      ![seatLimits.owners, seatLimits.managers, seatLimits.technicians].every(
+        (value) => Number.isInteger(value) && value >= 0
+      ) ||
+      seatLimits.owners < 1
+    ) {
+      return jsonNoStore({ error: 'Seat limits must be whole numbers, with at least one owner seat.' }, { status: 400 })
     }
 
     try {
@@ -88,9 +110,9 @@ export async function POST(request: Request) {
         trades,
         jurisdictions: normalizedJurisdictions,
         settings: {},
-        plan_code: 'mvp',
+        plan_code: planCode,
         subscription_status: 'manual',
-        seat_limits: { owners: 1, managers: 2, technicians: 8 },
+        seat_limits: seatLimits,
       })
       .select('id, name, account_type, status, created_at, feature_flags, timezone, trades, jurisdictions, plan_code, subscription_status, seat_limits')
       .single()
