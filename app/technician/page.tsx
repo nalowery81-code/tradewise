@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { supabase } from '../lib/supabase'
 import FeedbackRequestPrompt from '../components/feedback-request'
+import CraftCompassGuide from '../components/craftcompass-guide'
 import { groupSimilarConversations } from '../lib/conversation-grouping'
 
 function renderInlineMarkdown(text: string) {
@@ -947,8 +948,15 @@ export default function TechnicianPage() {
                   padding: '14px 16px',
                 }}
               >
-                <div style={{ fontWeight: 800, color: '#123047', marginBottom: 9 }}>
-                  CraftCompass is checking…
+                <div style={{ marginBottom: 12 }}>
+                  <CraftCompassGuide
+                    state={selectedImageFile ? 'photo' : 'working'}
+                    size={58}
+                    caption={
+                      workingSteps.at(-1)?.label ||
+                      (selectedImageFile ? 'Preparing your photo' : 'Connecting securely')
+                    }
+                  />
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
