@@ -813,7 +813,7 @@ export default function TechnicianPage() {
 
             <div style={styles.brandBlock}>
               <div style={styles.brandName}>CraftCompass AI</div>
-              <div style={styles.brandTagline}>Your AI partner in the trades</div>
+              <div style={styles.brandTagline}>Real Skills. Smart Solutions.</div>
             </div>
 
             <h1 style={styles.greeting}>
