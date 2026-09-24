@@ -768,6 +768,9 @@ export default function ManagerPage() {
               />
             </div>
             <div style={{ textAlign: 'center', marginBottom: 34 }}>
+              <div style={{ color: 'var(--cc-deep-navy)', fontSize: 14, fontWeight: 800, letterSpacing: '0.01em', marginBottom: 10 }}>
+                Real Skills. Smart Solutions.
+              </div>
               <h1 style={{ margin: 0, fontSize: 'clamp(26px, 5vw, 34px)', fontWeight: 700 }}>What would you like to know about your team?</h1>
               <p style={{ marginTop: 12, color: '#6b7280', fontSize: 16 }}>Ask CraftCompass AI about technicians, trends, training, or team performance.</p>
             </div>
