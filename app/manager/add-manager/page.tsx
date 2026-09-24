@@ -97,6 +97,7 @@ export default function AddManagerPage() {
       <div style={cardStyle}>
         <a href="/manager/company" style={backStyle}>← Back to Company</a>
         <div style={eyebrowStyle}>Owner setup</div>
+        <div style={taglineStyle}>Real Skills. Smart Solutions.</div>
         <h1 style={titleStyle}>Add manager</h1>
         <p style={textStyle}>
           Invite another manager into your CraftCompass AI company. Managers can use the management workspace and see this company's technician data, but they cannot manage owners or other companies.
@@ -152,6 +153,7 @@ const pageStyle: React.CSSProperties = { minHeight: '100vh', display: 'flex', al
 const cardStyle: React.CSSProperties = { width: '100%', maxWidth: 560, background: '#ffffff', border: '1px solid #e5e7eb', borderRadius: 20, padding: '28px 28px 30px', boxShadow: '0 8px 30px rgba(15,23,42,0.06)' }
 const backStyle: React.CSSProperties = { display: 'inline-block', marginBottom: 24, color: '#64748b', textDecoration: 'none', fontSize: 14 }
 const eyebrowStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const taglineStyle: React.CSSProperties = { marginTop: 8, color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800 }
 const titleStyle: React.CSSProperties = { margin: '7px 0 10px', fontSize: 34, lineHeight: 1.15 }
 const textStyle: React.CSSProperties = { margin: '0 0 26px', color: '#64748b', lineHeight: 1.6 }
 const labelStyle: React.CSSProperties = { display: 'grid', gap: 7, marginBottom: 16, fontSize: 14, fontWeight: 700 }

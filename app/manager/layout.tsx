@@ -100,6 +100,7 @@ export default function ManagerLayout({ children }: { children: React.ReactNode 
           <aside style={sidebarStyle}>
             <div>
               <div style={brandStyle}>CraftCompass AI</div>
+              <div style={taglineStyle}>Real Skills. Smart Solutions.</div>
               <div style={workspaceLabelStyle}>Owner Workspace</div>
               {companyName && <div style={companySidebarStyle}>{companyName}</div>}
             </div>
@@ -183,6 +184,14 @@ const brandStyle: React.CSSProperties = {
   fontSize: 22,
   fontWeight: 800,
   letterSpacing: '-0.02em',
+}
+
+const taglineStyle: React.CSSProperties = {
+  marginTop: 4,
+  color: 'var(--cc-signal-blue)',
+  fontSize: 11,
+  fontWeight: 800,
+  letterSpacing: '0.02em',
 }
 
 const workspaceLabelStyle: React.CSSProperties = {

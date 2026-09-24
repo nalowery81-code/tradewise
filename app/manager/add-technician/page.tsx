@@ -91,6 +91,7 @@ export default function AddTechnicianPage() {
       <div style={cardStyle}>
         <a href="/manager" style={backStyle}>← Back to Manager</a>
         <div style={eyebrowStyle}>Team setup</div>
+        <div style={taglineStyle}>Real Skills. Smart Solutions.</div>
         <h1 style={titleStyle}>Add technician</h1>
         <p style={textStyle}>
           Enter the technician's name and email. CraftCompass AI will create or connect the technician record and email them an invitation to finish setting up their login.
@@ -165,6 +166,7 @@ const cardStyle: React.CSSProperties = {
 
 const backStyle: React.CSSProperties = { display: 'inline-block', marginBottom: 24, color: '#64748b', textDecoration: 'none', fontSize: 14 }
 const eyebrowStyle: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }
+const taglineStyle: React.CSSProperties = { marginTop: 8, color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800 }
 const titleStyle: React.CSSProperties = { margin: '7px 0 10px', fontSize: 34, lineHeight: 1.15 }
 const textStyle: React.CSSProperties = { margin: '0 0 26px', color: '#64748b', lineHeight: 1.6 }
 const labelStyle: React.CSSProperties = { display: 'grid', gap: 7, marginBottom: 16, fontSize: 14, fontWeight: 700 }

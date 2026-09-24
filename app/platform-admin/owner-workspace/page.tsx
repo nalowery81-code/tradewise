@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
+import BrandLogo from '../../components/brand-logo'
 
 export default function OwnerWorkspaceReturnPage() {
   const [error, setError] = useState('')
@@ -33,7 +34,8 @@ export default function OwnerWorkspaceReturnPage() {
   return (
     <main style={pageStyle}>
       <div style={cardStyle}>
-        <div style={titleStyle}>CraftCompass AI</div>
+        <BrandLogo width={140} style={{ margin: '0 auto 4px' }} />
+        <div style={taglineStyle}>Real Skills. Smart Solutions.</div>
         {error ? (
           <>
             <div style={errorStyle}>{error}</div>
@@ -65,7 +67,7 @@ const cardStyle: React.CSSProperties = {
   background: '#fff',
   boxShadow: '0 8px 30px rgba(15,23,42,0.08)',
 }
-const titleStyle: React.CSSProperties = { fontSize: 20, fontWeight: 900 }
+const taglineStyle: React.CSSProperties = { textAlign: 'center', color: 'var(--cc-deep-navy)', fontSize: 13, fontWeight: 800, marginBottom: 12 }
 const statusStyle: React.CSSProperties = { marginTop: 12, color: '#64748b' }
 const errorStyle: React.CSSProperties = { marginTop: 12, color: '#991b1b', lineHeight: 1.5 }
 const linkStyle: React.CSSProperties = { display: 'inline-block', marginTop: 16, color: '#334155', fontWeight: 800, textDecoration: 'none' }

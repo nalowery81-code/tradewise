@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "CraftCompass AI",
-  description: "AI support for skilled trade teams",
+  description: "Real Skills. Smart Solutions.",
 };
 
 export default function RootLayout({
