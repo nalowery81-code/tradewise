@@ -784,6 +784,7 @@ Your goal is to make CraftCompass AI effortless, technically trustworthy, suppor
 
     after(() =>
       recordAIUsage({
+        companyId: technician.company_id,
         feature: 'technician_chat',
         endpoint: '/api/chat',
         model: 'gpt-5.6-luna',
@@ -883,6 +884,7 @@ NON-NEGOTIABLE RULES:
 
           after(() =>
             recordAIUsage({
+        companyId: technician.company_id,
               feature: 'technician_numeric_code_verification',
               endpoint: '/api/chat',
               model: 'gpt-5.6-luna',
@@ -945,6 +947,7 @@ Rules:
           answerResponse = sectionCorrectionResponse
           after(() =>
             recordAIUsage({
+        companyId: technician.company_id,
               feature: 'technician_code_section_verification',
               endpoint: '/api/chat',
               model: 'gpt-5.6-luna',
@@ -1143,6 +1146,7 @@ Rules:
         })
 
         await recordAIUsage({
+        companyId: technician.company_id,
           feature: 'conversation_title',
           endpoint: '/api/chat',
           model: 'gpt-5.6-luna',
@@ -1234,6 +1238,7 @@ If capture is false, return empty strings for every other field.
       })
 
       await recordAIUsage({
+        companyId: technician.company_id,
         feature: 'reflection_extraction',
         endpoint: '/api/chat',
         model: 'gpt-5.6-luna',
@@ -1323,6 +1328,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
             })
 
             await recordAIUsage({
+        companyId: technician.company_id,
               feature: 'reflection_deduplication',
               endpoint: '/api/chat',
               model: 'gpt-5.6-luna',

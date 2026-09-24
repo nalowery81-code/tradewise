@@ -419,6 +419,7 @@ Apply active guidance when relevant. Do not mention the Guidance Library or inte
     })
 
     await recordAIUsage({
+      companyId,
       feature: 'manager_chat',
       endpoint: '/api/manager/chat',
       model: MANAGER_MODEL,

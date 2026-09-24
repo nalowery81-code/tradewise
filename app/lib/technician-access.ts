@@ -14,7 +14,7 @@ const getCookie = (request: Request, name: string) => {
 type TechnicianAccess =
   | {
       authUserId: string
-      technician: { id: string; canonical_name: string }
+      technician: { id: string; canonical_name: string; company_id: string }
       impersonating: boolean
       adminProfileId?: string
     }
@@ -59,7 +59,7 @@ export async function requireEffectiveTechnician(request: Request): Promise<Tech
 
       const { data: technician } = await supabaseServer
         .from('Technicians')
-        .select('id, canonical_name')
+        .select('id, canonical_name, company_id')
         .eq('auth_user_id', targetProfile.auth_user_id)
         .maybeSingle()
 
@@ -78,7 +78,7 @@ export async function requireEffectiveTechnician(request: Request): Promise<Tech
 
   const { data: technician } = await supabaseServer
     .from('Technicians')
-    .select('id, canonical_name')
+    .select('id, canonical_name, company_id')
     .eq('auth_user_id', user.id)
     .maybeSingle()
 

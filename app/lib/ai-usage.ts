@@ -4,6 +4,7 @@ type UsageInput = {
   feature: string
   endpoint: string
   model: string
+  companyId?: string | null
   conversationType?: string | null
   conversationId?: string | null
   response?: any
@@ -43,6 +44,7 @@ export async function recordAIUsage(input: UsageInput) {
     )
 
     const { error } = await supabaseServer.from('AIUsageEvents').insert({
+      company_id: input.companyId || null,
       feature: input.feature,
       endpoint: input.endpoint,
       model: input.model,

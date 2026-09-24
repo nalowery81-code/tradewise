@@ -100,7 +100,7 @@ export async function GET(request: Request) {
     })
     usageParams.append('group_by[]', 'model')
 
-    const [costData, usageResult, featureUsageResult] = await Promise.all([
+    const [costData, usageResult, featureUsageResult, companiesResult] = await Promise.all([
       fetchOpenAI(
         `https://api.openai.com/v1/organization/costs?${costParams.toString()}`,
         adminKey
@@ -114,8 +114,11 @@ export async function GET(request: Request) {
       })),
       supabaseServer
         .from('AIUsageEvents')
-        .select('feature, model, input_tokens, cached_input_tokens, output_tokens, total_tokens, web_search_calls, file_search_calls, created_at')
+        .select('company_id, feature, model, input_tokens, cached_input_tokens, output_tokens, total_tokens, web_search_calls, file_search_calls, created_at')
         .gte('created_at', new Date(fourteenDayStart * 1000).toISOString()),
+      supabaseServer
+        .from('Companies')
+        .select('id, name'),
     ])
 
     const costBuckets = (Array.isArray(costData?.data) ? costData.data : []) as CostBucket[]
@@ -249,6 +252,54 @@ export async function GET(request: Request) {
       }))
       .sort((a, b) => b.totalTokens - a.totalTokens)
 
+    const companyNameById = new Map(
+      (companiesResult.data || []).map((company) => [company.id, company.name])
+    )
+
+    const companyMap = new Map<string, {
+      companyId: string
+      companyName: string
+      calls: number
+      totalTokens: number
+      webSearchCalls: number
+      fileSearchCalls: number
+    }>()
+
+    const platformOverheadUsage = {
+      calls: 0,
+      totalTokens: 0,
+      webSearchCalls: 0,
+      fileSearchCalls: 0,
+    }
+
+    for (const row of featureUsageResult.data || []) {
+      if (!row.company_id) {
+        platformOverheadUsage.calls += 1
+        platformOverheadUsage.totalTokens += Number(row.total_tokens || 0)
+        platformOverheadUsage.webSearchCalls += Number(row.web_search_calls || 0)
+        platformOverheadUsage.fileSearchCalls += Number(row.file_search_calls || 0)
+        continue
+      }
+
+      const current = companyMap.get(row.company_id) || {
+        companyId: row.company_id,
+        companyName: companyNameById.get(row.company_id) || 'Unknown company',
+        calls: 0,
+        totalTokens: 0,
+        webSearchCalls: 0,
+        fileSearchCalls: 0,
+      }
+
+      current.calls += 1
+      current.totalTokens += Number(row.total_tokens || 0)
+      current.webSearchCalls += Number(row.web_search_calls || 0)
+      current.fileSearchCalls += Number(row.file_search_calls || 0)
+      companyMap.set(row.company_id, current)
+    }
+
+    const companyUsage = [...companyMap.values()]
+      .sort((a, b) => b.totalTokens - a.totalTokens)
+
     const efficiency = analyzeAIEfficiency(featureUsage)
 
     const lineItems = [...lineItemMap.entries()]
@@ -270,6 +321,9 @@ export async function GET(request: Request) {
       usageError: usageResult?.usage_error || null,
       featureUsage,
       featureUsageError: featureUsageResult.error?.message || null,
+      companyUsage,
+      companyUsageError: companiesResult.error?.message || null,
+      platformOverheadUsage,
       efficiency,
       billingScopeNote: 'Dollar totals above are organization-wide and may include Fantasy Guru or other OpenAI projects. CraftCompass feature telemetry and efficiency recommendations below are app-specific from the moment Commit 3 went live.',
       source: 'OpenAI organization Costs and Usage APIs',
