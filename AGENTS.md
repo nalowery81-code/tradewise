@@ -19,3 +19,17 @@ Every implementation should be checked for:
 - avoiding one-off shortcuts that make later scaling harder
 
 If a requested change conflicts with the scalable platform architecture, redesign the implementation so the user-facing goal is achieved without weakening the platform foundation.
+
+
+# CraftCompass deployment efficiency rule
+
+Batch related CraftCompass changes into the fewest safe Vercel deployments possible.
+
+Before committing:
+- finish and review the full related change batch
+- avoid separate deployments for small changes that belong to the same feature or architecture pass
+- keep unrelated or high-risk behavior changes in a separate batch when that improves safety
+- verify the current deployment is READY before starting the next deployment
+- diagnose failed deployments before adding more changes
+
+The goal is architecture check -> batch related work -> one commit -> one Vercel deployment -> verify READY -> next batch.

@@ -39,7 +39,7 @@ export async function GET(request: Request) {
       if (conversationType === 'technician') {
         const { data: conversation, error: conversationError } = await supabaseServer
           .from('Conversations')
-          .select('id, company_id, technician_id, title, created_at, updated_at, status')
+          .select('id, company_id, technician_id, title, created_at, updated_at, status, jurisdiction')
           .eq('id', conversationId)
           .single()
 
@@ -91,6 +91,7 @@ export async function GET(request: Request) {
             updatedAt: conversation.updated_at,
             modelName: 'gpt-5.6-luna',
             contextType: 'chat',
+            jurisdiction: conversation.jurisdiction || null,
           },
           messages: (messages || []).map((message) => ({
             id: message.id,
@@ -224,7 +225,7 @@ export async function GET(request: Request) {
       supabaseServer.from('UserProfiles').select('id, auth_user_id, company_id, role'),
       supabaseServer
         .from('Conversations')
-        .select('id, company_id, technician_id, title, created_at, updated_at, status')
+        .select('id, company_id, technician_id, title, created_at, updated_at, status, jurisdiction')
         .order('updated_at', { ascending: false })
         .limit(500),
       supabaseServer
@@ -275,6 +276,7 @@ export async function GET(request: Request) {
         updatedAt: conversation.updated_at,
         contextType: 'chat',
         modelName: 'gpt-5.6-luna',
+        jurisdiction: conversation.jurisdiction || null,
       }
     })
 
@@ -294,6 +296,7 @@ export async function GET(request: Request) {
         updatedAt: conversation.updated_at,
         contextType: conversation.context_type,
         modelName: conversation.model_name || null,
+        jurisdiction: null,
       }
     })
 

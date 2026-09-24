@@ -29,6 +29,33 @@ const normalizeSeatLimits = (value: unknown) => {
   return { owners, managers, technicians }
 }
 
+const normalizeTrades = (value: unknown) => {
+  if (!Array.isArray(value)) return null
+  const trades = [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim().toLowerCase()).filter(Boolean))]
+  return trades.length ? trades : null
+}
+
+const normalizeJurisdictions = (value: unknown) => {
+  if (!Array.isArray(value)) return null
+  const seen = new Set<string>()
+  const rows = value
+    .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object' && !Array.isArray(item))
+    .map((item) => ({
+      country: typeof item.country === 'string' ? item.country.trim().toUpperCase() : '',
+      state: typeof item.state === 'string' ? item.state.trim().toUpperCase() : '',
+      locality: typeof item.locality === 'string' ? item.locality.trim() : '',
+    }))
+    .filter((item) => item.country.length === 2 && item.state.length === 2)
+    .filter((item) => {
+      const key = `${item.country}|${item.state}|${item.locality.toLowerCase()}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    .map((item) => item.locality ? item : { country: item.country, state: item.state })
+  return rows.length ? rows : null
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -177,6 +204,26 @@ export async function PATCH(
   const body = await request.json().catch(() => ({}))
   const updates: Record<string, unknown> = {}
 
+  if (Object.prototype.hasOwnProperty.call(body, 'timezone')) {
+    const timezone = typeof body.timezone === 'string' ? body.timezone.trim() : ''
+    if (!timezone) return jsonNoStore({ error: 'Timezone is required.' }, { status: 400 })
+    try { new Intl.DateTimeFormat('en-US', { timeZone: timezone }).format() }
+    catch { return jsonNoStore({ error: 'Enter a valid IANA timezone.' }, { status: 400 }) }
+    updates.timezone = timezone
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'trades')) {
+    const trades = normalizeTrades(body.trades)
+    if (!trades) return jsonNoStore({ error: 'At least one trade is required.' }, { status: 400 })
+    updates.trades = trades
+  }
+
+  if (Object.prototype.hasOwnProperty.call(body, 'jurisdictions')) {
+    const jurisdictions = normalizeJurisdictions(body.jurisdictions)
+    if (!jurisdictions) return jsonNoStore({ error: 'At least one valid jurisdiction is required.' }, { status: 400 })
+    updates.jurisdictions = jurisdictions
+  }
+
   if (Object.prototype.hasOwnProperty.call(body, 'planCode')) {
     const planCode = String(body.planCode || '').trim().toLowerCase()
     if (!planCode || planCode.length > 40) {
@@ -255,12 +302,31 @@ export async function PATCH(
     .from('Companies')
     .update(updates)
     .eq('id', id)
-    .select('id, plan_code, subscription_status, seat_limits, feature_flags, updated_at')
+    .select('id, plan_code, subscription_status, seat_limits, feature_flags, timezone, trades, jurisdictions, updated_at')
     .single()
 
   if (error || !data) {
     console.error('COMPANY CONTROL CENTER UPDATE ERROR:', error)
     return jsonNoStore({ error: 'Could not update company controls.' }, { status: 500 })
+  }
+
+  if (updates.jurisdictions) {
+    const allowed = new Set((data.jurisdictions || []).map((item: any) =>
+      [String(item.country || '').toUpperCase(), String(item.state || '').toUpperCase(), String(item.locality || '').toLowerCase()].join('|')
+    ))
+    const { data: technicians } = await supabaseServer
+      .from('Technicians')
+      .select('id, default_jurisdiction')
+      .eq('company_id', id)
+      .not('default_jurisdiction', 'is', null)
+
+    for (const technician of technicians || []) {
+      const current = technician.default_jurisdiction as any
+      const key = [String(current?.country || '').toUpperCase(), String(current?.state || '').toUpperCase(), String(current?.locality || '').toLowerCase()].join('|')
+      if (!allowed.has(key)) {
+        await supabaseServer.from('Technicians').update({ default_jurisdiction: null }).eq('id', technician.id)
+      }
+    }
   }
 
   return jsonNoStore({

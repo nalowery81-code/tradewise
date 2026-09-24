@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import PlatformAdminNav from './platform-admin-nav'
 
@@ -106,6 +106,19 @@ type DashboardData = {
     at: string | null
     href: string
   }[]
+  companyBreakdown: {
+    id: string
+    name: string
+    status: string
+    accountType: string
+    trades: string[]
+    jurisdictions: { country?: string; state?: string; locality?: string }[]
+    activeUsers: number
+    technicians: number
+    technicianConversations7d: number
+    managementConversations7d: number
+    jurisdictionConversationCounts7d: Record<string, number>
+  }[]
 }
 
 export default function PlatformAdminDashboard() {
@@ -114,6 +127,8 @@ export default function PlatformAdminDashboard() {
   const [error, setError] = useState('')
   const [costs, setCosts] = useState<OpenAICostData | null>(null)
   const [costLoading, setCostLoading] = useState(true)
+  const [companyLensId, setCompanyLensId] = useState('')
+  const [jurisdictionLens, setJurisdictionLens] = useState('')
 
   useEffect(() => {
     void (async () => {
@@ -151,6 +166,13 @@ export default function PlatformAdminDashboard() {
   }, [])
 
   const attention = data?.needsAttention
+  const selectedCompanyLens = useMemo(
+    () => data?.companyBreakdown?.find((company) => company.id === companyLensId) || null,
+    [data, companyLensId]
+  )
+  const selectedJurisdictionConversations = selectedCompanyLens && jurisdictionLens
+    ? selectedCompanyLens.jurisdictionConversationCounts7d?.[jurisdictionLens] || 0
+    : null
 
   return (
     <main style={pageStyle}>
@@ -209,6 +231,49 @@ export default function PlatformAdminDashboard() {
                 <HealthCard title="Source Exceptions" value={String(attention?.sourceExceptions || 0)} detail="Detected in the last 7 days" tone={(attention?.sourceExceptions || 0) ? 'warn' : 'good'} href="/platform-admin/guidance" />
                 <HealthCard title="Current Deployment" value={data.deployment.state} detail="Vercel production runtime" tone={data.deployment.state === 'READY' ? 'good' : 'warn'} href="#deployment" />
               </div>
+
+              <section style={{ ...cardStyle, marginTop: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                  <SectionHeader title="Company / Jurisdiction Lens" subtitle="Drill into customer activity without losing the global platform view." />
+                  {selectedCompanyLens && <a href={`/platform-admin/companies/${selectedCompanyLens.id}`} style={buttonLink}>Open Control Center →</a>}
+                </div>
+                <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 10 }}>
+                  <select
+                    value={companyLensId}
+                    onChange={(event) => { setCompanyLensId(event.target.value); setJurisdictionLens('') }}
+                    style={{ minWidth: 230, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 9, background: '#fff' }}
+                  >
+                    <option value="">All companies</option>
+                    {(data.companyBreakdown || []).map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                  </select>
+                  {selectedCompanyLens && (
+                    <select
+                      value={jurisdictionLens}
+                      onChange={(event) => setJurisdictionLens(event.target.value)}
+                      style={{ minWidth: 170, padding: '9px 10px', border: '1px solid #cbd5e1', borderRadius: 9, background: '#fff' }}
+                    >
+                      <option value="">All jurisdictions</option>
+                      {(selectedCompanyLens.jurisdictions || []).map((item) => (
+                        <option key={`${item.country || 'US'}-${item.state}`} value={String(item.state || '').toUpperCase()}>
+                          {item.locality ? `${item.locality}, ${item.state}` : item.state}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                {selectedCompanyLens ? (
+                  <div className="quality-grid" style={{ ...qualityGridStyle, marginTop: 12 }}>
+                    <MiniMetric label="Active users" value={selectedCompanyLens.activeUsers} />
+                    <MiniMetric label="Technicians" value={selectedCompanyLens.technicians} />
+                    <MiniMetric label="Tech conversations · 7d" value={selectedJurisdictionConversations ?? selectedCompanyLens.technicianConversations7d} />
+                    <MiniMetric label="Manager / owner · 7d" value={selectedCompanyLens.managementConversations7d} />
+                    <MiniMetric label="Trades" value={selectedCompanyLens.trades.length} />
+                    <MiniMetric label="Jurisdictions" value={selectedCompanyLens.jurisdictions.length} />
+                  </div>
+                ) : (
+                  <div style={{ marginTop: 10, color: '#64748b', fontSize: 12 }}>Choose a company to inspect its scalable company context.</div>
+                )}
+              </section>
 
               <section style={{ ...cardStyle, marginTop: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>

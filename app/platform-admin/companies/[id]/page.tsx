@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import { supabase } from '../../../lib/supabase'
 import PlatformAdminNav from '../../platform-admin-nav'
+import CompanyScopeEditor, { type JurisdictionValue } from '../../../components/company-scope-editor'
 import {
   COMPANY_FEATURE_KEYS,
   normalizeCompanyFeatureFlags,
@@ -82,6 +83,9 @@ export default function CompanyControlCenterPage() {
   const [subscriptionStatus, setSubscriptionStatus] = useState('manual')
   const [seatLimits, setSeatLimits] = useState<SeatCounts>({ owners: 1, managers: 2, technicians: 8 })
   const [featureFlags, setFeatureFlags] = useState<CompanyFeatureFlags>(normalizeCompanyFeatureFlags(null))
+  const [trades, setTrades] = useState<string[]>(['plumbing'])
+  const [jurisdictions, setJurisdictions] = useState<JurisdictionValue[]>([{ country: 'US', state: 'IN' }])
+  const [timezone, setTimezone] = useState('America/Indiana/Indianapolis')
 
   const getToken = async () => {
     const { data: { session } } = await supabase.auth.getSession()
@@ -111,6 +115,9 @@ export default function CompanyControlCenterPage() {
     setSubscriptionStatus(result.company.subscription_status || 'manual')
     setSeatLimits(result.seats?.limits || result.company.seat_limits || { owners: 1, managers: 2, technicians: 8 })
     setFeatureFlags(normalizeCompanyFeatureFlags(result.company.feature_flags))
+    setTrades(Array.isArray(result.company.trades) && result.company.trades.length ? result.company.trades : ['plumbing'])
+    setJurisdictions(Array.isArray(result.company.jurisdictions) && result.company.jurisdictions.length ? result.company.jurisdictions : [{ country: 'US', state: 'IN' }])
+    setTimezone(result.company.timezone || 'America/Indiana/Indianapolis')
     setLoading(false)
   }
 
@@ -142,6 +149,9 @@ export default function CompanyControlCenterPage() {
         subscriptionStatus,
         seatLimits,
         featureFlags,
+        trades,
+        jurisdictions,
+        timezone,
       }),
     })
     const result = await response.json().catch(() => ({}))
@@ -248,18 +258,15 @@ export default function CompanyControlCenterPage() {
           </section>
 
           <section style={cardStyle}>
-            <CardTitle title="Operating configuration" sub="Current company context used by CraftCompass." />
-            <InfoRow label="Timezone" value={company.timezone || 'Not set'} />
-            <InfoRow label="Trades" value={(company.trades || []).map(titleCase).join(', ') || 'Not set'} />
-            <InfoRow
-              label="Jurisdictions"
-              value={(company.jurisdictions || []).map((item) => item.locality ? `${item.locality}, ${item.state}` : item.state).join(', ') || 'Not set'}
+            <CardTitle title="Operating configuration" sub="Company-level trade and jurisdiction scope used across CraftCompass." />
+            <CompanyScopeEditor
+              trades={trades}
+              onTradesChange={setTrades}
+              jurisdictions={jurisdictions}
+              onJurisdictionsChange={setJurisdictions}
+              timezone={timezone}
+              onTimezoneChange={setTimezone}
             />
-            <div style={{ marginTop: 16 }}>
-              <button type="button" onClick={() => void enterOwnerWorkspace()} style={linkButtonStyle}>
-                Manage company settings in Owner Workspace →
-              </button>
-            </div>
           </section>
 
           <section style={cardStyle}>

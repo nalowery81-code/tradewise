@@ -19,6 +19,7 @@ type AuditConversation = {
   contextType: string
   modelName: string | null
   pendingFlagCount?: number
+  jurisdiction?: { country?: string; state?: string; locality?: string } | null
 }
 
 type AuditSource = {
@@ -112,6 +113,7 @@ export default function ConversationAuditPage() {
   const [search, setSearch] = useState('')
   const [companyId, setCompanyId] = useState('')
   const [role, setRole] = useState('')
+  const [jurisdictionState, setJurisdictionState] = useState('')
   const [needsAuditOnly, setNeedsAuditOnly] = useState(false)
   const [expandedAuditGroups, setExpandedAuditGroups] = useState<string[]>([])
 
@@ -147,6 +149,7 @@ export default function ConversationAuditPage() {
     const needle = search.trim().toLowerCase()
     return conversations.filter((conversation) => {
       if (companyId && conversation.companyId !== companyId) return false
+      if (jurisdictionState && String(conversation.jurisdiction?.state || '').toUpperCase() !== jurisdictionState) return false
       if (role && conversation.role !== role) return false
       if (needsAuditOnly && !conversation.pendingFlagCount) return false
       if (!needle) return true
@@ -157,9 +160,21 @@ export default function ConversationAuditPage() {
         conversation.userEmail,
         conversation.role,
         conversation.contextType,
+        conversation.jurisdiction?.state,
+        conversation.jurisdiction?.locality,
       ].some((value) => String(value || '').toLowerCase().includes(needle))
     })
-  }, [conversations, companyId, role, search, needsAuditOnly])
+  }, [conversations, companyId, jurisdictionState, role, search, needsAuditOnly])
+
+  const jurisdictionOptions = useMemo(
+    () => [...new Set(
+      conversations
+        .filter((conversation) => !companyId || conversation.companyId === companyId)
+        .map((conversation) => String(conversation.jurisdiction?.state || '').toUpperCase())
+        .filter(Boolean)
+    )].sort(),
+    [conversations, companyId]
+  )
 
   const groupedFiltered = useMemo(
     () =>
@@ -432,7 +447,7 @@ export default function ConversationAuditPage() {
       <style>{`
         @media (max-width: 1100px) {
           .audit-layout { grid-template-columns: minmax(300px, .9fr) minmax(0, 1.4fr) !important; }
-          .audit-filters { grid-template-columns: minmax(220px, 1fr) 170px 150px auto !important; }
+          .audit-filters { grid-template-columns: minmax(220px, 1fr) 170px 130px 150px auto !important; }
         }
         @media (max-width: 900px) {
           .audit-layout { grid-template-columns: 1fr !important; height: auto !important; }
@@ -484,6 +499,10 @@ export default function ConversationAuditPage() {
             <select value={companyId} onChange={(event) => setCompanyId(event.target.value)} style={controlStyle}>
               <option value="">All companies</option>
               {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </select>
+            <select value={jurisdictionState} onChange={(event) => setJurisdictionState(event.target.value)} style={controlStyle}>
+              <option value="">All jurisdictions</option>
+              {jurisdictionOptions.map((state) => <option key={state} value={state}>{state}</option>)}
             </select>
             <select value={role} onChange={(event) => setRole(event.target.value)} style={controlStyle}>
               <option value="">All roles</option>
@@ -542,7 +561,7 @@ export default function ConversationAuditPage() {
                           {conversation.userName}{conversation.userEmail ? ` · ${conversation.userEmail}` : ''}
                         </div>
                         <div style={{ marginTop: 3, color: '#94a3b8', fontSize: 12 }}>
-                          {conversation.companyName}{conversation.contextType === 'profile_summary' ? ' · Profile summary' : ''}
+                          {conversation.companyName}{conversation.jurisdiction?.state ? ` · ${conversation.jurisdiction.state}` : ''}{conversation.contextType === 'profile_summary' ? ' · Profile summary' : ''}
                         </div>
                         {group.items.length > 1 && (
                           <div style={{ marginTop: 7 }}>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabase'
 import PlatformAdminNav from '../platform-admin-nav'
+import CompanyScopeEditor, { type JurisdictionValue } from '../../components/company-scope-editor'
 
 type Company = {
   id: string
@@ -24,6 +25,9 @@ export default function PlatformAdminPage() {
   const [companyName, setCompanyName] = useState('')
   const [newOwnerName, setNewOwnerName] = useState('')
   const [newOwnerEmail, setNewOwnerEmail] = useState('')
+  const [newTrades, setNewTrades] = useState<string[]>(['plumbing'])
+  const [newJurisdictions, setNewJurisdictions] = useState<JurisdictionValue[]>([{ country: 'US', state: 'IN' }])
+  const [newTimezone, setNewTimezone] = useState('America/Indiana/Indianapolis')
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
@@ -91,9 +95,9 @@ export default function PlatformAdminPage() {
         name: companyName.trim(),
         ownerName: newOwnerName.trim(),
         ownerEmail: newOwnerEmail.trim().toLowerCase(),
-        timezone: 'America/Indiana/Indianapolis',
-        trades: ['plumbing'],
-        jurisdictions: [{ country: 'US', state: 'IN' }],
+        timezone: newTimezone,
+        trades: newTrades,
+        jurisdictions: newJurisdictions,
       }),
     })
 
@@ -109,6 +113,9 @@ export default function PlatformAdminPage() {
     setCompanyName('')
     setNewOwnerName('')
     setNewOwnerEmail('')
+    setNewTrades(['plumbing'])
+    setNewJurisdictions([{ country: 'US', state: 'IN' }])
+    setNewTimezone('America/Indiana/Indianapolis')
     setCreating(false)
   }
 
@@ -245,9 +252,19 @@ export default function PlatformAdminPage() {
                   style={{ ...inputStyle, minWidth: 0 }}
                 />
               </div>
+              <div style={{ padding: 12, border: '1px solid #e2e8f0', borderRadius: 12, background: '#f8fafc' }}>
+                <CompanyScopeEditor
+                  trades={newTrades}
+                  onTradesChange={setNewTrades}
+                  jurisdictions={newJurisdictions}
+                  onJurisdictionsChange={setNewJurisdictions}
+                  timezone={newTimezone}
+                  onTimezoneChange={setNewTimezone}
+                />
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <span style={{ color: '#64748b', fontSize: 12 }}>
-                  Starts with Plumbing · Indiana · Eastern Time. The owner can update company settings later.
+                  Configure company scope now; these settings drive future trade and jurisdiction behavior.
                 </span>
                 <button
                   type="submit"

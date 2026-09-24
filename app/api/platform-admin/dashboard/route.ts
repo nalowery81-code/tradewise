@@ -29,11 +29,11 @@ export async function GET(request: Request) {
       sourceIssues,
       pendingFeedback,
     ] = await Promise.all([
-      supabaseServer.from('Companies').select('id, name, status, account_type'),
-      supabaseServer.from('UserProfiles').select('id, role, is_active'),
-      supabaseServer.from('Technicians').select('id'),
-      supabaseServer.from('Conversations').select('id, created_at').gte('created_at', weekAgo),
-      supabaseServer.from('ManagementConversations').select('id, user_role, created_at').gte('created_at', weekAgo),
+      supabaseServer.from('Companies').select('id, name, status, account_type, trades, jurisdictions'),
+      supabaseServer.from('UserProfiles').select('id, company_id, role, is_active'),
+      supabaseServer.from('Technicians').select('id, company_id'),
+      supabaseServer.from('Conversations').select('id, company_id, jurisdiction, created_at').gte('created_at', weekAgo),
+      supabaseServer.from('ManagementConversations').select('id, company_id, user_role, created_at').gte('created_at', weekAgo),
       supabaseServer.from('ConversationAuditFlags').select('id, created_at').eq('status', 'pending'),
       supabaseServer.from('ConversationUserFeedback').select('id, updated_at').eq('rating', 'helpful').gte('updated_at', weekAgo),
       supabaseServer.from('ConversationAuditReviews').select('id, status, updated_at').gte('updated_at', weekAgo),
@@ -98,12 +98,40 @@ export async function GET(request: Request) {
 
     const health = failedRuns.length > 0 ? 'attention' : 'healthy'
 
+    const companyBreakdown = (companies.data || []).map((company: any) => {
+      const companyProfiles = (profiles.data || []).filter((profile: any) => profile.company_id === company.id)
+      const companyTechnicians = (technicians.data || []).filter((technician: any) => technician.company_id === company.id)
+      const companyTechConversations = (techConversations.data || []).filter((conversation: any) => conversation.company_id === company.id)
+      const companyManagementConversations = (managementConversations.data || []).filter((conversation: any) => conversation.company_id === company.id)
+      const jurisdictionCounts: Record<string, number> = {}
+
+      for (const conversation of companyTechConversations) {
+        const state = String((conversation.jurisdiction as any)?.state || '').toUpperCase()
+        if (state) jurisdictionCounts[state] = (jurisdictionCounts[state] || 0) + 1
+      }
+
+      return {
+        id: company.id,
+        name: company.name,
+        status: company.status,
+        accountType: company.account_type,
+        trades: Array.isArray(company.trades) ? company.trades : [],
+        jurisdictions: Array.isArray(company.jurisdictions) ? company.jurisdictions : [],
+        activeUsers: companyProfiles.filter((profile: any) => profile.is_active !== false).length,
+        technicians: companyTechnicians.length,
+        technicianConversations7d: companyTechConversations.length,
+        managementConversations7d: companyManagementConversations.length,
+        jurisdictionConversationCounts7d: jurisdictionCounts,
+      }
+    })
+
     return jsonNoStore({
       generatedAt: now.toISOString(),
       health,
       attentionTotal,
       needsAttention,
       deployment,
+      companyBreakdown,
       counts: {
         companies: companies.data?.length || 0,
         activeUsers: (profiles.data || []).filter((profile) => profile.is_active !== false).length,
