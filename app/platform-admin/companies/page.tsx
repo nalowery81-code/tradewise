@@ -151,28 +151,6 @@ export default function PlatformAdminPage() {
     setInviting(false)
   }
 
-  const enterWorkspace = async (company: Company) => {
-    setError('')
-    const token = await getToken()
-    const response = await fetch('/api/platform-admin/workspace', {
-      method: 'POST',
-      cache: 'no-store',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ companyId: company.id }),
-    })
-
-    const data = await response.json().catch(() => ({}))
-    if (!response.ok) {
-      setError(data.error || 'Could not enter company workspace.')
-      return
-    }
-
-    window.location.href = '/manager/company'
-  }
-
   const activeDemos = companies.filter((company) => company.account_type === 'demo' && company.status === 'active').length
   const totalUsers = companies.reduce((total, company) => total + company.users, 0)
   const totalTechnicians = companies.reduce((total, company) => total + company.technicians, 0)
@@ -332,13 +310,12 @@ export default function PlatformAdminPage() {
                         Invite Owner
                       </button>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => void enterWorkspace(company)}
-                      style={secondaryButtonStyle}
+                    <a
+                      href={`/platform-admin/companies/${company.id}`}
+                      style={{ ...secondaryButtonStyle, display: 'inline-block', textDecoration: 'none' }}
                     >
-                      Enter Workspace
-                    </button>
+                      Control Center
+                    </a>
                   </div>
                 </div>
               ))
