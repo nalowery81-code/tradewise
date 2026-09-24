@@ -306,7 +306,7 @@ export default function CompanyControlCenterPage() {
 
         <div style={twoColumnStyle}>
           <section style={cardStyle}>
-            <CardTitle title="Plan allowances" sub="Included billing allowances only. CraftCompass flags overages without blocking access." />
+            <CardTitle title="Plan allowances" sub="Defines what this company plan includes. CraftCompass flags usage overages without blocking access." />
             <div style={formGridStyle}>
               <label style={labelStyle}>Plan code
                 <input value={planCode} onChange={(e) => setPlanCode(e.target.value)} style={inputStyle} />
@@ -317,7 +317,9 @@ export default function CompanyControlCenterPage() {
                 </select>
               </label>
             </div>
-            <div style={{ ...formGridStyle, marginTop: 12 }}>
+
+            <div style={{ marginTop: 16, color: '#334155', fontSize: 13, fontWeight: 850 }}>Users included</div>
+            <div style={{ ...formGridStyle, marginTop: 9 }}>
               {(['owners','managers','technicians'] as const).map((role) => (
                 <label key={role} style={labelStyle}>
                   {role[0].toUpperCase() + role.slice(1)} included
@@ -333,6 +335,30 @@ export default function CompanyControlCenterPage() {
                   </span>
                 </label>
               ))}
+            </div>
+
+            <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#334155', fontSize: 13, fontWeight: 850 }}>Features included</div>
+              <div style={{ marginTop: 4, ...helperStyle }}>
+                Toggle the company features included with this plan. Hover over any feature for an explanation.
+              </div>
+              <div style={{ ...featureGridStyle, marginTop: 10 }}>
+                {COMPANY_FEATURE_KEYS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={featureDescriptions[key] || 'Controls access to this company feature.'}
+                    aria-label={`${featureLabels[key] || key}: ${featureDescriptions[key] || 'Company feature control'}`}
+                    onClick={() => setFeatureFlags((current) => ({ ...current, [key]: !current[key] }))}
+                    style={featureRowStyle}
+                  >
+                    <span style={{ fontWeight: 750, color: '#172033' }}>{featureLabels[key] || key}</span>
+                    <span style={{ ...switchStyle, background: featureFlags[key] ? '#082B4D' : '#cbd5e1' }}>
+                      <span style={{ ...switchKnobStyle, transform: featureFlags[key] ? 'translateX(18px)' : 'translateX(0)' }} />
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </section>
 
@@ -391,27 +417,6 @@ export default function CompanyControlCenterPage() {
             </div>
           </section>
         </div>
-
-        <section style={{ ...cardStyle, marginTop: 16 }}>
-          <CardTitle title="Company feature controls" sub="This replaces the old scattered company-specific feature control." />
-          <div style={featureGridStyle}>
-            {COMPANY_FEATURE_KEYS.map((key) => (
-              <button
-                key={key}
-                type="button"
-                title={featureDescriptions[key] || 'Controls access to this company feature.'}
-                aria-label={`${featureLabels[key] || key}: ${featureDescriptions[key] || 'Company feature control'}`}
-                onClick={() => setFeatureFlags((current) => ({ ...current, [key]: !current[key] }))}
-                style={featureRowStyle}
-              >
-                <span style={{ fontWeight: 750, color: '#172033' }}>{featureLabels[key] || key}</span>
-                <span style={{ ...switchStyle, background: featureFlags[key] ? '#082B4D' : '#cbd5e1' }}>
-                  <span style={{ ...switchKnobStyle, transform: featureFlags[key] ? 'translateX(18px)' : 'translateX(0)' }} />
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 18 }}>
           <button type="button" onClick={() => void saveControls()} disabled={saving} style={{ ...primaryButtonStyle, opacity: saving ? 0.6 : 1 }}>
