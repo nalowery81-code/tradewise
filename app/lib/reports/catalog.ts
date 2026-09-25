@@ -139,12 +139,40 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
   {
     type: 'learning_quality',
     label: 'Learning & Quality',
-    description: 'Helpful feedback, reviews, guidance, and verified-source health.',
-    status: 'planned',
+    description: 'Conversation feedback, audit corrections, guidance, learning runs, and verified-source health.',
+    status: 'live',
     schemaVersion: 1,
-    defaultSections: [],
-    sections: [],
-    filters: [],
+    defaultSections: ['conversation_quality', 'corrections_guidance', 'source_health', 'learning_runs'],
+    sections: [
+      {
+        key: 'conversation_quality',
+        label: 'Conversation quality',
+        description: 'Helpful feedback, requested feedback, flags, and audit outcomes linked to company conversations.',
+      },
+      {
+        key: 'corrections_guidance',
+        label: 'Corrections & guidance',
+        description: 'Audit corrections by company plus platform-wide active guidance created from learning and review workflows.',
+      },
+      {
+        key: 'source_health',
+        label: 'Verified-source health',
+        description: 'Platform-wide verified source document status and weekly source-check results.',
+      },
+      {
+        key: 'learning_runs',
+        label: 'Learning runs',
+        description: 'Platform-wide weekly learning runs, reviewed items, helpful signals, and guidance generated.',
+      },
+    ],
+    filters: [
+      {
+        key: 'attentionOnly',
+        label: 'Companies with quality attention signals only',
+        type: 'boolean',
+        defaultValue: false,
+      },
+    ],
   },
   {
     type: 'user_activity',

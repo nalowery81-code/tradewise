@@ -54,4 +54,5 @@ export type ReportRunResult = {
   summary: Record<string, number>
   billingNote?: string
   aiCostNote?: string
+  platform?: Record<string, unknown>
 }

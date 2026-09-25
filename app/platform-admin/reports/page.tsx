@@ -150,11 +150,51 @@ type ReportResult = {
   period: { preset: string; start: string; end: string }
   sections: string[]
   scopeCompanyId: string | null
-  rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow>
+type LearningQualityRow = {
+  companyId: string
+  companyName: string
+  companyStatus: string
+  accountType: string
+  quality: {
+    feedbackCount: number
+    helpful: number
+    notHelpful: number
+    feedbackRequests: number
+    respondedRequests: number
+    auditFlags: number
+    openFlags: number
+    auditReviews: number
+    corrected: number
+    incorrect: number
+  }
+  attention: {
+    needsAttention: boolean
+    signals: string[]
+  }
+}
+
+type LearningQualityPlatform = {
+  guidance: { total: number; active: number; inactive: number }
+  verifiedSources: { total: number; current: number; needsAttention: number }
+  sourceChecks: { total: number; issues: number }
+  learningRuns: {
+    total: number
+    completed: number
+    failed: number
+    reviews: number
+    guidanceCreated: number
+    helpfulSignals: number
+    sourcesChecked: number
+    sourceIssues: number
+  }
+}
+
+  rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow | LearningQualityRow>
   summary: Record<string, number>
   runId?: string
   billingNote?: string
   aiCostNote?: string
+  platform?: LearningQualityPlatform
 }
 
 export default function ReportsPage() {
@@ -549,6 +589,35 @@ export default function ReportsPage() {
           row.usage.fileSearchCalls,
         ] : []),
       ])
+    } else if (result.reportType === 'learning_quality') {
+      headers = [
+        'Company','Company Status',
+        ...(result.sections.includes('conversation_quality') ? [
+          'Feedback','Helpful','Not Helpful','Feedback Requests','Responded Requests','Audit Flags','Open Flags','Audit Reviews'
+        ] : []),
+        ...(result.sections.includes('corrections_guidance') ? ['Corrected Reviews','Incorrect Reviews'] : []),
+        'Needs Attention','Attention Signals'
+      ]
+      exportRows = (result.rows as LearningQualityRow[]).map((row) => [
+        row.companyName,
+        row.companyStatus,
+        ...(result.sections.includes('conversation_quality') ? [
+          row.quality.feedbackCount,
+          row.quality.helpful,
+          row.quality.notHelpful,
+          row.quality.feedbackRequests,
+          row.quality.respondedRequests,
+          row.quality.auditFlags,
+          row.quality.openFlags,
+          row.quality.auditReviews,
+        ] : []),
+        ...(result.sections.includes('corrections_guidance') ? [
+          row.quality.corrected,
+          row.quality.incorrect,
+        ] : []),
+        row.attention.needsAttention ? 'Yes' : 'No',
+        row.attention.signals.join('; '),
+      ])
     } else {
       return
     }
@@ -739,7 +808,7 @@ export default function ReportsPage() {
                 <SummaryMetric label="Avg tech adoption" value={result.summary.avgTechnicianAdoptionPct || 0} suffix="%" />
                 <SummaryMetric label="Unassigned techs" value={result.summary.unassignedTechnicians || 0} />
               </>
-            ) : (
+            ) : result.reportType === 'ai_usage_cost' ? (
               <>
                 <SummaryMetric label="Companies" value={result.summary.companies || 0} />
                 <SummaryMetric label="Using AI" value={result.summary.companiesWithUsage || 0} />
@@ -750,11 +819,52 @@ export default function ReportsPage() {
                 <SummaryMetric label="File searches" value={result.summary.fileSearchCalls || 0} />
                 <SummaryMetric label="Models" value={result.summary.models || 0} />
               </>
+            ) : (
+              <>
+                <SummaryMetric label="Companies" value={result.summary.companies || 0} />
+                <SummaryMetric label="Need attention" value={result.summary.attentionCompanies || 0} />
+                <SummaryMetric label="Helpful feedback" value={result.summary.helpfulFeedback || 0} />
+                <SummaryMetric label="Audit reviews" value={result.summary.auditReviews || 0} />
+                <SummaryMetric label="Corrected" value={result.summary.correctedReviews || 0} />
+                <SummaryMetric label="Open flags" value={result.summary.openFlags || 0} />
+                <SummaryMetric label="Active guidance" value={result.summary.activeGuidance || 0} />
+                <SummaryMetric label="Verified sources" value={result.summary.verifiedSourcesCurrent || 0} />
+              </>
             )}
           </div>
 
           {result.billingNote && <div style={infoStyle}><strong>Billing:</strong> {result.billingNote}</div>}
           {result.aiCostNote && <div style={infoStyle}><strong>AI cost:</strong> {result.aiCostNote}</div>}
+
+          {result.reportType === 'learning_quality' && result.platform && (
+            <div style={{ ...cardStyle, marginTop:14, background:'#f8fafc' }}>
+              <div style={{ fontSize:14, fontWeight:900 }}>Platform learning & source health</div>
+              <div style={subtleStyle}>These are platform-wide signals and are intentionally not assigned to an individual company.</div>
+              <div style={summaryGridStyle}>
+                {result.sections.includes('corrections_guidance') && (
+                  <>
+                    <SummaryMetric label="Guidance total" value={result.platform.guidance.total} />
+                    <SummaryMetric label="Guidance active" value={result.platform.guidance.active} />
+                  </>
+                )}
+                {result.sections.includes('source_health') && (
+                  <>
+                    <SummaryMetric label="Verified sources" value={result.platform.verifiedSources.total} />
+                    <SummaryMetric label="Sources current" value={result.platform.verifiedSources.current} />
+                    <SummaryMetric label="Source checks" value={result.platform.sourceChecks.total} />
+                    <SummaryMetric label="Source issues" value={result.platform.sourceChecks.issues} />
+                  </>
+                )}
+                {result.sections.includes('learning_runs') && (
+                  <>
+                    <SummaryMetric label="Learning runs" value={result.platform.learningRuns.total} />
+                    <SummaryMetric label="Runs completed" value={result.platform.learningRuns.completed} />
+                    <SummaryMetric label="Guidance generated" value={result.platform.learningRuns.guidanceCreated} />
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           <div style={reportTableWrapStyle}>
             {result.reportType === 'billing_usage' ? (
@@ -898,6 +1008,46 @@ export default function ReportsPage() {
                           <div>File searches: <strong>{row.usage.fileSearchCalls.toLocaleString()}</strong></div>
                         </td>
                       )}
+                    </tr>
+                  ))}
+                  {!result.rows.length && <tr><td colSpan={4} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
+                </tbody>
+              </table>
+            ) : result.reportType === 'learning_quality' ? (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Company</th>
+                    {result.sections.includes('conversation_quality') && <th style={thStyle}>Conversation quality</th>}
+                    {result.sections.includes('corrections_guidance') && <th style={thStyle}>Corrections</th>}
+                    <th style={thStyle}>Attention</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.rows as LearningQualityRow[]).map((row) => (
+                    <tr key={row.companyId}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:850 }}>{row.companyName}</div>
+                        <div style={cellSubtleStyle}>{row.companyStatus} · {row.accountType}</div>
+                      </td>
+                      {result.sections.includes('conversation_quality') && (
+                        <td style={tdStyle}>
+                          <div>Feedback: <strong>{row.quality.feedbackCount}</strong> · Helpful: <strong>{row.quality.helpful}</strong> · Other: <strong>{row.quality.notHelpful}</strong></div>
+                          <div>Requests: <strong>{row.quality.feedbackRequests}</strong> · Responded: <strong>{row.quality.respondedRequests}</strong></div>
+                          <div>Flags: <strong>{row.quality.auditFlags}</strong> · Open/confirmed: <strong>{row.quality.openFlags}</strong> · Reviews: <strong>{row.quality.auditReviews}</strong></div>
+                        </td>
+                      )}
+                      {result.sections.includes('corrections_guidance') && (
+                        <td style={tdStyle}>
+                          <div>Corrected: <strong>{row.quality.corrected}</strong></div>
+                          <div>Incorrect: <strong>{row.quality.incorrect}</strong></div>
+                        </td>
+                      )}
+                      <td style={tdStyle}>
+                        {row.attention.needsAttention
+                          ? <div style={{ display:'grid', gap:4 }}>{row.attention.signals.map((signal) => <span key={signal} style={attentionSignalStyle}>{signal}</span>)}</div>
+                          : <span style={healthySignalStyle}>No quality attention signals</span>}
+                      </td>
                     </tr>
                   ))}
                   {!result.rows.length && <tr><td colSpan={4} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
