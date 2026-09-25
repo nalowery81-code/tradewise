@@ -743,8 +743,6 @@ function ActionCard({ title, detail, href, tone }: { title: string; detail: stri
   return <a href={href} style={{ padding: 14, borderRadius: 12, background, color, textDecoration: 'none' }}><div style={{ fontWeight: 900 }}>{title}</div><div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#475569' }}>{detail}</div></a>
 }
 
-const miniMetricLinkStyle: React.CSSProperties = { ...miniMetricStyle, display:'block', boxSizing:'border-box', color:'#172033', textDecoration:'none', cursor:'pointer' }
-const miniMetricButtonStyle: React.CSSProperties = { ...miniMetricStyle, width:'100%', textAlign:'left', fontFamily:'inherit', cursor:'pointer' }
 const sourceModalBackdropStyle: React.CSSProperties = { position:'fixed', inset:0, zIndex:90, display:'grid', placeItems:'center', padding:18, background:'rgba(15,23,42,.48)' }
 const sourceModalCardStyle: React.CSSProperties = { width:'min(760px,100%)', maxHeight:'calc(100vh - 36px)', overflowY:'auto', padding:22, borderRadius:16, background:'#fff', boxShadow:'0 24px 70px rgba(15,23,42,.28)' }
 const sourceModalCloseStyle: React.CSSProperties = { width:34, height:34, border:'1px solid #e2e8f0', borderRadius:9, background:'#fff', color:'#475569', fontSize:22, lineHeight:1, cursor:'pointer' }
@@ -763,6 +761,8 @@ const dotStyle: React.CSSProperties = { width: 8, height: 8, borderRadius: 999, 
 const dateText: React.CSSProperties = { color: '#94a3b8', fontSize: 10, whiteSpace: 'nowrap' }
 const qualityGridStyle: React.CSSProperties = { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 9 }
 const miniMetricStyle: React.CSSProperties = { padding: 12, borderRadius: 11, background: '#f8fafc', border: '1px solid #eef2f7' }
+const miniMetricLinkStyle: React.CSSProperties = { ...miniMetricStyle, display:'block', boxSizing:'border-box', color:'#172033', textDecoration:'none', cursor:'pointer' }
+const miniMetricButtonStyle: React.CSSProperties = { ...miniMetricStyle, width:'100%', textAlign:'left', fontFamily:'inherit', cursor:'pointer' }
 const deploymentStatus: React.CSSProperties = { padding: '11px 13px', borderRadius: 10, fontWeight: 900, marginBottom: 9 }
 const keyValueStyle: React.CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 14, padding: '9px 0', borderBottom: '1px solid #f1f5f9', fontSize: 12 }
 const buttonLink: React.CSSProperties = { display: 'inline-block', padding: '8px 10px', borderRadius: 8, border: '1px solid #cbd5e1', color: '#334155', textDecoration: 'none', fontSize: 11, fontWeight: 800 }
