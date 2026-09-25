@@ -29,7 +29,7 @@ export async function POST(
     }
 
     if (preferredName.length > 80) {
-      return jsonNoStore({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
+      return Response.json({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -53,7 +53,7 @@ export async function POST(
     const { data: inviteData, error: inviteError } =
       await supabaseServer.auth.admin.inviteUserByEmail(email, {
         redirectTo: getInviteRedirectUrl(request),
-        data: { full_name: name, company_id: companyId, role: 'owner' },
+        data: { full_name: name, preferred_name: preferredName || null, company_id: companyId, role: 'owner' },
       })
 
     if (inviteError || !inviteData.user) {
@@ -88,6 +88,8 @@ export async function POST(
         profileId: profile.id,
         authUserId: profile.auth_user_id,
         name,
+        preferredName,
+        displayName: preferredName || name,
         email,
         role: profile.role,
       },
