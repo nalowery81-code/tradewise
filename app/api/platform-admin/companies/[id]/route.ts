@@ -322,6 +322,16 @@ export async function PATCH(
     return jsonNoStore({ error: 'No company controls were provided.' }, { status: 400 })
   }
 
+  const { data: beforeCompany, error: beforeCompanyError } = await supabaseServer
+    .from('Companies')
+    .select('id, name, plan_code, subscription_status, seat_limits, feature_flags, timezone, trades, jurisdictions')
+    .eq('id', id)
+    .single()
+
+  if (beforeCompanyError || !beforeCompany) {
+    return jsonNoStore({ error: 'Company not found.' }, { status: 404 })
+  }
+
   updates.updated_at = new Date().toISOString()
 
   const { data, error } = await supabaseServer
@@ -354,6 +364,37 @@ export async function PATCH(
       }
     }
   }
+
+  const changedKeys = Object.keys(updates).filter((key) => key !== 'updated_at')
+  const { error: companyAuditError } = await supabaseServer.from('PlatformAdminCompanyAudit').insert({
+    admin_profile_id: access.profileId,
+    company_id: id,
+    action: changedKeys.some((key) => ['plan_code', 'subscription_status', 'seat_limits'].includes(key))
+      ? 'billing_plan_update'
+      : 'company_control_update',
+    before_state: {
+      name: beforeCompany.name,
+      planCode: beforeCompany.plan_code,
+      subscriptionStatus: beforeCompany.subscription_status,
+      seatLimits: beforeCompany.seat_limits,
+      featureFlags: beforeCompany.feature_flags,
+      timezone: beforeCompany.timezone,
+      trades: beforeCompany.trades,
+      jurisdictions: beforeCompany.jurisdictions,
+    },
+    after_state: {
+      name: data.name,
+      planCode: data.plan_code,
+      subscriptionStatus: data.subscription_status,
+      seatLimits: data.seat_limits,
+      featureFlags: data.feature_flags,
+      timezone: data.timezone,
+      trades: data.trades,
+      jurisdictions: data.jurisdictions,
+    },
+    note: changedKeys.join(', '),
+  })
+  if (companyAuditError) console.error('PLATFORM COMPANY AUDIT ERROR:', companyAuditError)
 
   return jsonNoStore({
     updated: true,

@@ -10,22 +10,29 @@ export async function GET(request: Request) {
   const access = await requirePlatformAdmin(request)
   if ('error' in access) return access.error
 
-  const [userAudit, impersonationAudit, profiles, companies, authUsers] = await Promise.all([
+  const [userAudit, impersonationAudit, companyAudit, profiles, companies, authUsers] = await Promise.all([
     supabaseServer.from('PlatformAdminUserAudit')
       .select('id, created_at, admin_profile_id, target_profile_id, action, before_state, after_state, note')
       .order('created_at', { ascending: false })
-      .limit(250),
+      .limit(400),
     supabaseServer.from('PlatformImpersonationAudit')
       .select('id, created_at, admin_profile_id, target_profile_id, target_company_id, action')
       .order('created_at', { ascending: false })
-      .limit(250),
+      .limit(400),
+    supabaseServer.from('PlatformAdminCompanyAudit')
+      .select('id, created_at, admin_profile_id, company_id, action, before_state, after_state, note')
+      .order('created_at', { ascending: false })
+      .limit(400),
     supabaseServer.from('UserProfiles')
       .select('id, auth_user_id, company_id, role, preferred_name'),
     supabaseServer.from('Companies').select('id, name'),
     supabaseServer.auth.admin.listUsers({ page: 1, perPage: 1000 }),
   ])
 
-  const error = userAudit.error || impersonationAudit.error || profiles.error || companies.error || authUsers.error
+  const error =
+    userAudit.error || impersonationAudit.error || companyAudit.error ||
+    profiles.error || companies.error || authUsers.error
+
   if (error) {
     console.error('SECURITY AUDIT LOAD ERROR:', error)
     return jsonNoStore({ error: 'Could not load security audit data.' }, { status: 500 })
@@ -38,7 +45,7 @@ export async function GET(request: Request) {
   const describeProfile = (profileId: string | null) => {
     if (!profileId) return null
     const profile = profileById.get(profileId)
-    if (!profile) return { profileId, displayName: 'Unknown profile', email: '', role: '', companyName: '' }
+    if (!profile) return { profileId, displayName: 'Unknown profile', email: '', role: '', companyName: '', companyId: '' }
     const auth = authById.get(profile.auth_user_id)
     const metadataName =
       typeof auth?.user_metadata?.full_name === 'string'
@@ -52,22 +59,27 @@ export async function GET(request: Request) {
       email: auth?.email || '',
       role: profile.role,
       companyName: companyById.get(profile.company_id) || '',
+      companyId: profile.company_id || '',
     }
   }
 
   const events = [
-    ...(userAudit.data || []).map((row) => ({
-      id: `user:${row.id}`,
-      createdAt: row.created_at,
-      category: 'user_admin',
-      action: row.action,
-      admin: describeProfile(row.admin_profile_id),
-      target: describeProfile(row.target_profile_id),
-      companyName: describeProfile(row.target_profile_id)?.companyName || '',
-      note: row.note || '',
-      beforeState: row.before_state,
-      afterState: row.after_state,
-    })),
+    ...(userAudit.data || []).map((row) => {
+      const target = describeProfile(row.target_profile_id)
+      return {
+        id: `user:${row.id}`,
+        createdAt: row.created_at,
+        category: 'user_admin',
+        action: row.action,
+        admin: describeProfile(row.admin_profile_id),
+        target,
+        companyId: target?.companyId || '',
+        companyName: target?.companyName || '',
+        note: row.note || '',
+        beforeState: row.before_state,
+        afterState: row.after_state,
+      }
+    }),
     ...(impersonationAudit.data || []).map((row) => ({
       id: `impersonation:${row.id}`,
       createdAt: row.created_at,
@@ -75,10 +87,24 @@ export async function GET(request: Request) {
       action: row.action,
       admin: describeProfile(row.admin_profile_id),
       target: describeProfile(row.target_profile_id),
+      companyId: row.target_company_id || '',
       companyName: companyById.get(row.target_company_id) || describeProfile(row.target_profile_id)?.companyName || '',
       note: '',
       beforeState: null,
       afterState: null,
+    })),
+    ...(companyAudit.data || []).map((row) => ({
+      id: `company:${row.id}`,
+      createdAt: row.created_at,
+      category: 'company_admin',
+      action: row.action,
+      admin: describeProfile(row.admin_profile_id),
+      target: null,
+      companyId: row.company_id,
+      companyName: companyById.get(row.company_id) || 'Unknown company',
+      note: row.note || '',
+      beforeState: row.before_state,
+      afterState: row.after_state,
     })),
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
@@ -89,10 +115,11 @@ export async function GET(request: Request) {
 
   return jsonNoStore({
     generatedAt: new Date().toISOString(),
-    events: events.slice(0, 400),
+    events: events.slice(0, 600),
     summary: {
       totalEvents: events.length,
       userAdminEvents: events.filter((event) => event.category === 'user_admin').length,
+      companyAdminEvents: events.filter((event) => event.category === 'company_admin').length,
       impersonationEvents: events.filter((event) => event.category === 'impersonation').length,
       actionCounts,
     },
