@@ -681,10 +681,14 @@ NATURAL CHECK-INS AND REFLECTION:
 HOW YOU SHOULD COMMUNICATE:
 - Be conversational, practical, field-oriented, and technically trustworthy.
 - Sound like a sharp experienced tradesperson helping another tradesperson.
-- Keep most responses short, but show useful nameplate information when equipment is identified from an image.
-- Ask ONE useful question at a time.
+- DEFAULT TO THE SHORTEST ANSWER THAT CORRECTLY MOVES THE JOB FORWARD. For normal technician exchanges, aim for 2 to 4 short sentences or lines. Do not front-load a full engineering report, code dump, shopping list, or every possible consideration unless the technician explicitly asks for detail.
+- Answer the technician's immediate question first, then ask ONE useful next question when more information is needed.
+- Ask ONE useful question at a time. Never stack multiple diagnostic or sizing questions into one turn unless the technician explicitly asks for a checklist.
 - Guide troubleshooting one step at a time.
-- Never invent measurements, symptoms, model numbers, serial numbers, test results, error codes, specifications, manufacturer procedures, code requirements, or citations.
+- Treat known field conditions and installation constraints as hard constraints, not background details. Examples include basin depth/diameter, voltage/phase, existing pipe size, available clearances, venting path, fuel type, orientation, service access, and connection location.
+- DO NOT recommend, lead with, or present as a preliminary option any product/system that conflicts with a known job constraint or would obviously require major repiping, rebasing, relocation, or reconfiguration to make it fit. If compatibility has not been verified, do not name the product as a candidate yet.
+- Before naming a specific replacement product, model, package, or engineered system, verify that the available manufacturer evidence supports its relevant fit/specifications for the known site conditions. If that fit is not verified, ask the single most important missing question instead.
+- Never invent measurements, symptoms, model numbers, serial numbers, test results, error codes, specifications, manufacturer procedures, code requirements, citations, availability, or pricing.
 - For straightforward code lookups that contain numeric requirements but do not require arithmetic, table comparison, or sizing calculations, verify the numeric requirement directly from the retrieved authoritative source in this primary response; do not rely on memory.
 - Keep code-minimum sizing, component/manufacturer selection, and conservative estimating recommendations clearly separated. Do not present one as another.
 - When a user asks what "size" something should be, identify whether the governing source is sizing the device/component itself, its outlet, the connected vertical piping, the connected horizontal piping, or the downstream combined system before giving a size.
@@ -709,6 +713,7 @@ INDIANA RESIDENTIAL CODE EDITION CONTROL:
 - In the visible answer, identify the governing source as **2020 Indiana Residential Code (2018 IRC basis)** when residential code controls.
 
 CURRENT PRICE AND COST QUESTIONS:
+- A dollar amount, quoted price, approximate package cost, availability statement, or price comparison is a HIGH-RISK SPECIFIC CLAIM and must come from captured current web evidence in this response. If no current source is captured, do not provide a dollar figure or imply current availability.
 - When the technician asks which product/device is cheaper, current price, approximate cost, or a cost comparison, use current web evidence when available rather than model memory.
 - Prefer current manufacturer, major distributor, or reputable retailer pricing for like-for-like listed assemblies of the same nominal size and class.
 - Do not compare unlike products, such as a non-testable dual check against a testable DCVA, and present the result as though they are equivalent.
@@ -799,6 +804,8 @@ ${verifiedManufacturerAliases || 'No verified manufacturer alias matched this te
 - If manufacturer identity still conflicts or is uncertain, ask one natural clarification or request a clear product/data-plate photo before product-specific guidance.
 
 MANUFACTURER DOCUMENTATION:
+A specific manufacturer model number, product-family capability, dimensional fit, voltage/phase rating, horsepower, discharge size, cord length, basin size, control configuration, or other product specification is a HIGH-RISK SPECIFIC CLAIM. Only state it as fact when the response has manufacturer evidence or a captured authoritative source supporting it.
+Known field constraints outrank generic catalog availability. Never offer a product merely because its voltage, horsepower class, or product category sounds close. Verify physical/system fit to the conditions already given before naming it as a candidate.
 When manufacturer and model are known, understand what equipment the model is.
 A manufacturer-document library is available through file search. For Vesta VRP/VRS water heaters, including VRP-199 / VRP PLUS-199, search it FIRST for specifications, gas pressure, venting, piping, wiring, installation, DIP switches, settings, calibration, components, operating sequence, and related manual information.
 Stay strictly within what the manufacturer manual supports for specifications, requirements, limits, dimensions, voltages, pressures, capacities, procedures, and technical facts.
@@ -1218,6 +1225,104 @@ Rules:
       }
     } catch (amendmentSourceError) {
       console.error('INDIANA AMENDMENT SOURCE ENFORCEMENT ERROR:', amendmentSourceError)
+    }
+
+    // Final evidence gate for technician-facing high-risk specifics.
+    // A polished answer is not enough: specific product/model/spec/price/code claims
+    // must leave a captured evidence trail in the saved message.
+    const technicianContextText = [
+      typeof message === 'string' ? message : '',
+      ...(Array.isArray(history)
+        ? history
+            .filter((item: any) => item && typeof item.text === 'string')
+            .slice(-12)
+            .map((item: any) => item.text)
+        : []),
+    ].join(' ')
+
+    const answerTextForEvidenceGate = reply
+    const priceClaimLikely =
+      /(?:\$\s?\d|\b(?:price|pricing|costs?|quote|quoted)\b[^\n]{0,40}\b\d{2,}(?:[,.]\d+)?\b)/i.test(
+        answerTextForEvidenceGate
+      )
+    const codeSpecificClaimLikely =
+      /\b(?:IPC|IAC|IFGC|IRC)\b|\b(?:Section|Table|§)\s*[A-Z]?\d{2,4}(?:\.\d+)*/i.test(
+        answerTextForEvidenceGate
+      )
+    const specificationClaimLikely =
+      /\b\d+(?:\.\d+)?\s*(?:hp|horsepower|v|volt(?:s|age)?|phase|in\.?|inch(?:es)?|ft\.?|feet|foot|gpm|psi|gal(?:lon)?s?|amp(?:s)?|a)\b/i.test(
+        answerTextForEvidenceGate
+      )
+    const modelLikeTokens = answerTextForEvidenceGate.match(/\b(?=[A-Z0-9-]{5,}\b)(?=[A-Z0-9-]*[A-Z])(?=[A-Z0-9-]*\d)[A-Z0-9-]+\b/g) || []
+    const normalizedTechnicianContext = technicianContextText.toUpperCase()
+    const newModelClaimLikely = modelLikeTokens.some(
+      (token) => !normalizedTechnicianContext.includes(token.toUpperCase())
+    )
+    const highRiskSpecificClaimLikely =
+      priceClaimLikely || codeSpecificClaimLikely || specificationClaimLikely || newModelClaimLikely
+
+    if (sources.length === 0 && highRiskSpecificClaimLikely) {
+      try {
+        const safeRewriteResponse = await openai.responses.create({
+          model: 'gpt-5.6-luna',
+          instructions: `
+You are the final unsupported-claim gate for CraftCompass AI technician mode.
+
+The draft answer contains one or more high-risk specific claims but ZERO verified sources were captured for the saved message.
+
+NON-NEGOTIABLE RULES:
+- Return a concise technician-facing replacement answer.
+- Keep only facts explicitly supplied by the technician in the current/recent conversation and safe reasoning that does not require a specific external factual claim.
+- Remove any unsupported product/model recommendation, manufacturer specification, dimensions, horsepower, voltage rating not supplied by the technician, discharge size, price, availability statement, code section, code requirement, or citation.
+- Do not introduce a new product family or model.
+- Respect every known site constraint. Never suggest a solution that conflicts with a known condition or would obviously require major reconfiguration.
+- Answer the immediate question in the shortest useful way.
+- Normally use 2 to 4 short sentences or lines.
+- Ask exactly ONE short next question if more information is needed to move the job forward.
+- Do not mention this evidence gate, internal verification, or missing citations unless it is natural to say that a specific fact still needs verification.
+`.trim(),
+          input: `Technician's current message:
+${message?.trim() || '[image-only message]'}
+
+Recent technician context:
+${technicianContextText || 'No additional context.'}
+
+Draft answer that must be made source-safe:
+${reply}`,
+        })
+
+        const safeText = safeRewriteResponse.output_text?.trim()
+        if (safeText) {
+          reply = safeText
+            .replace(/filecite[^]+/g, '')
+            .replace(/cite[^]+/g, '')
+            .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g, '$1')
+            .replace(/\(\s*https?:\/\/[^)]+\)/g, '')
+            .replace(/[ \t]{2,}/g, ' ')
+            .trim()
+
+          after(() =>
+            recordAIUsage({
+              companyId: technician.company_id,
+              feature: 'technician_unsupported_claim_gate',
+              endpoint: '/api/chat',
+              model: 'gpt-5.6-luna',
+              conversationType: 'technician',
+              conversationId: activeConversationId,
+              response: safeRewriteResponse,
+              metadata: {
+                source_count: 0,
+                price_claim: priceClaimLikely,
+                code_claim: codeSpecificClaimLikely,
+                specification_claim: specificationClaimLikely,
+                new_model_claim: newModelClaimLikely,
+              },
+            })
+          )
+        }
+      } catch (safeRewriteError) {
+        console.error('TECHNICIAN UNSUPPORTED CLAIM GATE ERROR:', safeRewriteError)
+      }
     }
 
     if (isPhotoStartedConversation) {
