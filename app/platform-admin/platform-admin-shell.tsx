@@ -39,8 +39,7 @@ export default function PlatformAdminShell({
 
         <PlatformAdminNav />
 
-        <div style={{ marginTop: 'auto', display: 'grid', gap: 8 }}>
-          <a href="/account/password" style={accountStyle}>Account & password</a>
+        <div style={{ marginTop: 'auto', display: 'grid', gap: 8, paddingTop: 18 }}>
           <a className="platform-admin-owner-link" href="/platform-admin/owner-workspace" style={ownerWorkspaceStyle}>
             ← Owner Workspace
           </a>
@@ -91,17 +90,6 @@ const adminLabelStyle: React.CSSProperties = {
   fontWeight: 850,
   letterSpacing: '.09em',
   textTransform: 'uppercase',
-}
-
-const accountStyle: React.CSSProperties = {
-  display: 'block',
-  padding: '10px 11px',
-  borderRadius: 9,
-  color: '#a8b4c5',
-  textDecoration: 'none',
-  fontSize: 12,
-  lineHeight: 1.25,
-  fontWeight: 800,
 }
 
 const ownerWorkspaceStyle: React.CSSProperties = {
