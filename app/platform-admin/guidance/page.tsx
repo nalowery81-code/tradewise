@@ -40,7 +40,11 @@ export default function GuidanceLibraryPage() {
     if(!response.ok){setError(data.error||'Could not load guidance library.');setLoading(false);return}
     setItems(data.guidance||[]);setWeeklyRuns(data.weeklyRuns||[]);setSourceIssues(data.sourceIssues||[]);setLoading(false)
   }
-  useEffect(()=>{void load()},[])
+  useEffect(()=>{
+    const requestedStatus = new URLSearchParams(window.location.search).get('status') || ''
+    if (['active','draft','inactive','superseded'].includes(requestedStatus)) setFilter(requestedStatus)
+    void load()
+  },[])
   const visible=useMemo(()=>filter?items.filter(i=>i.status===filter):items,[items,filter])
 
   const runWeeklyNow=async()=>{

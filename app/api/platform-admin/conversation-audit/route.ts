@@ -304,21 +304,58 @@ export async function GET(request: Request) {
       (a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
     )
 
-    const { data: pendingFlags, error: pendingFlagsError } = await supabaseServer
-      .from('ConversationAuditFlags')
-      .select('conversation_type, conversation_id')
-      .eq('status', 'pending')
+    const auditWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+    const [
+      { data: pendingFlags, error: pendingFlagsError },
+      { data: helpfulSignals, error: helpfulSignalsError },
+      { data: recentReviews, error: recentReviewsError },
+    ] = await Promise.all([
+      supabaseServer
+        .from('ConversationAuditFlags')
+        .select('conversation_type, conversation_id')
+        .eq('status', 'pending'),
+      supabaseServer
+        .from('ConversationUserFeedback')
+        .select('conversation_type, conversation_id')
+        .eq('rating', 'helpful')
+        .gte('updated_at', auditWeekAgo),
+      supabaseServer
+        .from('ConversationAuditReviews')
+        .select('conversation_type, conversation_id, status')
+        .in('status', ['good','corrected','resolved'])
+        .gte('updated_at', auditWeekAgo),
+    ])
 
     if (pendingFlagsError) console.error('PENDING AUDIT FLAGS LOAD ERROR:', pendingFlagsError)
+    if (helpfulSignalsError) console.error('HELPFUL AUDIT SIGNALS LOAD ERROR:', helpfulSignalsError)
+    if (recentReviewsError) console.error('RECENT AUDIT REVIEWS LOAD ERROR:', recentReviewsError)
+
     const flagCounts = new Map<string, number>()
+    const helpfulCounts = new Map<string, number>()
+    const reviewedCounts = new Map<string, number>()
+
     for (const flag of pendingFlags || []) {
       const key = `${flag.conversation_type}:${flag.conversation_id}`
       flagCounts.set(key, (flagCounts.get(key) || 0) + 1)
     }
-    const conversationsWithFlags = conversations.map((conversation) => ({
-      ...conversation,
-      pendingFlagCount: flagCounts.get(`${conversation.type}:${conversation.id}`) || 0,
-    }))
+    for (const signal of helpfulSignals || []) {
+      const key = `${signal.conversation_type}:${signal.conversation_id}`
+      helpfulCounts.set(key, (helpfulCounts.get(key) || 0) + 1)
+    }
+    for (const review of recentReviews || []) {
+      const key = `${review.conversation_type}:${review.conversation_id}`
+      reviewedCounts.set(key, (reviewedCounts.get(key) || 0) + 1)
+    }
+
+    const conversationsWithFlags = conversations.map((conversation) => {
+      const key = `${conversation.type}:${conversation.id}`
+      return {
+        ...conversation,
+        pendingFlagCount: flagCounts.get(key) || 0,
+        helpful7dCount: helpfulCounts.get(key) || 0,
+        reviewed7dCount: reviewedCounts.get(key) || 0,
+      }
+    })
 
     return jsonNoStore({
       conversations: conversationsWithFlags,

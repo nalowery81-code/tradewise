@@ -19,6 +19,8 @@ type AuditConversation = {
   contextType: string
   modelName: string | null
   pendingFlagCount?: number
+  helpful7dCount?: number
+  reviewed7dCount?: number
   jurisdiction?: { country?: string; state?: string; locality?: string } | null
 }
 
@@ -115,11 +117,16 @@ export default function ConversationAuditPage() {
   const [role, setRole] = useState('')
   const [jurisdictionState, setJurisdictionState] = useState('')
   const [needsAuditOnly, setNeedsAuditOnly] = useState(false)
+  const [dashboardView, setDashboardView] = useState('')
   const [expandedAuditGroups, setExpandedAuditGroups] = useState<string[]>([])
 
   const getToken = async () => (await supabase.auth.getSession()).data.session?.access_token || ''
 
   useEffect(() => {
+    const requestedView = new URLSearchParams(window.location.search).get('view') || ''
+    setDashboardView(requestedView)
+    if (requestedView === 'pending') setNeedsAuditOnly(true)
+
     const load = async () => {
       const token = await getToken()
       if (!token) return void (window.location.href = '/login')
@@ -152,6 +159,8 @@ export default function ConversationAuditPage() {
       if (jurisdictionState && String(conversation.jurisdiction?.state || '').toUpperCase() !== jurisdictionState) return false
       if (role && conversation.role !== role) return false
       if (needsAuditOnly && !conversation.pendingFlagCount) return false
+      if (dashboardView === 'helpful7d' && !(conversation.helpful7dCount || 0)) return false
+      if (dashboardView === 'reviewed7d' && !(conversation.reviewed7dCount || 0)) return false
       if (!needle) return true
       return [
         conversation.title,
@@ -164,7 +173,7 @@ export default function ConversationAuditPage() {
         conversation.jurisdiction?.locality,
       ].some((value) => String(value || '').toLowerCase().includes(needle))
     })
-  }, [conversations, companyId, jurisdictionState, role, search, needsAuditOnly])
+  }, [conversations, companyId, jurisdictionState, role, search, needsAuditOnly, dashboardView])
 
   const jurisdictionOptions = useMemo(
     () => [...new Set(
@@ -513,7 +522,39 @@ export default function ConversationAuditPage() {
             </label>
           </div>
 
-          {error && <div style={errorStyle}>{error}</div>}
+          {dashboardView && (
+            <div style={dashboardFilterBannerStyle}>
+              <div>
+                <strong>
+                  {dashboardView === 'helpful7d'
+                    ? 'Helpful feedback · last 7 days'
+                    : dashboardView === 'reviewed7d'
+                      ? 'Reviewed conversations · last 7 days'
+                      : 'Pending audit flags'}
+                </strong>
+                <div style={{ marginTop: 3, fontSize: 11, color: '#64748b' }}>
+                  {dashboardView === 'helpful7d'
+                    ? `${filtered.reduce((sum, item) => sum + (item.helpful7dCount || 0), 0)} Helpful feedback signal(s) across ${filtered.length} conversation(s).`
+                    : dashboardView === 'reviewed7d'
+                      ? `${filtered.reduce((sum, item) => sum + (item.reviewed7dCount || 0), 0)} review(s) across ${filtered.length} conversation(s).`
+                      : `${filtered.reduce((sum, item) => sum + (item.pendingFlagCount || 0), 0)} pending flag(s) across ${filtered.length} conversation(s).`}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDashboardView('')
+                  setNeedsAuditOnly(false)
+                  window.history.replaceState({}, '', '/platform-admin/conversation-audit')
+                }}
+                style={clearDashboardFilterStyle}
+              >
+                Clear filter
+              </button>
+            </div>
+          )}
+
+          {error && <div style={errorStyle}>{error}</div>
           {actionStatus && <div style={{ ...errorStyle, background: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#f0fdf4' : '#fff7ed', color: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#166534' : '#9a3412' }}>{actionStatus}</div>}
 
           <div className="audit-layout" style={layoutStyle}>
@@ -873,6 +914,9 @@ const messageLabelStyle: React.CSSProperties = { display: 'flex', justifyContent
 const sourcesStyle: React.CSSProperties = { marginTop: 13, paddingTop: 11, borderTop: '1px solid #e2e8f0' }
 const historyNoteStyle: React.CSSProperties = { padding: '11px 15px', borderTop: '1px solid #fde68a', background: '#fffbeb', color: '#92400e', fontSize: 12, lineHeight: 1.45 }
 const emptyStyle: React.CSSProperties = { padding: 24, color: '#64748b', fontSize: 13 }
+const dashboardFilterBannerStyle: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'center', gap:12, marginTop:10, padding:'10px 12px', border:'1px solid #bae6fd', borderRadius:10, background:'#f0f9ff', color:'#0c4a6e' }
+const clearDashboardFilterStyle: React.CSSProperties = { border:'1px solid #bae6fd', borderRadius:8, padding:'7px 9px', background:'#fff', color:'#075985', fontSize:11, fontWeight:800, cursor:'pointer' }
+
 const errorStyle: React.CSSProperties = { marginTop: 14, padding: 11, borderRadius: 10, background: '#fef2f2', color: '#991b1b', fontSize: 13 }
 
 const auditButtonStyle: React.CSSProperties = {

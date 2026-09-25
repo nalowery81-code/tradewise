@@ -96,6 +96,16 @@ type DashboardData = {
     sourceIssuesLatest: number
   }
   latestRun: any
+  latestSourceChecks: {
+    id: string
+    source_title: string | null
+    source_url: string
+    status: string
+    http_status: number | null
+    final_url: string | null
+    error_text: string | null
+    checked_at: string
+  }[]
   sourceIssues: {
     id: string
     source_title: string | null
@@ -133,6 +143,7 @@ export default function PlatformAdminDashboard() {
   const [costLoading, setCostLoading] = useState(true)
   const [companyLensId, setCompanyLensId] = useState('')
   const [jurisdictionLens, setJurisdictionLens] = useState('')
+  const [sourceDetailMode, setSourceDetailMode] = useState<'checked' | 'issues' | null>(null)
 
   useEffect(() => {
     void (async () => {
@@ -465,12 +476,42 @@ export default function PlatformAdminDashboard() {
                 <section style={cardStyle}>
                   <SectionHeader title="Learning & Quality" subtitle="The feedback loop that makes CraftCompass better." />
                   <div className="quality-grid" style={qualityGridStyle}>
-                    <MiniMetric label="Helpful · 7d" value={data.quality.helpful7d} />
-                    <MiniMetric label="Pending flags" value={data.quality.flagsPending} />
-                    <MiniMetric label="Reviewed · 7d" value={data.quality.reviewed7d} />
-                    <MiniMetric label="Draft guidance" value={data.quality.draftGuidance} />
-                    <MiniMetric label="Sources checked" value={data.quality.sourcesCheckedLatest} />
-                    <MiniMetric label="Source issues" value={data.quality.sourceIssuesLatest} />
+                    <MiniMetric
+                      label="Helpful · 7d"
+                      value={data.quality.helpful7d}
+                      href="/platform-admin/conversation-audit?view=helpful7d"
+                      title="Show the conversations that received Helpful feedback in the last 7 days."
+                    />
+                    <MiniMetric
+                      label="Pending flags"
+                      value={data.quality.flagsPending}
+                      href="/platform-admin/conversation-audit?view=pending"
+                      title="Show conversations with audit flags waiting for review."
+                    />
+                    <MiniMetric
+                      label="Reviewed · 7d"
+                      value={data.quality.reviewed7d}
+                      href="/platform-admin/conversation-audit?view=reviewed7d"
+                      title="Show conversations with Good, Corrected, or Resolved reviews from the last 7 days."
+                    />
+                    <MiniMetric
+                      label="Draft guidance"
+                      value={data.quality.draftGuidance}
+                      href="/platform-admin/guidance?status=draft"
+                      title="Show guidance drafts waiting for an Admin decision."
+                    />
+                    <MiniMetric
+                      label="Sources checked"
+                      value={data.quality.sourcesCheckedLatest}
+                      onClick={() => setSourceDetailMode('checked')}
+                      title="Show every source checked in the latest weekly learning run."
+                    />
+                    <MiniMetric
+                      label="Source issues"
+                      value={data.quality.sourceIssuesLatest}
+                      onClick={() => setSourceDetailMode('issues')}
+                      title="Show source exceptions from the latest weekly learning run."
+                    />
                   </div>
                 </section>
 
@@ -524,6 +565,62 @@ export default function PlatformAdminDashboard() {
                 </div>
               </section>
             </>
+          )}
+
+          {data && sourceDetailMode && (
+            <div style={sourceModalBackdropStyle} onClick={() => setSourceDetailMode(null)}>
+              <div style={sourceModalCardStyle} onClick={(event) => event.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start' }}>
+                  <div>
+                    <div style={eyebrowLight}>Latest weekly learning run</div>
+                    <h2 style={{ margin: '5px 0 4px', fontSize: 24 }}>
+                      {sourceDetailMode === 'checked' ? 'Sources checked' : 'Source issues'}
+                    </h2>
+                    <div style={quietText}>
+                      {data.latestRun?.completed_at
+                        ? new Date(data.latestRun.completed_at).toLocaleString()
+                        : data.latestRun?.created_at
+                          ? new Date(data.latestRun.created_at).toLocaleString()
+                          : 'No completed run timestamp available'}
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setSourceDetailMode(null)} style={sourceModalCloseStyle}>×</button>
+                </div>
+
+                <div style={{ display: 'grid', gap: 9, marginTop: 16 }}>
+                  {(data.latestSourceChecks || [])
+                    .filter((row) => sourceDetailMode === 'checked' || ['dead','blocked','unreachable','invalid'].includes(row.status))
+                    .map((row) => (
+                      <div key={row.id} style={sourceCheckRowStyle}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 850 }}>{row.source_title || 'Verified source'}</div>
+                          <div style={{ marginTop: 3, color: '#64748b', fontSize: 11, overflowWrap: 'anywhere' }}>{row.source_url}</div>
+                          {row.error_text && <div style={{ marginTop: 4, color: '#9a3412', fontSize: 11 }}>{row.error_text}</div>}
+                        </div>
+                        <div style={{ textAlign: 'right', flex: '0 0 auto' }}>
+                          <div style={{
+                            fontSize: 11,
+                            fontWeight: 900,
+                            textTransform: 'uppercase',
+                            color: ['dead','blocked','unreachable','invalid'].includes(row.status) ? '#9a3412' : '#166534'
+                          }}>
+                            {row.status}{row.http_status ? ` · ${row.http_status}` : ''}
+                          </div>
+                          <div style={{ marginTop: 4, color: '#94a3b8', fontSize: 10 }}>
+                            {new Date(row.checked_at).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+
+                  {(data.latestSourceChecks || []).filter((row) => sourceDetailMode === 'checked' || ['dead','blocked','unreachable','invalid'].includes(row.status)).length === 0 && (
+                    <div style={{ ...quietText, padding: 14 }}>
+                      {sourceDetailMode === 'checked' ? 'No sources were recorded for the latest run.' : 'No source issues were recorded for the latest run.'}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
     </PlatformAdminShell>
   )
@@ -609,8 +706,30 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 function AttentionRow({ label, value, href }: { label: string; value: number; href: string }) {
   return <a href={href} style={attentionRowStyle}><span>{label}</span><span style={{ fontWeight: 900, color: value ? '#b45309' : '#166534' }}>{value}</span></a>
 }
-function MiniMetric({ label, value }: { label: string; value: number }) {
-  return <div style={miniMetricStyle}><div style={{ fontSize: 25, fontWeight: 900 }}>{value}</div><div style={{ marginTop: 4, color: '#64748b', fontSize: 11, fontWeight: 700 }}>{label}</div></div>
+function MiniMetric({
+  label,
+  value,
+  href,
+  onClick,
+  title,
+}: {
+  label: string
+  value: number
+  href?: string
+  onClick?: () => void
+  title?: string
+}) {
+  const content = (
+    <>
+      <div style={{ fontSize: 25, fontWeight: 900 }}>{value}</div>
+      <div style={{ marginTop: 4, color: '#64748b', fontSize: 11, fontWeight: 700 }}>{label}</div>
+      {(href || onClick) && <div style={{ marginTop: 7, color: '#086195', fontSize: 10, fontWeight: 850 }}>View details →</div>}
+    </>
+  )
+
+  if (href) return <a href={href} title={title} style={miniMetricLinkStyle}>{content}</a>
+  if (onClick) return <button type="button" onClick={onClick} title={title} style={miniMetricButtonStyle}>{content}</button>
+  return <div style={miniMetricStyle}>{content}</div>
 }
 function KeyValue({ label, value }: { label: string; value: string }) {
   return <div style={keyValueStyle}><span style={{ color: '#64748b' }}>{label}</span><span style={{ fontWeight: 800, textAlign: 'right', overflowWrap: 'anywhere' }}>{value}</span></div>
@@ -623,6 +742,13 @@ function ActionCard({ title, detail, href, tone }: { title: string; detail: stri
   const color = tone === 'red' ? '#be123c' : tone === 'amber' ? '#b45309' : '#1d4ed8'
   return <a href={href} style={{ padding: 14, borderRadius: 12, background, color, textDecoration: 'none' }}><div style={{ fontWeight: 900 }}>{title}</div><div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.5, color: '#475569' }}>{detail}</div></a>
 }
+
+const miniMetricLinkStyle: React.CSSProperties = { ...miniMetricStyle, display:'block', boxSizing:'border-box', color:'#172033', textDecoration:'none', cursor:'pointer' }
+const miniMetricButtonStyle: React.CSSProperties = { ...miniMetricStyle, width:'100%', textAlign:'left', fontFamily:'inherit', cursor:'pointer' }
+const sourceModalBackdropStyle: React.CSSProperties = { position:'fixed', inset:0, zIndex:90, display:'grid', placeItems:'center', padding:18, background:'rgba(15,23,42,.48)' }
+const sourceModalCardStyle: React.CSSProperties = { width:'min(760px,100%)', maxHeight:'calc(100vh - 36px)', overflowY:'auto', padding:22, borderRadius:16, background:'#fff', boxShadow:'0 24px 70px rgba(15,23,42,.28)' }
+const sourceModalCloseStyle: React.CSSProperties = { width:34, height:34, border:'1px solid #e2e8f0', borderRadius:9, background:'#fff', color:'#475569', fontSize:22, lineHeight:1, cursor:'pointer' }
+const sourceCheckRowStyle: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14, padding:12, border:'1px solid #e2e8f0', borderRadius:10, background:'#f8fafc' }
 
 const pageStyle: React.CSSProperties = { minHeight: '100vh', background: '#f6f8fb', color: '#172033', fontFamily: 'Arial, Helvetica, sans-serif' }
 const eyebrowLight: React.CSSProperties = { color: '#52708f', fontSize: 11, fontWeight: 850, textTransform: 'uppercase', letterSpacing: '.09em' }
@@ -664,3 +790,4 @@ const collectingStyle: React.CSSProperties = { padding: 13, borderRadius: 10, ba
 const progressTrackStyle: React.CSSProperties = { marginTop: 10, width: '100%', height: 7, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }
 const progressFillStyle: React.CSSProperties = { height: '100%', borderRadius: 999, background: '#2563eb' }
 const recommendationStyle: React.CSSProperties = { padding: 13, borderRadius: 10, background: '#fbfdff', border: '1px solid #e2e8f0' }
+

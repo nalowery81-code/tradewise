@@ -98,6 +98,31 @@ export async function GET(request: Request) {
 
     const health = failedRuns.length > 0 ? 'attention' : 'healthy'
 
+    let latestSourceChecks: {
+      id: string
+      source_title: string | null
+      source_url: string
+      status: string
+      http_status: number | null
+      final_url: string | null
+      error_text: string | null
+      checked_at: string
+    }[] = []
+
+    if (latestRun?.id) {
+      const { data: latestChecks, error: latestChecksError } = await supabaseServer
+        .from('WeeklySourceChecks')
+        .select('id, source_title, source_url, status, http_status, final_url, error_text, checked_at')
+        .eq('weekly_run_id', latestRun.id)
+        .order('checked_at', { ascending: false })
+
+      if (latestChecksError) {
+        console.error('LATEST SOURCE CHECKS LOAD ERROR:', latestChecksError)
+      } else {
+        latestSourceChecks = latestChecks || []
+      }
+    }
+
     const companyBreakdown = (companies.data || []).map((company: any) => {
       const companyProfiles = (profiles.data || []).filter((profile: any) => profile.company_id === company.id)
       const companyTechnicians = (technicians.data || []).filter((technician: any) => technician.company_id === company.id)
@@ -148,6 +173,7 @@ export async function GET(request: Request) {
         sourceIssuesLatest: latestRun?.source_issue_count || 0,
       },
       latestRun,
+      latestSourceChecks,
       sourceIssues: sourceIssueRows.slice(0, 6),
       changes: changes.slice(0, 8),
     })
