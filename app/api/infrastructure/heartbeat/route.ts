@@ -1,5 +1,5 @@
 import { createHash } from 'crypto'
-import { supabaseServer } from '../../lib/supabase-server'
+import { supabaseServer } from '../../../lib/supabase-server'
 
 export const dynamic = 'force-dynamic'
 
