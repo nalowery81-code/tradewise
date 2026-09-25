@@ -182,13 +182,6 @@ type LearningQualityPlatform = {
   }
 }
 
-type ReportResult = {
-  reportType: string
-  schemaVersion: number
-  generatedAt: string
-  period: { preset: string; start: string; end: string }
-  sections: string[]
-  scopeCompanyId: string | null
 type UserActivityRow = {
   profileId: string
   authUserId: string
@@ -215,6 +208,13 @@ type UserActivityRow = {
   }
 }
 
+type ReportResult = {
+  reportType: string
+  schemaVersion: number
+  generatedAt: string
+  period: { preset: string; start: string; end: string }
+  sections: string[]
+  scopeCompanyId: string | null
   rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow | LearningQualityRow | UserActivityRow>
   summary: Record<string, number>
   runId?: string
