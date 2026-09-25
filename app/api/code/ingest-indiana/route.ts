@@ -4,7 +4,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 })
 
-const VECTOR_STORE_NAME = 'Tradewise Indiana Plumbing Code'
+const VECTOR_STORE_NAME = 'CraftCompass Indiana Plumbing Code'
 
 const DOCUMENTS: Array<{
   url: string

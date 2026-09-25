@@ -1730,7 +1730,7 @@ For "new", set existing_index to null and merged may repeat the new candidate.
       jurisdiction: activeJurisdiction,
     })
   } catch (error: any) {
-    console.error('TRADEWISE CHAT API ERROR:', error)
+    console.error('CRAFTCOMPASS CHAT API ERROR:', error)
     return Response.json(
       { error: error?.message || 'CraftCompass AI could not generate a response.' },
       { status: 500 }
@@ -1765,7 +1765,7 @@ export async function POST(req: Request) {
           send({ type: 'final', ...payload })
         }
       } catch (error: any) {
-        console.error('TRADEWISE CHAT STREAM ERROR:', error)
+        console.error('CRAFTCOMPASS CHAT STREAM ERROR:', error)
         send({
           type: 'error',
           status: 500,
