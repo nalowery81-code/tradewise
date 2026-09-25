@@ -1,0 +1,10 @@
+[Unit]
+Description=CraftCompass home server heartbeat
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/craftcompass-heartbeat.env
+ExecStart=/usr/local/bin/craftcompass-heartbeat
+User=root

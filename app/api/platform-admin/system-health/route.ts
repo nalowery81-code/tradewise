@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'crypto'
 import { requirePlatformAdmin } from '../../../lib/platform-admin-auth'
 import { supabaseServer } from '../../../lib/supabase-server'
 
@@ -5,6 +6,19 @@ export const dynamic = 'force-dynamic'
 
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, { ...init, headers: { 'Cache-Control': 'no-store, max-age=0', ...(init?.headers || {}) } })
+
+const hashToken = (token: string) =>
+  createHash('sha256').update(token).digest('hex')
+
+const heartbeatStatus = (source: any, nowMs: number) => {
+  if (!source?.token_hash) return 'setup_required'
+  if (!source?.last_heartbeat_at) return 'waiting'
+  const ageMs = nowMs - new Date(source.last_heartbeat_at).getTime()
+  const staleMs = Number(source.stale_after_seconds || 900) * 1000
+  if (ageMs <= staleMs) return 'online'
+  if (ageMs <= 60 * 60 * 1000) return 'stale'
+  return 'offline'
+}
 
 export async function GET(request: Request) {
   const access = await requirePlatformAdmin(request)
@@ -25,6 +39,7 @@ export async function GET(request: Request) {
     sourceIssues,
     verifiedSources,
     costSnapshot,
+    heartbeatSources,
   ] = await Promise.all([
     supabaseServer.from('Companies').select('id, status'),
     supabaseServer.from('UserProfiles').select('id, is_active'),
@@ -46,12 +61,16 @@ export async function GET(request: Request) {
       .select('fetched_at')
       .eq('cache_key', 'organization_cost_usage_v1')
       .maybeSingle(),
+    supabaseServer.from('InfrastructureHeartbeatSources')
+      .select('id, source_key, display_name, token_hash, is_active, expected_interval_seconds, stale_after_seconds, last_heartbeat_at, last_payload, updated_at')
+      .eq('source_key', 'home-server')
+      .maybeSingle(),
   ])
 
   const error =
     companies.error || users.error || tech24h.error || management24h.error ||
     ai24h.error || ai7d.error || learningRuns.error || sourceIssues.error ||
-    verifiedSources.error || costSnapshot.error
+    verifiedSources.error || costSnapshot.error || heartbeatSources.error
 
   if (error) {
     console.error('SYSTEM HEALTH LOAD ERROR:', error)
@@ -67,6 +86,8 @@ export async function GET(request: Request) {
   const activeUsers = (users.data || []).filter((user) => user.is_active !== false).length
   const ai24Rows = ai24h.data || []
   const ai7Rows = ai7d.data || []
+  const homeServerSource = heartbeatSources.data || null
+  const homeServerStatus = heartbeatStatus(homeServerSource, now.getTime())
 
   const checks = {
     application: 'healthy',
@@ -75,6 +96,12 @@ export async function GET(request: Request) {
     weeklyLearning: failedRuns > 0 ? 'attention' : latestRun ? 'healthy' : 'unknown',
     sources: sourceIssueRows.length > 0 || sourceAttention > 0 ? 'attention' : 'healthy',
     openAITracker: costSnapshot.data?.fetched_at ? 'healthy' : 'unknown',
+    homeServer:
+      homeServerStatus === 'online'
+        ? 'healthy'
+        : homeServerStatus === 'setup_required' || homeServerStatus === 'waiting'
+          ? 'unknown'
+          : 'attention',
   }
 
   const overall = Object.values(checks).includes('attention') ? 'attention' : 'healthy'
@@ -102,9 +129,60 @@ export async function GET(request: Request) {
       sourceAttention,
       recentSourceIssues: sourceIssueRows.length,
     },
+    homeServer: {
+      configured: Boolean(homeServerSource?.token_hash),
+      status: homeServerStatus,
+      displayName: homeServerSource?.display_name || 'CraftCompass Home Server',
+      lastHeartbeatAt: homeServerSource?.last_heartbeat_at || null,
+      expectedIntervalSeconds: homeServerSource?.expected_interval_seconds || 300,
+      staleAfterSeconds: homeServerSource?.stale_after_seconds || 900,
+      metrics: homeServerSource?.last_payload || null,
+      endpoint: 'https://app.craftcompassai.com/api/infrastructure/heartbeat',
+    },
     latestLearningRun: latestRun,
     learningRuns: runs,
     sourceIssues: sourceIssueRows,
     openAICostSnapshotAt: costSnapshot.data?.fetched_at || null,
+  })
+}
+
+export async function POST(request: Request) {
+  const access = await requirePlatformAdmin(request)
+  if ('error' in access) return access.error
+
+  const body = await request.json().catch(() => ({}))
+  if (body?.action !== 'rotate_home_server_token') {
+    return jsonNoStore({ error: 'Unsupported action.' }, { status: 400 })
+  }
+
+  const token = `cc_hb_${randomBytes(32).toString('base64url')}`
+  const tokenHash = hashToken(token)
+
+  const { data, error } = await supabaseServer
+    .from('InfrastructureHeartbeatSources')
+    .upsert({
+      source_key: 'home-server',
+      display_name: 'CraftCompass Home Server',
+      token_hash: tokenHash,
+      is_active: true,
+      expected_interval_seconds: 300,
+      stale_after_seconds: 900,
+      last_heartbeat_at: null,
+      last_payload: null,
+    }, { onConflict: 'source_key' })
+    .select('id, source_key, display_name')
+    .single()
+
+  if (error) {
+    console.error('HOME SERVER TOKEN ROTATION ERROR:', error)
+    return jsonNoStore({ error: 'Could not generate the home-server setup token.' }, { status: 500 })
+  }
+
+  return jsonNoStore({
+    ok: true,
+    source: data,
+    token,
+    endpoint: 'https://app.craftcompassai.com/api/infrastructure/heartbeat',
+    note: 'This token is shown only in this response. Store it on the home server.',
   })
 }

@@ -1,0 +1,11 @@
+[Unit]
+Description=Send CraftCompass home server heartbeat every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+Unit=craftcompass-heartbeat.service
+
+[Install]
+WantedBy=timers.target

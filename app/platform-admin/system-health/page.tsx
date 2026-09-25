@@ -10,6 +10,8 @@ export default function SystemHealthPage() {
   const [loading, setLoading] = useState(false)
   const [running, setRunning] = useState(false)
   const [status, setStatus] = useState('')
+  const [setupToken, setSetupToken] = useState('')
+  const [generatingToken, setGeneratingToken] = useState(false)
 
   const load = async () => {
     setLoading(true)
@@ -31,6 +33,31 @@ export default function SystemHealthPage() {
   }
 
   useEffect(() => { void load() }, [])
+
+  const generateHomeServerToken = async () => {
+    if (!window.confirm('Generate a new home-server heartbeat token? Any existing heartbeat token will stop working.')) return
+    setGeneratingToken(true)
+    setStatus('')
+    setError('')
+    setSetupToken('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const response = await fetch('/api/platform-admin/system-health', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', Authorization:`Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ action:'rotate_home_server_token' }),
+      })
+      const body = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(body.error || 'Could not generate setup token.')
+      setSetupToken(body.token || '')
+      setStatus('New home-server setup token generated. Install it on the server before leaving this page.')
+      await load()
+    } catch (e:any) {
+      setError(e?.message || 'Could not generate setup token.')
+    } finally {
+      setGeneratingToken(false)
+    }
+  }
 
   const runLearning = async () => {
     if (!window.confirm('Run the learning and source-check cycle now? This can use AI and external-source calls.')) return
@@ -98,6 +125,43 @@ export default function SystemHealthPage() {
 
           <section style={{ ...cardStyle, marginTop:16 }}>
             <div style={sectionHeaderStyle}>
+              <div>
+                <h2 style={{ margin:0, fontSize:19 }}>Home server</h2>
+                <div style={{ ...subtleStyle, marginTop:4 }}>Outbound heartbeat from the CraftCompass Linux server. No inbound home-network port is required.</div>
+              </div>
+              <button onClick={() => void generateHomeServerToken()} disabled={generatingToken} style={secondaryButton}>
+                {generatingToken ? 'Generating…' : data.homeServer?.configured ? 'Rotate setup token' : 'Generate setup token'}
+              </button>
+            </div>
+
+            <div style={gridStyle}>
+              <Metric label="Server status" value={String(data.homeServer?.status || 'unknown').replace('_',' ').toUpperCase()} />
+              <Metric label="Hostname" value={data.homeServer?.metrics?.hostname || '—'} />
+              <Metric label="Uptime" value={formatDuration(data.homeServer?.metrics?.uptime_seconds)} />
+              <Metric label="Memory" value={formatMemory(data.homeServer?.metrics)} />
+              <Metric label="Storage free" value={data.homeServer?.metrics?.storage_free_gb != null ? `${Number(data.homeServer.metrics.storage_free_gb).toFixed(1)} GB` : '—'} />
+              <Metric label="Temperature" value={data.homeServer?.metrics?.temperature_c != null ? `${Number(data.homeServer.metrics.temperature_c).toFixed(1)}°C` : '—'} />
+              <Metric label="Web server" value={serviceLabel(data.homeServer?.metrics?.web_server_active)} />
+              <Metric label="Dashboard API" value={serviceLabel(data.homeServer?.metrics?.dashboard_api_active)} />
+            </div>
+
+            <div style={{ ...subtleStyle, marginTop:14 }}>
+              Last heartbeat: {data.homeServer?.lastHeartbeatAt ? new Date(data.homeServer.lastHeartbeatAt).toLocaleString() : 'No heartbeat received yet'}
+              {' · '}Expected every {Math.round(Number(data.homeServer?.expectedIntervalSeconds || 300) / 60)} minutes
+            </div>
+
+            {setupToken && (
+              <div style={tokenBoxStyle}>
+                <div style={{ fontWeight:900, marginBottom:6 }}>One-time setup token</div>
+                <div style={subtleStyle}>Copy this now. CraftCompass stores only its hash and will not show the token again.</div>
+                <code style={tokenStyle}>{setupToken}</code>
+                <div style={{ ...subtleStyle, marginTop:8 }}>Heartbeat endpoint: {data.homeServer?.endpoint}</div>
+              </div>
+            )}
+          </section>
+
+          <section style={{ ...cardStyle, marginTop:16 }}>
+            <div style={sectionHeaderStyle}>
               <h2 style={{ margin:0, fontSize:19 }}>Recent learning runs</h2>
               <a href="/platform-admin/guidance" style={linkButton}>Open Guidance Library →</a>
             </div>
@@ -148,6 +212,26 @@ export default function SystemHealthPage() {
   )
 }
 
+function formatDuration(seconds: unknown) {
+  const value = Number(seconds)
+  if (!Number.isFinite(value) || value < 0) return '—'
+  const days = Math.floor(value / 86400)
+  const hours = Math.floor((value % 86400) / 3600)
+  const minutes = Math.floor((value % 3600) / 60)
+  return [days ? `${days}d` : '', hours ? `${hours}h` : '', `${minutes}m`].filter(Boolean).join(' ')
+}
+
+function formatMemory(metrics:any) {
+  if (metrics?.memory_used_mb == null || metrics?.memory_total_mb == null) return '—'
+  return `${(Number(metrics.memory_used_mb) / 1024).toFixed(1)} / ${(Number(metrics.memory_total_mb) / 1024).toFixed(1)} GB`
+}
+
+function serviceLabel(value: unknown) {
+  if (value === true) return 'ACTIVE'
+  if (value === false) return 'DOWN'
+  return '—'
+}
+
 function Metric({ label, value, href }: { label:string; value:string | number; href?:string }) {
   const content=<><div style={{ fontSize:21, fontWeight:900 }}>{value}</div><div style={{ marginTop:4, ...subtleStyle, fontSize:10, fontWeight:800 }}>{label}</div></>
   return href ? <a href={href} style={{ ...metricStyle, textDecoration:'none', color:'#172033' }}>{content}</a> : <div style={metricStyle}>{content}</div>
@@ -170,3 +254,6 @@ const linkButton: React.CSSProperties = { color:'#075985', fontWeight:800, textD
 const linkStyle: React.CSSProperties = { color:'#075985', fontWeight:800 }
 const successStyle: React.CSSProperties = { marginTop:14, padding:'10px 12px', border:'1px solid #bbf7d0', borderRadius:9, background:'#f0fdf4', color:'#166534', fontSize:12 }
 const errorStyle: React.CSSProperties = { marginTop:14, padding:'10px 12px', border:'1px solid #fecaca', borderRadius:9, background:'#fef2f2', color:'#991b1b', fontSize:12 }
+
+const tokenBoxStyle: React.CSSProperties = { marginTop:14, padding:14, border:'1px solid #bae6fd', borderRadius:11, background:'#f0f9ff' }
+const tokenStyle: React.CSSProperties = { display:'block', marginTop:8, padding:'10px 12px', borderRadius:8, background:'#0f172a', color:'#f8fafc', overflowX:'auto', fontSize:12 }
