@@ -101,12 +101,40 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
   {
     type: 'ai_usage_cost',
     label: 'AI Usage & Cost',
-    description: 'Feature-level AI consumption, models, searches, and cost analysis.',
-    status: 'planned',
+    description: 'Company-attributed AI calls, tokens, models, features, searches, and cost-readiness signals.',
+    status: 'live',
     schemaVersion: 1,
-    defaultSections: [],
-    sections: [],
-    filters: [],
+    defaultSections: ['token_usage', 'features_models', 'search_usage'],
+    sections: [
+      {
+        key: 'token_usage',
+        label: 'Token usage',
+        description: 'Calls plus input, cached input, output, and total token consumption by company.',
+      },
+      {
+        key: 'features_models',
+        label: 'Features & models',
+        description: 'Which CraftCompass AI features and models are driving usage.',
+      },
+      {
+        key: 'search_usage',
+        label: 'Search usage',
+        description: 'Web-search and file-search tool calls attributed to each company.',
+      },
+    ],
+    filters: [
+      {
+        key: 'usageStatus',
+        label: 'Usage status',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: 'All companies' },
+          { value: 'with_usage', label: 'Companies with AI usage' },
+          { value: 'no_usage', label: 'Companies with no AI usage' },
+        ],
+      },
+    ],
   },
   {
     type: 'learning_quality',

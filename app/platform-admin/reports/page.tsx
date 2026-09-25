@@ -124,6 +124,25 @@ type CompanyPerformanceRow = {
   }
 }
 
+type AIUsageCostRow = {
+  companyId: string
+  companyName: string
+  companyStatus: string
+  accountType: string
+  usage: {
+    calls: number
+    inputTokens: number
+    cachedInputTokens: number
+    outputTokens: number
+    totalTokens: number
+    webSearchCalls: number
+    fileSearchCalls: number
+    lastUsageAt: string | null
+  }
+  features: { key: string; calls: number; totalTokens: number }[]
+  models: { key: string; calls: number; totalTokens: number }[]
+}
+
 type ReportResult = {
   reportType: string
   schemaVersion: number
@@ -131,7 +150,7 @@ type ReportResult = {
   period: { preset: string; start: string; end: string }
   sections: string[]
   scopeCompanyId: string | null
-  rows: Array<BillingUsageRow | CompanyPerformanceRow>
+  rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow>
   summary: Record<string, number>
   runId?: string
   billingNote?: string
@@ -501,6 +520,35 @@ export default function ReportsPage() {
           row.attention.signals.join('; '),
         ] : []),
       ])
+    } else if (result.reportType === 'ai_usage_cost') {
+      headers = [
+        'Company','Company Status',
+        ...(result.sections.includes('token_usage') ? [
+          'AI Calls','Input Tokens','Cached Input Tokens','Output Tokens','Total Tokens','Last AI Usage'
+        ] : []),
+        ...(result.sections.includes('features_models') ? ['Features','Models'] : []),
+        ...(result.sections.includes('search_usage') ? ['Web Searches','File Searches'] : []),
+      ]
+      exportRows = (result.rows as AIUsageCostRow[]).map((row) => [
+        row.companyName,
+        row.companyStatus,
+        ...(result.sections.includes('token_usage') ? [
+          row.usage.calls,
+          row.usage.inputTokens,
+          row.usage.cachedInputTokens,
+          row.usage.outputTokens,
+          row.usage.totalTokens,
+          row.usage.lastUsageAt || '',
+        ] : []),
+        ...(result.sections.includes('features_models') ? [
+          row.features.map((item) => `${item.key}: ${item.calls} calls / ${item.totalTokens} tokens`).join('; '),
+          row.models.map((item) => `${item.key}: ${item.calls} calls / ${item.totalTokens} tokens`).join('; '),
+        ] : []),
+        ...(result.sections.includes('search_usage') ? [
+          row.usage.webSearchCalls,
+          row.usage.fileSearchCalls,
+        ] : []),
+      ])
     } else {
       return
     }
@@ -681,7 +729,7 @@ export default function ReportsPage() {
                 <SummaryMetric label="AI calls" value={result.summary.aiCalls || 0} />
                 <SummaryMetric label="Tokens" value={result.summary.totalTokens || 0} format />
               </>
-            ) : (
+            ) : result.reportType === 'company_performance' ? (
               <>
                 <SummaryMetric label="Companies" value={result.summary.companies || 0} />
                 <SummaryMetric label="Need attention" value={result.summary.attentionCompanies || 0} />
@@ -690,6 +738,17 @@ export default function ReportsPage() {
                 <SummaryMetric label="Conversations" value={result.summary.conversations || 0} />
                 <SummaryMetric label="Avg tech adoption" value={result.summary.avgTechnicianAdoptionPct || 0} suffix="%" />
                 <SummaryMetric label="Unassigned techs" value={result.summary.unassignedTechnicians || 0} />
+              </>
+            ) : (
+              <>
+                <SummaryMetric label="Companies" value={result.summary.companies || 0} />
+                <SummaryMetric label="Using AI" value={result.summary.companiesWithUsage || 0} />
+                <SummaryMetric label="AI calls" value={result.summary.aiCalls || 0} />
+                <SummaryMetric label="Tokens" value={result.summary.totalTokens || 0} format />
+                <SummaryMetric label="Cached tokens" value={result.summary.cachedInputTokens || 0} format />
+                <SummaryMetric label="Web searches" value={result.summary.webSearchCalls || 0} />
+                <SummaryMetric label="File searches" value={result.summary.fileSearchCalls || 0} />
+                <SummaryMetric label="Models" value={result.summary.models || 0} />
               </>
             )}
           </div>
@@ -801,6 +860,47 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                   {!result.rows.length && <tr><td colSpan={5} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
+                </tbody>
+              </table>
+            ) : result.reportType === 'ai_usage_cost' ? (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Company</th>
+                    {result.sections.includes('token_usage') && <th style={thStyle}>Token usage</th>}
+                    {result.sections.includes('features_models') && <th style={thStyle}>Features & models</th>}
+                    {result.sections.includes('search_usage') && <th style={thStyle}>Search usage</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.rows as AIUsageCostRow[]).map((row) => (
+                    <tr key={row.companyId}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:850 }}>{row.companyName}</div>
+                        <div style={cellSubtleStyle}>{row.companyStatus} · {row.accountType}</div>
+                      </td>
+                      {result.sections.includes('token_usage') && (
+                        <td style={tdStyle}>
+                          <div><strong>{row.usage.calls.toLocaleString()}</strong> calls · <strong>{row.usage.totalTokens.toLocaleString()}</strong> total tokens</div>
+                          <div>Input: <strong>{row.usage.inputTokens.toLocaleString()}</strong> · Cached: <strong>{row.usage.cachedInputTokens.toLocaleString()}</strong> · Output: <strong>{row.usage.outputTokens.toLocaleString()}</strong></div>
+                          <div style={cellSubtleStyle}>Last AI usage: {row.usage.lastUsageAt ? new Date(row.usage.lastUsageAt).toLocaleString() : 'None in period'}</div>
+                        </td>
+                      )}
+                      {result.sections.includes('features_models') && (
+                        <td style={tdStyle}>
+                          <div><strong>Features:</strong> {row.features.length ? row.features.map((item) => `${item.key} (${item.calls})`).join(' · ') : 'No usage'}</div>
+                          <div style={{ marginTop:4 }}><strong>Models:</strong> {row.models.length ? row.models.map((item) => `${item.key} (${item.calls})`).join(' · ') : 'No usage'}</div>
+                        </td>
+                      )}
+                      {result.sections.includes('search_usage') && (
+                        <td style={tdStyle}>
+                          <div>Web searches: <strong>{row.usage.webSearchCalls.toLocaleString()}</strong></div>
+                          <div>File searches: <strong>{row.usage.fileSearchCalls.toLocaleString()}</strong></div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {!result.rows.length && <tr><td colSpan={4} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
                 </tbody>
               </table>
             ) : (
