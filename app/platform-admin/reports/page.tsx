@@ -143,13 +143,6 @@ type AIUsageCostRow = {
   models: { key: string; calls: number; totalTokens: number }[]
 }
 
-type ReportResult = {
-  reportType: string
-  schemaVersion: number
-  generatedAt: string
-  period: { preset: string; start: string; end: string }
-  sections: string[]
-  scopeCompanyId: string | null
 type LearningQualityRow = {
   companyId: string
   companyName: string
@@ -189,6 +182,13 @@ type LearningQualityPlatform = {
   }
 }
 
+type ReportResult = {
+  reportType: string
+  schemaVersion: number
+  generatedAt: string
+  period: { preset: string; start: string; end: string }
+  sections: string[]
+  scopeCompanyId: string | null
   rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow | LearningQualityRow>
   summary: Record<string, number>
   runId?: string
