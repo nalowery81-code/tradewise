@@ -5,6 +5,7 @@ import { getActiveGuidance } from '../../lib/active-guidance'
 import { recordAIUsage } from '../../lib/ai-usage'
 import { requireEffectiveTechnician } from '../../lib/technician-access'
 import { jurisdictionAllowed, jurisdictionLabel, jurisdictionKey, normalizeJurisdiction } from '../../lib/jurisdiction'
+import { getVerifiedManufacturerKnowledge } from '../../lib/manufacturer-knowledge'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 const MANUFACTURER_VECTOR_STORE_ID = 'vs_6a98660446588191b62260aac59bbc6e'
@@ -337,6 +338,30 @@ async function handleChat(
         }
       } catch (aliasError) {
         console.error('VERIFIED MANUFACTURER ALIAS LOOKUP ERROR:', aliasError)
+      }
+    }
+
+    let verifiedManufacturerKnowledge = {
+      manufacturerNames: [] as string[],
+      productLabels: [] as string[],
+      evidenceText: '',
+      sources: [] as Array<{ title: string; url?: string; type: 'web' | 'file' }>,
+    }
+
+    if (!straightforwardTechnicalLookup && manufacturerIdentityText.trim()) {
+      try {
+        verifiedManufacturerKnowledge = await getVerifiedManufacturerKnowledge(manufacturerIdentityText)
+        if (verifiedManufacturerKnowledge.evidenceText) {
+          manufacturerEvidenceEnabled = true
+          matchedManufacturerDocuments = [
+            ...new Set([
+              ...matchedManufacturerDocuments,
+              ...verifiedManufacturerKnowledge.productLabels,
+            ]),
+          ].slice(0, 8)
+        }
+      } catch (manufacturerKnowledgeError) {
+        console.error('VERIFIED MANUFACTURER KNOWLEDGE ERROR:', manufacturerKnowledgeError)
       }
     }
 
@@ -799,6 +824,13 @@ For code/manufacturer conflicts, do not invent legal, permitting, approval, insp
 VERIFIED MANUFACTURER RESOLUTION:
 ${verifiedManufacturerAliases || 'No verified manufacturer alias matched this technician message.'}
 
+VERIFIED STRUCTURED MANUFACTURER FACTS:
+${verifiedManufacturerKnowledge.evidenceText || 'No exact verified manufacturer/model facts were retrieved from the structured knowledge layer for this turn.'}
+
+- Structured manufacturer facts above are authoritative only when they are present and each fact is traceable to its listed source.
+- Use those facts before relying on broad web search or model memory.
+- Do not generalize a fact from one model to another model in the same product family.
+- A matched manufacturer name or alias by itself does not prove a product, model, specification, or compatibility.
 - A matched alias verifies spelling/brand identity context only; it does not prove a product or model.
 - Never let a distributor part-number match silently override a manufacturer/brand supplied by the technician.
 - If manufacturer identity still conflicts or is uncertain, ask one natural clarification or request a clear product/data-plate photo before product-specific guidance.
@@ -1072,6 +1104,13 @@ Rules:
 
     onProgress({ label: 'Attaching verified sources' })
     const sources: { title: string; url?: string; type: 'web' | 'file' }[] = []
+
+    for (const source of verifiedManufacturerKnowledge.sources) {
+      const alreadyAdded = sources.some(
+        (existing) => existing.title === source.title && existing.url === source.url
+      )
+      if (!alreadyAdded) sources.push(source)
+    }
 
     if (normalizedDirectLookup) {
       try {
