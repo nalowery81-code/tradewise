@@ -351,12 +351,15 @@ export default function ReportsPage() {
     setStartDate(String(definition.filters?.startDate || ''))
     setEndDate(String(definition.filters?.endDate || ''))
     const family = catalog.find((item) => item.type === definition.report_type)
-    setFilterValues(Object.fromEntries(
-      (family?.filters || []).map((filter) => [
-        filter.key,
-        definition.filters?.[filter.key] ?? filter.defaultValue ?? (filter.type === 'boolean' ? false : '')
-      ])
-    ))
+    const loadedFilterValues: Record<string, string | boolean> = {}
+    for (const filter of family?.filters || []) {
+      const savedValue = definition.filters?.[filter.key]
+      loadedFilterValues[filter.key] =
+        filter.type === 'boolean'
+          ? savedValue === true || (savedValue === undefined && filter.defaultValue === true)
+          : String(savedValue ?? filter.defaultValue ?? '')
+    }
+    setFilterValues(loadedFilterValues)
     setSections(Array.isArray(definition.sections) ? definition.sections : [])
     setReportName(definition.name)
     setSelectedDefinitionId(definition.id)
