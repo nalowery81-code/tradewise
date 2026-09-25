@@ -3,6 +3,7 @@ import { runBillingUsageReport } from './billing-usage'
 import { runCompanyPerformanceReport } from './company-performance'
 import { runAIUsageCostReport } from './ai-usage-cost'
 import { runLearningQualityReport } from './learning-quality'
+import { runUserActivityReport } from './user-activity'
 import type { ReportRunInput, ReportRunResult } from './types'
 
 export async function runReport(input: ReportRunInput): Promise<ReportRunResult> {
@@ -26,6 +27,9 @@ export async function runReport(input: ReportRunInput): Promise<ReportRunResult>
   }
   if (input.reportType === 'learning_quality') {
     return runLearningQualityReport(input)
+  }
+  if (input.reportType === 'user_activity') {
+    return runUserActivityReport(input)
   }
 
   throw new Error('That report family is not available yet.')

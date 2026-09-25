@@ -189,7 +189,33 @@ type ReportResult = {
   period: { preset: string; start: string; end: string }
   sections: string[]
   scopeCompanyId: string | null
-  rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow | LearningQualityRow>
+type UserActivityRow = {
+  profileId: string
+  authUserId: string
+  displayName: string
+  preferredName: string
+  email: string
+  companyId: string | null
+  companyName: string
+  companyStatus: string
+  accountType: string
+  role: string
+  isActive: boolean
+  isPlatformAdmin: boolean
+  accountCreatedAt: string
+  deactivatedAt: string | null
+  lastSignInAt: string | null
+  engagement: {
+    conversations: number
+    lastActivityAt: string | null
+  }
+  attention: {
+    needsAttention: boolean
+    signals: string[]
+  }
+}
+
+  rows: Array<BillingUsageRow | CompanyPerformanceRow | AIUsageCostRow | LearningQualityRow | UserActivityRow>
   summary: Record<string, number>
   runId?: string
   billingNote?: string
@@ -618,6 +644,36 @@ export default function ReportsPage() {
         row.attention.needsAttention ? 'Yes' : 'No',
         row.attention.signals.join('; '),
       ])
+    } else if (result.reportType === 'user_activity') {
+      headers = [
+        'User','Email','Company','Role',
+        ...(result.sections.includes('account_profile') ? ['Account Status','Account Created','Deactivated At'] : []),
+        ...(result.sections.includes('engagement') ? ['Conversations','Last Conversation Activity'] : []),
+        ...(result.sections.includes('sign_in') ? ['Last Sign In'] : []),
+        ...(result.sections.includes('attention') ? ['Needs Attention','Attention Signals'] : []),
+      ]
+      exportRows = (result.rows as UserActivityRow[]).map((row) => [
+        row.displayName,
+        row.email,
+        row.companyName,
+        row.role,
+        ...(result.sections.includes('account_profile') ? [
+          row.isActive ? 'Active' : 'Inactive',
+          row.accountCreatedAt,
+          row.deactivatedAt || '',
+        ] : []),
+        ...(result.sections.includes('engagement') ? [
+          row.engagement.conversations,
+          row.engagement.lastActivityAt || '',
+        ] : []),
+        ...(result.sections.includes('sign_in') ? [
+          row.lastSignInAt || '',
+        ] : []),
+        ...(result.sections.includes('attention') ? [
+          row.attention.needsAttention ? 'Yes' : 'No',
+          row.attention.signals.join('; '),
+        ] : []),
+      ])
     } else {
       return
     }
@@ -819,7 +875,7 @@ export default function ReportsPage() {
                 <SummaryMetric label="File searches" value={result.summary.fileSearchCalls || 0} />
                 <SummaryMetric label="Models" value={result.summary.models || 0} />
               </>
-            ) : (
+            ) : result.reportType === 'learning_quality' ? (
               <>
                 <SummaryMetric label="Companies" value={result.summary.companies || 0} />
                 <SummaryMetric label="Need attention" value={result.summary.attentionCompanies || 0} />
@@ -829,6 +885,17 @@ export default function ReportsPage() {
                 <SummaryMetric label="Open flags" value={result.summary.openFlags || 0} />
                 <SummaryMetric label="Active guidance" value={result.summary.activeGuidance || 0} />
                 <SummaryMetric label="Verified sources" value={result.summary.verifiedSourcesCurrent || 0} />
+              </>
+            ) : (
+              <>
+                <SummaryMetric label="Users" value={result.summary.users || 0} />
+                <SummaryMetric label="Active accounts" value={result.summary.activeAccounts || 0} />
+                <SummaryMetric label="With activity" value={result.summary.usersWithActivity || 0} />
+                <SummaryMetric label="No activity" value={result.summary.noActivityUsers || 0} />
+                <SummaryMetric label="Never signed in" value={result.summary.neverSignedIn || 0} />
+                <SummaryMetric label="Conversations" value={result.summary.conversations || 0} />
+                <SummaryMetric label="Technicians" value={result.summary.technicians || 0} />
+                <SummaryMetric label="Need attention" value={result.summary.attentionUsers || 0} />
               </>
             )}
           </div>
@@ -1051,6 +1118,54 @@ export default function ReportsPage() {
                     </tr>
                   ))}
                   {!result.rows.length && <tr><td colSpan={4} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
+                </tbody>
+              </table>
+            ) : result.reportType === 'user_activity' ? (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>User</th>
+                    {result.sections.includes('account_profile') && <th style={thStyle}>Account</th>}
+                    {result.sections.includes('engagement') && <th style={thStyle}>Engagement</th>}
+                    {result.sections.includes('sign_in') && <th style={thStyle}>Sign-in</th>}
+                    {result.sections.includes('attention') && <th style={thStyle}>Attention</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.rows as UserActivityRow[]).map((row) => (
+                    <tr key={row.profileId}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:850 }}>{row.displayName}</div>
+                        <div style={cellSubtleStyle}>{row.email || 'No email'} · {row.companyName}</div>
+                      </td>
+                      {result.sections.includes('account_profile') && (
+                        <td style={tdStyle}>
+                          <div style={{ textTransform:'capitalize' }}><strong>{row.role}</strong> · {row.isActive ? 'Active' : 'Inactive'}</div>
+                          <div style={cellSubtleStyle}>Created {new Date(row.accountCreatedAt).toLocaleDateString()}</div>
+                          {row.deactivatedAt && <div style={cellSubtleStyle}>Deactivated {new Date(row.deactivatedAt).toLocaleDateString()}</div>}
+                        </td>
+                      )}
+                      {result.sections.includes('engagement') && (
+                        <td style={tdStyle}>
+                          <div><strong>{row.engagement.conversations}</strong> conversation{row.engagement.conversations === 1 ? '' : 's'}</div>
+                          <div style={cellSubtleStyle}>Last: {row.engagement.lastActivityAt ? new Date(row.engagement.lastActivityAt).toLocaleString() : 'None in period'}</div>
+                        </td>
+                      )}
+                      {result.sections.includes('sign_in') && (
+                        <td style={tdStyle}>
+                          {row.lastSignInAt ? new Date(row.lastSignInAt).toLocaleString() : <span style={attentionSignalStyle}>Never signed in</span>}
+                        </td>
+                      )}
+                      {result.sections.includes('attention') && (
+                        <td style={tdStyle}>
+                          {row.attention.needsAttention
+                            ? <div style={{ display:'grid', gap:4 }}>{row.attention.signals.map((signal) => <span key={signal} style={attentionSignalStyle}>{signal}</span>)}</div>
+                            : <span style={healthySignalStyle}>No attention signals</span>}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {!result.rows.length && <tr><td colSpan={5} style={{ ...tdStyle, color:'#64748b' }}>No users matched this report.</td></tr>}
                 </tbody>
               </table>
             ) : (

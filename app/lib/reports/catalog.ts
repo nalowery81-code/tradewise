@@ -177,12 +177,69 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
   {
     type: 'user_activity',
     label: 'User Activity',
-    description: 'Owner, manager, and technician usage across the platform.',
-    status: 'planned',
+    description: 'User-level account status, sign-ins, conversation activity, and adoption signals.',
+    status: 'live',
     schemaVersion: 1,
-    defaultSections: [],
-    sections: [],
-    filters: [],
+    defaultSections: ['account_profile', 'engagement', 'sign_in', 'attention'],
+    sections: [
+      {
+        key: 'account_profile',
+        label: 'Account profile',
+        description: 'User identity, company, role, account state, and account age.',
+      },
+      {
+        key: 'engagement',
+        label: 'Conversation engagement',
+        description: 'Conversation volume and most recent conversation activity during the selected period.',
+      },
+      {
+        key: 'sign_in',
+        label: 'Sign-in activity',
+        description: 'Most recent authentication sign-in so inactive or never-used accounts are easy to spot.',
+      },
+      {
+        key: 'attention',
+        label: 'Attention signals',
+        description: 'Inactive accounts, never-signed-in users, unlinked technician accounts, and no activity in the selected period.',
+      },
+    ],
+    filters: [
+      {
+        key: 'role',
+        label: 'Role',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: 'All roles' },
+          { value: 'owner', label: 'Owners' },
+          { value: 'manager', label: 'Managers' },
+          { value: 'technician', label: 'Technicians' },
+        ],
+      },
+      {
+        key: 'accountStatus',
+        label: 'Account status',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: 'All account statuses' },
+          { value: 'active', label: 'Active accounts' },
+          { value: 'inactive', label: 'Inactive accounts' },
+        ],
+      },
+      {
+        key: 'activityStatus',
+        label: 'Activity',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: 'All activity levels' },
+          { value: 'with_activity', label: 'Users with conversation activity' },
+          { value: 'no_activity', label: 'Users with no conversation activity' },
+          { value: 'never_signed_in', label: 'Users who never signed in' },
+        ],
+      },
+    ],
   },
 ]
 
