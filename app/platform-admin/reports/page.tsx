@@ -91,6 +91,39 @@ type BillingUsageRow = {
   }
 }
 
+type CompanyPerformanceRow = {
+  companyId: string
+  companyName: string
+  companyStatus: string
+  accountType: string
+  peopleCoverage: {
+    activeUsers: { owners: number; managers: number; technicians: number }
+    rosterTechnicians: number
+    assignedTechnicians: number
+    unassignedTechnicians: number
+    managerCoveragePct: number
+    accountCoveragePct: number
+  }
+  engagement: {
+    technicianConversations: number
+    managerConversations: number
+    ownerConversations: number
+    totalConversations: number
+    activeTechnicians: number
+    technicianAdoptionPct: number
+    lastActivityAt: string | null
+  }
+  configuration: {
+    trades: string[]
+    jurisdictions: string[]
+    jurisdictionUsage: Record<string, number>
+  }
+  attention: {
+    needsAttention: boolean
+    signals: string[]
+  }
+}
+
 type ReportResult = {
   reportType: string
   schemaVersion: number
@@ -98,15 +131,8 @@ type ReportResult = {
   period: { preset: string; start: string; end: string }
   sections: string[]
   scopeCompanyId: string | null
-  rows: BillingUsageRow[]
-  summary: {
-    companies?: number
-    overPlanCompanies?: number
-    activeSeats?: number
-    conversations?: number
-    aiCalls?: number
-    totalTokens?: number
-  }
+  rows: Array<BillingUsageRow | CompanyPerformanceRow>
+  summary: Record<string, number>
   runId?: string
   billingNote?: string
   aiCostNote?: string
@@ -123,8 +149,7 @@ export default function ReportsPage() {
   const [datePreset, setDatePreset] = useState('30d')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
-  const [subscriptionStatus, setSubscriptionStatus] = useState('all')
-  const [overPlanOnly, setOverPlanOnly] = useState(false)
+  const [filterValues, setFilterValues] = useState<Record<string, string | boolean>>({})
   const [sections, setSections] = useState<string[]>([])
   const [reportName, setReportName] = useState('Billing & Usage')
   const [selectedDefinitionId, setSelectedDefinitionId] = useState('')
@@ -145,18 +170,25 @@ export default function ReportsPage() {
     () => catalog.find((item) => item.type === reportType) || null,
     [catalog, reportType]
   )
+  const resultCatalogItem = useMemo(
+    () => result ? catalog.find((item) => item.type === result.reportType) || null : null,
+    [catalog, result]
+  )
 
   const filters = useMemo(() => ({
     datePreset,
     ...(datePreset === 'custom' ? { startDate, endDate } : {}),
-    subscriptionStatus,
-    overPlanOnly,
-  }), [datePreset, startDate, endDate, subscriptionStatus, overPlanOnly])
+    ...filterValues,
+  }), [datePreset, startDate, endDate, filterValues])
 
   const applyCatalogDefaults = (item: CatalogItem) => {
     setSections(item.defaultSections || [])
-    setSubscriptionStatus(String(item.filters.find((filter) => filter.key === 'subscriptionStatus')?.defaultValue || 'all'))
-    setOverPlanOnly(Boolean(item.filters.find((filter) => filter.key === 'overPlanOnly')?.defaultValue || false))
+    setFilterValues(Object.fromEntries(
+      item.filters.map((filter) => [
+        filter.key,
+        filter.defaultValue ?? (filter.type === 'boolean' ? false : '')
+      ])
+    ))
     setReportName(item.label)
   }
 
@@ -318,8 +350,13 @@ export default function ReportsPage() {
     setDatePreset(String(definition.filters?.datePreset || '30d'))
     setStartDate(String(definition.filters?.startDate || ''))
     setEndDate(String(definition.filters?.endDate || ''))
-    setSubscriptionStatus(String(definition.filters?.subscriptionStatus || 'all'))
-    setOverPlanOnly(definition.filters?.overPlanOnly === true)
+    const family = catalog.find((item) => item.type === definition.report_type)
+    setFilterValues(Object.fromEntries(
+      (family?.filters || []).map((filter) => [
+        filter.key,
+        definition.filters?.[filter.key] ?? filter.defaultValue ?? (filter.type === 'boolean' ? false : '')
+      ])
+    ))
     setSections(Array.isArray(definition.sections) ? definition.sections : [])
     setReportName(definition.name)
     setSelectedDefinitionId(definition.id)
@@ -381,47 +418,96 @@ export default function ReportsPage() {
   const exportCsv = () => {
     if (!result?.rows?.length) return
 
-    const headers = [
-      'Company','Plan','Subscription Status',
-      ...(result.sections.includes('plan_seats') ? [
-        'Owners Used','Owners Included','Owners Overage',
-        'Managers Used','Managers Included','Managers Overage',
-        'Technicians Used','Technicians Included','Technicians Overage','Over Plan'
-      ] : []),
-      ...(result.sections.includes('activity') ? ['Technician Conversations','Manager Conversations','Owner Conversations'] : []),
-      ...(result.sections.includes('ai_usage') ? ['AI Calls','Total Tokens','Cached Input Tokens','Web Searches','File Searches'] : []),
-    ]
+    let headers: string[] = []
+    let exportRows: unknown[][] = []
 
-    const rows = result.rows.map((row) => [
-      row.companyName,
-      row.planCode,
-      row.subscriptionStatus,
-      ...(result.sections.includes('plan_seats') ? [
-        row.used.owners,row.included.owners,row.overage.owners,
-        row.used.managers,row.included.managers,row.overage.managers,
-        row.used.technicians,row.included.technicians,row.overage.technicians,
-        row.overPlan ? 'Yes' : 'No'
-      ] : []),
-      ...(result.sections.includes('activity') ? [
-        row.activity.technicianConversations,
-        row.activity.managerConversations,
-        row.activity.ownerConversations,
-      ] : []),
-      ...(result.sections.includes('ai_usage') ? [
-        row.aiUsage.calls,
-        row.aiUsage.totalTokens,
-        row.aiUsage.cachedInputTokens,
-        row.aiUsage.webSearchCalls,
-        row.aiUsage.fileSearchCalls,
-      ] : []),
-    ])
+    if (result.reportType === 'billing_usage') {
+      headers = [
+        'Company','Plan','Subscription Status',
+        ...(result.sections.includes('plan_seats') ? [
+          'Owners Used','Owners Included','Owners Overage',
+          'Managers Used','Managers Included','Managers Overage',
+          'Technicians Used','Technicians Included','Technicians Overage','Over Plan'
+        ] : []),
+        ...(result.sections.includes('activity') ? ['Technician Conversations','Manager Conversations','Owner Conversations'] : []),
+        ...(result.sections.includes('ai_usage') ? ['AI Calls','Total Tokens','Cached Input Tokens','Web Searches','File Searches'] : []),
+      ]
+      exportRows = (result.rows as BillingUsageRow[]).map((row) => [
+        row.companyName,
+        row.planCode,
+        row.subscriptionStatus,
+        ...(result.sections.includes('plan_seats') ? [
+          row.used.owners,row.included.owners,row.overage.owners,
+          row.used.managers,row.included.managers,row.overage.managers,
+          row.used.technicians,row.included.technicians,row.overage.technicians,
+          row.overPlan ? 'Yes' : 'No'
+        ] : []),
+        ...(result.sections.includes('activity') ? [
+          row.activity.technicianConversations,
+          row.activity.managerConversations,
+          row.activity.ownerConversations,
+        ] : []),
+        ...(result.sections.includes('ai_usage') ? [
+          row.aiUsage.calls,
+          row.aiUsage.totalTokens,
+          row.aiUsage.cachedInputTokens,
+          row.aiUsage.webSearchCalls,
+          row.aiUsage.fileSearchCalls,
+        ] : []),
+      ])
+    } else if (result.reportType === 'company_performance') {
+      headers = [
+        'Company','Company Status',
+        ...(result.sections.includes('people_coverage') ? [
+          'Owners','Managers','Technician Accounts','Technician Roster','Assigned Technicians','Unassigned Technicians','Manager Coverage %','Account Coverage %'
+        ] : []),
+        ...(result.sections.includes('engagement') ? [
+          'Technician Conversations','Manager Conversations','Owner Conversations','Active Technicians','Technician Adoption %','Last Activity'
+        ] : []),
+        ...(result.sections.includes('jurisdictions_trades') ? ['Trades','Configured Jurisdictions','Jurisdiction Usage'] : []),
+        ...(result.sections.includes('attention') ? ['Needs Attention','Attention Signals'] : []),
+      ]
+      exportRows = (result.rows as CompanyPerformanceRow[]).map((row) => [
+        row.companyName,
+        row.companyStatus,
+        ...(result.sections.includes('people_coverage') ? [
+          row.peopleCoverage.activeUsers.owners,
+          row.peopleCoverage.activeUsers.managers,
+          row.peopleCoverage.activeUsers.technicians,
+          row.peopleCoverage.rosterTechnicians,
+          row.peopleCoverage.assignedTechnicians,
+          row.peopleCoverage.unassignedTechnicians,
+          row.peopleCoverage.managerCoveragePct,
+          row.peopleCoverage.accountCoveragePct,
+        ] : []),
+        ...(result.sections.includes('engagement') ? [
+          row.engagement.technicianConversations,
+          row.engagement.managerConversations,
+          row.engagement.ownerConversations,
+          row.engagement.activeTechnicians,
+          row.engagement.technicianAdoptionPct,
+          row.engagement.lastActivityAt || '',
+        ] : []),
+        ...(result.sections.includes('jurisdictions_trades') ? [
+          row.configuration.trades.join('; '),
+          row.configuration.jurisdictions.join('; '),
+          Object.entries(row.configuration.jurisdictionUsage).map(([name,count]) => `${name}: ${count}`).join('; '),
+        ] : []),
+        ...(result.sections.includes('attention') ? [
+          row.attention.needsAttention ? 'Yes' : 'No',
+          row.attention.signals.join('; '),
+        ] : []),
+      ])
+    } else {
+      return
+    }
 
     const escape = (value: unknown) => {
       const text = String(value ?? '')
       return /[",\n]/.test(text) ? `"${text.replaceAll('"','""')}"` : text
     }
 
-    const csv = [headers, ...rows].map((row) => row.map(escape).join(',')).join('\n')
+    const csv = [headers, ...exportRows].map((row) => row.map(escape).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -498,16 +584,18 @@ export default function ReportsPage() {
             </select>
           </label>
 
-          {activeCatalogItem?.filters.some((filter) => filter.key === 'subscriptionStatus') && (
-            <label style={labelStyle}>
-              Subscription status
-              <select value={subscriptionStatus} onChange={(event) => setSubscriptionStatus(event.target.value)} style={inputStyle}>
-                {activeCatalogItem.filters
-                  .find((filter) => filter.key === 'subscriptionStatus')
-                  ?.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          {(activeCatalogItem?.filters || []).filter((filter) => filter.type === 'select').map((filter) => (
+            <label key={filter.key} style={labelStyle}>
+              {filter.label}
+              <select
+                value={String(filterValues[filter.key] ?? filter.defaultValue ?? '')}
+                onChange={(event) => setFilterValues((current) => ({ ...current, [filter.key]: event.target.value }))}
+                style={inputStyle}
+              >
+                {(filter.options || []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-          )}
+          ))}
 
           {datePreset === 'custom' && (
             <>
@@ -517,12 +605,21 @@ export default function ReportsPage() {
           )}
         </div>
 
-        {activeCatalogItem?.filters.some((filter) => filter.key === 'overPlanOnly') && (
-          <label style={checkboxRowStyle}>
-            <input type="checkbox" checked={overPlanOnly} onChange={(event) => setOverPlanOnly(event.target.checked)} />
-            <span><strong>Over-plan companies only</strong><small>Useful for billing review and account follow-up.</small></span>
+        {(activeCatalogItem?.filters || []).filter((filter) => filter.type === 'boolean').map((filter) => (
+          <label key={filter.key} style={checkboxRowStyle}>
+            <input
+              type="checkbox"
+              checked={Boolean(filterValues[filter.key] ?? filter.defaultValue ?? false)}
+              onChange={(event) => setFilterValues((current) => ({ ...current, [filter.key]: event.target.checked }))}
+            />
+            <span>
+              <strong>{filter.label}</strong>
+              <small>{filter.key === 'overPlanOnly'
+                ? 'Useful for billing review and account follow-up.'
+                : 'Show only companies with one or more report attention signals.'}</small>
+            </span>
           </label>
-        )}
+        ))}
 
         <div style={{ marginTop:18, fontSize:13, fontWeight:850 }}>Include sections</div>
         <div style={sectionGridStyle}>
@@ -563,7 +660,7 @@ export default function ReportsPage() {
         <section style={{ ...cardStyle, marginTop:16 }}>
           <div style={resultHeaderStyle}>
             <div>
-              <div style={sectionHeadingStyle}>{activeCatalogItem?.label || 'Report'} results</div>
+              <div style={sectionHeadingStyle}>{resultCatalogItem?.label || 'Report'} results</div>
               <div style={subtleStyle}>
                 {new Date(result.period.start).toLocaleDateString()} – {new Date(result.period.end).toLocaleDateString()} · generated {new Date(result.generatedAt).toLocaleString()}
               </div>
@@ -572,66 +669,140 @@ export default function ReportsPage() {
           </div>
 
           <div style={summaryGridStyle}>
-            <SummaryMetric label="Companies" value={result.summary.companies || 0} />
-            <SummaryMetric label="Over plan" value={result.summary.overPlanCompanies || 0} />
-            <SummaryMetric label="Active seats" value={result.summary.activeSeats || 0} />
-            <SummaryMetric label="Conversations" value={result.summary.conversations || 0} />
-            <SummaryMetric label="AI calls" value={result.summary.aiCalls || 0} />
-            <SummaryMetric label="Tokens" value={result.summary.totalTokens || 0} format />
+            {result.reportType === 'billing_usage' ? (
+              <>
+                <SummaryMetric label="Companies" value={result.summary.companies || 0} />
+                <SummaryMetric label="Over plan" value={result.summary.overPlanCompanies || 0} />
+                <SummaryMetric label="Active seats" value={result.summary.activeSeats || 0} />
+                <SummaryMetric label="Conversations" value={result.summary.conversations || 0} />
+                <SummaryMetric label="AI calls" value={result.summary.aiCalls || 0} />
+                <SummaryMetric label="Tokens" value={result.summary.totalTokens || 0} format />
+              </>
+            ) : (
+              <>
+                <SummaryMetric label="Companies" value={result.summary.companies || 0} />
+                <SummaryMetric label="Need attention" value={result.summary.attentionCompanies || 0} />
+                <SummaryMetric label="Active users" value={result.summary.activeUsers || 0} />
+                <SummaryMetric label="Roster techs" value={result.summary.rosterTechnicians || 0} />
+                <SummaryMetric label="Conversations" value={result.summary.conversations || 0} />
+                <SummaryMetric label="Avg tech adoption" value={result.summary.avgTechnicianAdoptionPct || 0} suffix="%" />
+                <SummaryMetric label="Unassigned techs" value={result.summary.unassignedTechnicians || 0} />
+              </>
+            )}
           </div>
 
           {result.billingNote && <div style={infoStyle}><strong>Billing:</strong> {result.billingNote}</div>}
           {result.aiCostNote && <div style={infoStyle}><strong>AI cost:</strong> {result.aiCostNote}</div>}
 
           <div style={reportTableWrapStyle}>
-            <table style={tableStyle}>
-              <thead>
-                <tr>
-                  <th style={thStyle}>Company</th>
-                  <th style={thStyle}>Plan</th>
-                  {result.sections.includes('plan_seats') && <th style={thStyle}>Users / allowance</th>}
-                  {result.sections.includes('activity') && <th style={thStyle}>Conversation activity</th>}
-                  {result.sections.includes('ai_usage') && <th style={thStyle}>AI usage</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {result.rows.map((row) => (
-                  <tr key={row.companyId}>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight:850 }}>{row.companyName}</div>
-                      <div style={cellSubtleStyle}>{row.companyStatus} · {row.accountType}</div>
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ fontWeight:800 }}>{row.planCode}</div>
-                      <div style={cellSubtleStyle}>{row.subscriptionStatus}</div>
-                      {row.overPlan && <span style={overPlanStyle}>Over plan</span>}
-                    </td>
-                    {result.sections.includes('plan_seats') && (
-                      <td style={tdStyle}>
-                        <div>Owners: <strong>{row.used.owners}</strong> / {row.included.owners} {row.overage.owners ? <em style={overageStyle}>+{row.overage.owners}</em> : null}</div>
-                        <div>Managers: <strong>{row.used.managers}</strong> / {row.included.managers} {row.overage.managers ? <em style={overageStyle}>+{row.overage.managers}</em> : null}</div>
-                        <div>Techs: <strong>{row.used.technicians}</strong> / {row.included.technicians} {row.overage.technicians ? <em style={overageStyle}>+{row.overage.technicians}</em> : null}</div>
-                      </td>
-                    )}
-                    {result.sections.includes('activity') && (
-                      <td style={tdStyle}>
-                        <div>Technician: <strong>{row.activity.technicianConversations}</strong></div>
-                        <div>Manager: <strong>{row.activity.managerConversations}</strong></div>
-                        <div>Owner: <strong>{row.activity.ownerConversations}</strong></div>
-                      </td>
-                    )}
-                    {result.sections.includes('ai_usage') && (
-                      <td style={tdStyle}>
-                        <div><strong>{row.aiUsage.calls.toLocaleString()}</strong> calls</div>
-                        <div><strong>{row.aiUsage.totalTokens.toLocaleString()}</strong> tokens</div>
-                        <div style={cellSubtleStyle}>{row.aiUsage.webSearchCalls} web · {row.aiUsage.fileSearchCalls} file searches</div>
-                      </td>
-                    )}
+            {result.reportType === 'billing_usage' ? (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Company</th>
+                    <th style={thStyle}>Plan</th>
+                    {result.sections.includes('plan_seats') && <th style={thStyle}>Users / allowance</th>}
+                    {result.sections.includes('activity') && <th style={thStyle}>Conversation activity</th>}
+                    {result.sections.includes('ai_usage') && <th style={thStyle}>AI usage</th>}
                   </tr>
-                ))}
-                {!result.rows.length && <tr><td colSpan={5} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(result.rows as BillingUsageRow[]).map((row) => (
+                    <tr key={row.companyId}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:850 }}>{row.companyName}</div>
+                        <div style={cellSubtleStyle}>{row.companyStatus} · {row.accountType}</div>
+                      </td>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:800 }}>{row.planCode}</div>
+                        <div style={cellSubtleStyle}>{row.subscriptionStatus}</div>
+                        {row.overPlan && <span style={overPlanStyle}>Over plan</span>}
+                      </td>
+                      {result.sections.includes('plan_seats') && (
+                        <td style={tdStyle}>
+                          <div>Owners: <strong>{row.used.owners}</strong> / {row.included.owners} {row.overage.owners ? <em style={overageStyle}>+{row.overage.owners}</em> : null}</div>
+                          <div>Managers: <strong>{row.used.managers}</strong> / {row.included.managers} {row.overage.managers ? <em style={overageStyle}>+{row.overage.managers}</em> : null}</div>
+                          <div>Techs: <strong>{row.used.technicians}</strong> / {row.included.technicians} {row.overage.technicians ? <em style={overageStyle}>+{row.overage.technicians}</em> : null}</div>
+                        </td>
+                      )}
+                      {result.sections.includes('activity') && (
+                        <td style={tdStyle}>
+                          <div>Technician: <strong>{row.activity.technicianConversations}</strong></div>
+                          <div>Manager: <strong>{row.activity.managerConversations}</strong></div>
+                          <div>Owner: <strong>{row.activity.ownerConversations}</strong></div>
+                        </td>
+                      )}
+                      {result.sections.includes('ai_usage') && (
+                        <td style={tdStyle}>
+                          <div><strong>{row.aiUsage.calls.toLocaleString()}</strong> calls</div>
+                          <div><strong>{row.aiUsage.totalTokens.toLocaleString()}</strong> tokens</div>
+                          <div style={cellSubtleStyle}>{row.aiUsage.webSearchCalls} web · {row.aiUsage.fileSearchCalls} file searches</div>
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {!result.rows.length && <tr><td colSpan={5} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
+                </tbody>
+              </table>
+            ) : result.reportType === 'company_performance' ? (
+              <table style={tableStyle}>
+                <thead>
+                  <tr>
+                    <th style={thStyle}>Company</th>
+                    {result.sections.includes('people_coverage') && <th style={thStyle}>People & coverage</th>}
+                    {result.sections.includes('engagement') && <th style={thStyle}>Engagement</th>}
+                    {result.sections.includes('jurisdictions_trades') && <th style={thStyle}>Jurisdictions & trades</th>}
+                    {result.sections.includes('attention') && <th style={thStyle}>Attention</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(result.rows as CompanyPerformanceRow[]).map((row) => (
+                    <tr key={row.companyId}>
+                      <td style={tdStyle}>
+                        <div style={{ fontWeight:850 }}>{row.companyName}</div>
+                        <div style={cellSubtleStyle}>{row.companyStatus} · {row.accountType}</div>
+                      </td>
+                      {result.sections.includes('people_coverage') && (
+                        <td style={tdStyle}>
+                          <div>Users: <strong>{row.peopleCoverage.activeUsers.owners}</strong> owner · <strong>{row.peopleCoverage.activeUsers.managers}</strong> manager · <strong>{row.peopleCoverage.activeUsers.technicians}</strong> tech</div>
+                          <div>Roster techs: <strong>{row.peopleCoverage.rosterTechnicians}</strong></div>
+                          <div>Manager coverage: <strong>{row.peopleCoverage.managerCoveragePct}%</strong></div>
+                          <div style={cellSubtleStyle}>Account coverage: {row.peopleCoverage.accountCoveragePct}% · {row.peopleCoverage.unassignedTechnicians} unassigned</div>
+                        </td>
+                      )}
+                      {result.sections.includes('engagement') && (
+                        <td style={tdStyle}>
+                          <div>Tech: <strong>{row.engagement.technicianConversations}</strong> · Manager: <strong>{row.engagement.managerConversations}</strong> · Owner: <strong>{row.engagement.ownerConversations}</strong></div>
+                          <div>Active techs: <strong>{row.engagement.activeTechnicians}</strong> · Adoption: <strong>{row.engagement.technicianAdoptionPct}%</strong></div>
+                          <div style={cellSubtleStyle}>Last activity: {row.engagement.lastActivityAt ? new Date(row.engagement.lastActivityAt).toLocaleString() : 'None in period'}</div>
+                        </td>
+                      )}
+                      {result.sections.includes('jurisdictions_trades') && (
+                        <td style={tdStyle}>
+                          <div><strong>Trades:</strong> {row.configuration.trades.length ? row.configuration.trades.join(', ') : 'None configured'}</div>
+                          <div style={{ marginTop:4 }}><strong>Jurisdictions:</strong> {row.configuration.jurisdictions.length ? row.configuration.jurisdictions.join(' · ') : 'None configured'}</div>
+                          <div style={cellSubtleStyle}>
+                            Usage: {Object.entries(row.configuration.jurisdictionUsage).length
+                              ? Object.entries(row.configuration.jurisdictionUsage).map(([name,count]) => `${name}: ${count}`).join(' · ')
+                              : 'No technician jurisdiction activity'}
+                          </div>
+                        </td>
+                      )}
+                      {result.sections.includes('attention') && (
+                        <td style={tdStyle}>
+                          {row.attention.needsAttention
+                            ? <div style={{ display:'grid', gap:4 }}>{row.attention.signals.map((signal) => <span key={signal} style={attentionSignalStyle}>{signal}</span>)}</div>
+                            : <span style={healthySignalStyle}>No attention signals</span>}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                  {!result.rows.length && <tr><td colSpan={5} style={{ ...tdStyle, color:'#64748b' }}>No companies matched this report.</td></tr>}
+                </tbody>
+              </table>
+            ) : (
+              <div style={emptyStyle}>This report family does not have a results renderer yet.</div>
+            )}
           </div>
         </section>
       )}
@@ -697,10 +868,10 @@ export default function ReportsPage() {
   )
 }
 
-function SummaryMetric({ label, value, format = false }: { label: string; value: number; format?: boolean }) {
+function SummaryMetric({ label, value, format = false, suffix = '' }: { label: string; value: number; format?: boolean; suffix?: string }) {
   return (
     <div style={summaryMetricStyle}>
-      <div style={{ fontSize:22, fontWeight:900 }}>{format ? value.toLocaleString() : value}</div>
+      <div style={{ fontSize:22, fontWeight:900 }}>{format ? value.toLocaleString() : value}{suffix}</div>
       <div style={{ marginTop:3, color:'#64748b', fontSize:10, fontWeight:800 }}>{label}</div>
     </div>
   )
@@ -738,6 +909,8 @@ const tdStyle: React.CSSProperties = { padding:'11px 12px', verticalAlign:'top',
 const cellSubtleStyle: React.CSSProperties = { marginTop:3, color:'#64748b', fontSize:11 }
 const overPlanStyle: React.CSSProperties = { display:'inline-block', marginTop:5, padding:'3px 6px', borderRadius:999, background:'#fff7ed', color:'#9a3412', fontSize:9, fontWeight:900, textTransform:'uppercase' }
 const overageStyle: React.CSSProperties = { color:'#9a3412', fontStyle:'normal', fontWeight:900 }
+const attentionSignalStyle: React.CSSProperties = { display:'inline-block', padding:'4px 6px', borderRadius:7, background:'#fff7ed', color:'#9a3412', fontSize:10, fontWeight:750 }
+const healthySignalStyle: React.CSSProperties = { display:'inline-block', padding:'4px 6px', borderRadius:7, background:'#ecfdf5', color:'#166534', fontSize:10, fontWeight:800 }
 const twoColumnStyle: React.CSSProperties = { display:'grid', gridTemplateColumns:'repeat(auto-fit,minmax(360px,1fr))', gap:16, marginTop:16 }
 const savedRowStyle: React.CSSProperties = { display:'flex', justifyContent:'space-between', alignItems:'center', gap:14, padding:12, border:'1px solid #e2e8f0', borderRadius:10, background:'#f8fafc' }
 const runRowStyle: React.CSSProperties = { padding:11, border:'1px solid #e2e8f0', borderRadius:10, background:'#f8fafc' }

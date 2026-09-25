@@ -52,12 +52,51 @@ export const REPORT_CATALOG: ReportCatalogItem[] = [
   {
     type: 'company_performance',
     label: 'Company Performance',
-    description: 'Adoption, company health, jurisdiction activity, and trends.',
-    status: 'planned',
+    description: 'Adoption, people coverage, jurisdiction activity, and attention signals.',
+    status: 'live',
     schemaVersion: 1,
-    defaultSections: [],
-    sections: [],
-    filters: [],
+    defaultSections: ['people_coverage', 'engagement', 'jurisdictions_trades', 'attention'],
+    sections: [
+      {
+        key: 'people_coverage',
+        label: 'People & coverage',
+        description: 'Active users, technician roster, manager assignments, and account coverage.',
+      },
+      {
+        key: 'engagement',
+        label: 'Engagement',
+        description: 'Conversation activity, active technicians, adoption rate, and most recent activity.',
+      },
+      {
+        key: 'jurisdictions_trades',
+        label: 'Jurisdictions & trades',
+        description: 'Configured trades and jurisdictions compared with actual technician conversation usage.',
+      },
+      {
+        key: 'attention',
+        label: 'Attention signals',
+        description: 'No activity, disabled companies, unassigned technicians, and low technician adoption.',
+      },
+    ],
+    filters: [
+      {
+        key: 'companyStatus',
+        label: 'Company status',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { value: 'all', label: 'All company statuses' },
+          { value: 'active', label: 'Active' },
+          { value: 'disabled', label: 'Disabled' },
+        ],
+      },
+      {
+        key: 'attentionOnly',
+        label: 'Companies needing attention only',
+        type: 'boolean',
+        defaultValue: false,
+      },
+    ],
   },
   {
     type: 'ai_usage_cost',

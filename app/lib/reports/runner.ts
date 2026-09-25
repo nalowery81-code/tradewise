@@ -1,5 +1,6 @@
 import { getReportCatalogItem, validateReportDefinition } from './catalog'
 import { runBillingUsageReport } from './billing-usage'
+import { runCompanyPerformanceReport } from './company-performance'
 import type { ReportRunInput, ReportRunResult } from './types'
 
 export async function runReport(input: ReportRunInput): Promise<ReportRunResult> {
@@ -14,6 +15,9 @@ export async function runReport(input: ReportRunInput): Promise<ReportRunResult>
 
   if (input.reportType === 'billing_usage') {
     return runBillingUsageReport(input)
+  }
+  if (input.reportType === 'company_performance') {
+    return runCompanyPerformanceReport(input)
   }
 
   throw new Error('That report family is not available yet.')
