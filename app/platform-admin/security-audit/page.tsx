@@ -26,7 +26,12 @@ export default function SecurityAuditPage() {
 
   useEffect(() => { void load().catch((e:any) => setError(e?.message || 'Could not load audit log.')) }, [])
 
-  const actions=useMemo(() => [...new Set((data?.events || []).map((event:any) => event.action))].sort(), [data])
+  const actions = useMemo<string[]>(() =>
+    [...new Set<string>((data?.events || []).map((event:any) => String(event.action || '')))]
+      .filter(Boolean)
+      .sort(),
+    [data]
+  )
 
   const events = useMemo(() => {
     const q=search.trim().toLowerCase()
