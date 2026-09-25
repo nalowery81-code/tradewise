@@ -554,7 +554,7 @@ export default function ConversationAuditPage() {
             </div>
           )}
 
-          {error && <div style={errorStyle}>{error}</div>
+          {error && <div style={errorStyle}>{error}</div>}
           {actionStatus && <div style={{ ...errorStyle, background: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#f0fdf4' : '#fff7ed', color: actionStatus.includes('saved') || actionStatus.includes('sent') ? '#166534' : '#9a3412' }}>{actionStatus}</div>}
 
           <div className="audit-layout" style={layoutStyle}>
