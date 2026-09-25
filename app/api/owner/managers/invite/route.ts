@@ -19,10 +19,17 @@ export async function POST(request: Request) {
     const companyId = auth.profile.company_id
     const body = await request.json()
     const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+    const preferredName = typeof body?.preferredName === 'string'
+      ? body.preferredName.replace(/\s+/g, ' ').trim()
+      : ''
     const email = String(body?.email || '').trim().toLowerCase()
 
     if (!name || name.length < 2) {
       return Response.json({ error: 'Manager name is required.' }, { status: 400 })
+    }
+
+    if (preferredName.length > 80) {
+      return Response.json({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -33,7 +40,7 @@ export async function POST(request: Request) {
       email,
       {
         redirectTo: getInviteRedirectUrl(),
-        data: { full_name: name, company_id: companyId, role: 'manager' },
+        data: { full_name: name, preferred_name: preferredName || null, company_id: companyId, role: 'manager' },
       }
     )
 
@@ -53,6 +60,7 @@ export async function POST(request: Request) {
         auth_user_id: invitedUserId,
         role: 'manager',
         company_id: companyId,
+        preferred_name: preferredName || null,
       })
       .select('id, auth_user_id, role, company_id, created_at')
       .single()
@@ -64,6 +72,8 @@ export async function POST(request: Request) {
         profileId: profile.id,
         authUserId: profile.auth_user_id,
         name,
+        preferredName,
+        displayName: preferredName || name,
         email,
         role: profile.role,
       },

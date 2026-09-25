@@ -7,6 +7,8 @@ import PlatformAdminShell from '../platform-admin-shell'
 type UserRow = {
   id: string
   name: string
+  preferredName: string
+  displayName: string
   email: string
   companyId: string
   companyName: string
@@ -45,6 +47,7 @@ export default function PlatformAdminUsersPage() {
 
   const [showAddUser, setShowAddUser] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newPreferredName, setNewPreferredName] = useState('')
   const [newEmail, setNewEmail] = useState('')
   const [newCompanyId, setNewCompanyId] = useState('')
   const [newRole, setNewRole] = useState<'owner' | 'manager' | 'technician'>('technician')
@@ -53,6 +56,7 @@ export default function PlatformAdminUsersPage() {
 
   const [editingUserId, setEditingUserId] = useState('')
   const [editName, setEditName] = useState('')
+  const [editPreferredName, setEditPreferredName] = useState('')
   const [editEmail, setEditEmail] = useState('')
   const [editCompanyId, setEditCompanyId] = useState('')
   const [editRole, setEditRole] = useState<'owner' | 'manager' | 'technician'>('technician')
@@ -139,6 +143,7 @@ export default function PlatformAdminUsersPage() {
         },
         body: JSON.stringify({
           name,
+          preferredName: newPreferredName.replace(/\s+/g, ' ').trim(),
           email,
           companyId: newCompanyId,
           role: newRole,
@@ -157,6 +162,7 @@ export default function PlatformAdminUsersPage() {
         ? `${name} was created and a setup email was sent to ${email}.`
         : `${name} was created without sending an email.`)
       setNewName('')
+      setNewPreferredName('')
       setNewEmail('')
       setNewRole('technician')
       setNewActive(true)
@@ -176,6 +182,7 @@ export default function PlatformAdminUsersPage() {
     setShowAddUser(false)
     setEditingUserId(user.id)
     setEditName(user.name || '')
+    setEditPreferredName(user.preferredName || '')
     setEditEmail(user.email)
     setEditCompanyId(user.companyId)
     setEditRole(user.role as 'owner' | 'manager' | 'technician')
@@ -227,6 +234,7 @@ export default function PlatformAdminUsersPage() {
         body: JSON.stringify({
           profileId: user.id,
           name,
+          preferredName: editPreferredName.replace(/\s+/g, ' ').trim(),
           email,
           companyId: editCompanyId,
           role: editRole,
@@ -322,8 +330,13 @@ export default function PlatformAdminUsersPage() {
 
             <div style={formGridStyle}>
               <label style={labelStyle}>
-                Name
+                Full name
                 <input value={editName} onChange={(event) => setEditName(event.target.value)} style={inputStyle} />
+              </label>
+
+              <label style={labelStyle}>
+                Preferred name
+                <input value={editPreferredName} onChange={(event) => setEditPreferredName(event.target.value)} maxLength={80} placeholder="Optional" style={inputStyle} />
               </label>
 
               <label style={labelStyle}>
@@ -412,9 +425,12 @@ export default function PlatformAdminUsersPage() {
         ) : (
           <>
             <div style={{ minWidth: 0 }}>
-              {user.name ? (
+              {user.displayName || user.name ? (
                 <>
-                  <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.name}</div>
+                  <div style={{ fontWeight: 800, overflowWrap: 'anywhere' }}>{user.displayName || user.name}</div>
+                  {user.preferredName && user.name && user.preferredName !== user.name && (
+                    <div style={{ marginTop: 2, color: '#64748b', fontSize: 12 }}>Full name: {user.name}</div>
+                  )}
                   <div style={{ marginTop: 3, color: '#475569', fontSize: 13, overflowWrap: 'anywhere' }}>{user.email}</div>
                 </>
               ) : (
@@ -484,8 +500,13 @@ export default function PlatformAdminUsersPage() {
 
             <div style={formGridStyle}>
               <label style={labelStyle}>
-                Name
-                <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Example: Jake Smith" style={inputStyle} />
+                Full name
+                <input value={newName} onChange={(event) => setNewName(event.target.value)} placeholder="Example: Nathan Lowery" style={inputStyle} />
+              </label>
+
+              <label style={labelStyle}>
+                Preferred name
+                <input value={newPreferredName} onChange={(event) => setNewPreferredName(event.target.value)} maxLength={80} placeholder="Example: Nate (optional)" style={inputStyle} />
               </label>
 
               <label style={labelStyle}>

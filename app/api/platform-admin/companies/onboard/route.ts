@@ -33,6 +33,9 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}))
     const name = typeof body?.name === 'string' ? body.name.replace(/\s+/g, ' ').trim() : ''
     const ownerName = typeof body?.ownerName === 'string' ? body.ownerName.replace(/\s+/g, ' ').trim() : ''
+    const ownerPreferredName = typeof body?.ownerPreferredName === 'string'
+      ? body.ownerPreferredName.replace(/\s+/g, ' ').trim()
+      : ''
     const ownerEmail = typeof body?.ownerEmail === 'string' ? body.ownerEmail.trim().toLowerCase() : ''
     const timezone = typeof body?.timezone === 'string' ? body.timezone.trim() : 'America/Indiana/Indianapolis'
     const trades = Array.isArray(body?.trades)
@@ -57,6 +60,10 @@ export async function POST(request: Request) {
 
     if (ownerName.length < 2 || ownerName.length > 120) {
       return jsonNoStore({ error: 'Owner name must be between 2 and 120 characters.' }, { status: 400 })
+    }
+
+    if (ownerPreferredName.length > 80) {
+      return jsonNoStore({ error: 'Owner preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!ownerEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail)) {
@@ -129,6 +136,7 @@ export async function POST(request: Request) {
         redirectTo: getInviteRedirectUrl(),
         data: {
           full_name: ownerName,
+          preferred_name: ownerPreferredName || null,
           company_id: company.id,
           role: 'owner',
         },
@@ -150,6 +158,7 @@ export async function POST(request: Request) {
         role: 'owner',
         company_id: company.id,
         is_active: true,
+        preferred_name: ownerPreferredName || null,
       })
       .select('id')
       .single()
@@ -169,6 +178,8 @@ export async function POST(request: Request) {
       },
       owner: {
         name: ownerName,
+        preferredName: ownerPreferredName,
+        displayName: ownerPreferredName || ownerName,
         email: ownerEmail,
         profileId: profile.id,
         status: 'pending_invite',

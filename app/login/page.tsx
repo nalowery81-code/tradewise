@@ -13,6 +13,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [otp, setOtp] = useState('')
   const [otpStatus, setOtpStatus] = useState('')
+  const [recoveryStatus, setRecoveryStatus] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [checkingSession, setCheckingSession] = useState(true)
@@ -153,6 +154,29 @@ export default function LoginPage() {
     setLoading(false)
   }
 
+  const handleForgotPassword = async () => {
+    const cleanEmail = email.trim().toLowerCase()
+    setError('')
+    setRecoveryStatus('')
+
+    if (!cleanEmail) {
+      setError('Enter your email address first.')
+      return
+    }
+
+    setLoading(true)
+    const { error: recoveryError } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: `${window.location.origin}/setup-account`,
+    })
+
+    if (recoveryError) {
+      setError(recoveryError.message || 'Could not send password reset email.')
+    } else {
+      setRecoveryStatus('Check your email for a CraftCompass AI password reset link.')
+    }
+    setLoading(false)
+  }
+
   const handleOtpLogin = async () => {
     setLoading(true)
     setError('')
@@ -218,6 +242,16 @@ export default function LoginPage() {
               autoComplete="current-password"
               style={{ padding: 12, fontSize: 16, borderRadius: 8, border: '1px solid #ccc' }}
             />
+
+            <button
+              type="button"
+              onClick={() => void handleForgotPassword()}
+              disabled={loading}
+              style={{ alignSelf: 'flex-end', border: 0, background: 'transparent', padding: 0, color: '#086195', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Forgot password?
+            </button>
+            {recoveryStatus && <div style={{ fontSize: 14, color: '#166534', lineHeight: 1.4 }}>{recoveryStatus}</div>}
 
             <button type="submit" disabled={loading || !email || !password} style={{ padding: 12, fontSize: 16, borderRadius: 8, cursor: loading ? 'default' : 'pointer' }}>
               {loading ? 'Signing in...' : 'Sign in'}

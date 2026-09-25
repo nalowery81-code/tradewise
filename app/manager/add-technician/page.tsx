@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 export default function AddTechnicianPage() {
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [name, setName] = useState('')
+  const [preferredName, setPreferredName] = useState('')
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [status, setStatus] = useState('')
@@ -67,7 +68,7 @@ export default function AddTechnicianPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ name: cleanName, email: cleanEmail }),
+        body: JSON.stringify({ name: cleanName, preferredName: preferredName.replace(/\s+/g, ' ').trim(), email: cleanEmail }),
       })
       const data = await response.json()
 
@@ -78,6 +79,7 @@ export default function AddTechnicianPage() {
 
       setStatus(`Invite sent to ${cleanEmail}. ${data.technician.name} is now connected to one technician record.`)
       setName('')
+      setPreferredName('')
       setEmail('')
     } catch (inviteError) {
       console.error('INVITE TECHNICIAN ERROR:', inviteError)
@@ -103,12 +105,23 @@ export default function AddTechnicianPage() {
         </p>
 
         <label style={labelStyle}>
-          Technician name
+          Full name
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Example: Jake Smith"
             autoComplete="name"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          Preferred name
+          <input
+            value={preferredName}
+            onChange={(event) => setPreferredName(event.target.value)}
+            maxLength={80}
+            placeholder="Example: Jake (optional)"
             style={inputStyle}
           />
         </label>

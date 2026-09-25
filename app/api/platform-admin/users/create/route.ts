@@ -23,6 +23,9 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
     const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+    const preferredName = typeof body?.preferredName === 'string'
+      ? body.preferredName.replace(/\s+/g, ' ').trim()
+      : ''
     const email = String(body?.email || '').trim().toLowerCase()
     const companyId = String(body?.companyId || '').trim()
     const role = String(body?.role || '').trim().toLowerCase()
@@ -31,6 +34,10 @@ export async function POST(request: Request) {
 
     if (!name || name.length < 2 || name.length > 120) {
       return jsonNoStore({ error: 'Name must be between 2 and 120 characters.' }, { status: 400 })
+    }
+
+    if (preferredName.length > 80) {
+      return jsonNoStore({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -86,6 +93,7 @@ export async function POST(request: Request) {
       email_confirm: true,
       user_metadata: {
         full_name: name,
+        preferred_name: preferredName || null,
         company_id: companyId,
         role,
         password_set: false,
@@ -108,6 +116,7 @@ export async function POST(request: Request) {
         role,
         company_id: companyId,
         is_active: isActive,
+        preferred_name: preferredName || null,
       })
       .select('id, auth_user_id, company_id, role, is_active')
       .single()
@@ -147,6 +156,8 @@ export async function POST(request: Request) {
           authUserId: profile.auth_user_id,
           email,
           name,
+          preferredName,
+          displayName: preferredName || name,
           companyId,
           companyName: company.name,
           role: profile.role,

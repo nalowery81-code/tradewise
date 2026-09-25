@@ -167,6 +167,7 @@ export default function ManagerPage() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [selectedHistoryCategory, setSelectedHistoryCategory] = useState<string | null>(null)
   const [checkingAccess, setCheckingAccess] = useState(true)
+  const [platformAdminSession, setPlatformAdminSession] = useState(false)
   const [managerView, setManagerView] = useState<ManagerView>('chat')
 
   const [technicians, setTechnicians] = useState<TechnicianDirectoryItem[]>([])
@@ -207,7 +208,9 @@ export default function ManagerPage() {
         })
         if (!response.ok) throw new Error('Could not verify manager access.')
 
-        const { role } = await response.json()
+        const roleData = await response.json()
+        const { role } = roleData
+        setPlatformAdminSession(roleData.isPlatformAdmin === true)
         if (role !== 'manager') {
           window.location.replace('/technician')
           return
@@ -683,7 +686,12 @@ export default function ManagerPage() {
             )
           })}
         </div>
-        <button type="button" onClick={handleSignOut} style={signOutStyle}>Sign out</button>
+        {!platformAdminSession && (
+          <a href="/account/password" style={{ ...signOutStyle, display: 'block', boxSizing: 'border-box', textDecoration: 'none', color: '#172033', marginTop: 16 }}>
+            Account & password
+          </a>
+        )}
+        <button type="button" onClick={handleSignOut} style={{ ...signOutStyle, marginTop: platformAdminSession ? 16 : 8 }}>Sign out</button>
       </aside>
 
       <header style={{ ...headerStyle, marginLeft: isDesktop && sidebarOpen ? 278 : 0 }}>

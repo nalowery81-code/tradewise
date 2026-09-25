@@ -265,12 +265,12 @@ export default function CompanyControlCenterPage() {
   }
 
   if (loading) return <PlatformAdminShell maxWidth={1180} contentPadding="42px clamp(24px, 5vw, 72px) 70px"><div style={noticeStyle}>Loading company control center…</div></PlatformAdminShell>
-  if (!data) return <Shell><div style={errorStyle}>{error || 'Company not found.'}</div></Shell>
+  if (!data) return <PlatformAdminShell maxWidth={1180} contentPadding="42px clamp(24px, 5vw, 72px) 70px"><div style={errorStyle}>{error || 'Company not found.'}</div></PlatformAdminShell>
 
   const company = data.company
 
   return (
-    <Shell>
+    <PlatformAdminShell maxWidth={1180} contentPadding="42px clamp(24px, 5vw, 72px) 70px">
       <div style={{ maxWidth: 1180, margin: '0 auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 18, alignItems: 'flex-start', flexWrap: 'wrap' }}>
           <div>
@@ -473,7 +473,7 @@ export default function CompanyControlCenterPage() {
           </div>
         </div>
       )}
-    </Shell>
+    </PlatformAdminShell>
   )
 }
 

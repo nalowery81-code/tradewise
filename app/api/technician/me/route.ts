@@ -6,6 +6,12 @@ export async function GET(request: Request) {
   const access = await requireEffectiveTechnician(request)
   if ('error' in access) return access.error
 
+  const { data: userProfile } = await supabaseServer
+    .from('UserProfiles')
+    .select('preferred_name')
+    .eq('auth_user_id', access.authUserId)
+    .maybeSingle()
+
   const { data: company, error } = await supabaseServer
     .from('Companies')
     .select('jurisdictions')
@@ -21,7 +27,14 @@ export async function GET(request: Request) {
     .filter((item): item is NonNullable<typeof item> => Boolean(item))
 
   return Response.json(
-    { technician: access.technician, companyJurisdictions, impersonating: access.impersonating },
+    {
+      technician: {
+        ...access.technician,
+        display_name: userProfile?.preferred_name || access.technician.canonical_name,
+      },
+      companyJurisdictions,
+      impersonating: access.impersonating,
+    },
     { headers: { 'Cache-Control': 'no-store' } }
   )
 }

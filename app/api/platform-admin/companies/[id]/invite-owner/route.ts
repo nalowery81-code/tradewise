@@ -19,10 +19,17 @@ export async function POST(
     const { id: companyId } = await context.params
     const body = await request.json().catch(() => ({}))
     const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+    const preferredName = typeof body?.preferredName === 'string'
+      ? body.preferredName.replace(/\s+/g, ' ').trim()
+      : ''
     const email = String(body?.email || '').trim().toLowerCase()
 
     if (!name || name.length < 2) {
       return Response.json({ error: 'Owner name is required.' }, { status: 400 })
+    }
+
+    if (preferredName.length > 80) {
+      return jsonNoStore({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -66,6 +73,7 @@ export async function POST(
         role: 'owner',
         company_id: companyId,
         is_active: true,
+        preferred_name: preferredName || null,
       })
       .select('id, auth_user_id, role, company_id, created_at')
       .single()

@@ -28,6 +28,7 @@ export default function PlatformAdminPage() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [companyName, setCompanyName] = useState('')
   const [newOwnerName, setNewOwnerName] = useState('')
+  const [newOwnerPreferredName, setNewOwnerPreferredName] = useState('')
   const [newOwnerEmail, setNewOwnerEmail] = useState('')
   const [newTrades, setNewTrades] = useState<string[]>(['plumbing'])
   const [newJurisdictions, setNewJurisdictions] = useState<JurisdictionValue[]>([{ country: 'US', state: 'IN' }])
@@ -40,6 +41,7 @@ export default function PlatformAdminPage() {
   const [error, setError] = useState('')
   const [inviteCompany, setInviteCompany] = useState<Company | null>(null)
   const [ownerName, setOwnerName] = useState('')
+  const [ownerPreferredName, setOwnerPreferredName] = useState('')
   const [ownerEmail, setOwnerEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteStatus, setInviteStatus] = useState('')
@@ -101,6 +103,7 @@ export default function PlatformAdminPage() {
       body: JSON.stringify({
         name: companyName.trim(),
         ownerName: newOwnerName.trim(),
+        ownerPreferredName: newOwnerPreferredName.replace(/\s+/g, ' ').trim(),
         ownerEmail: newOwnerEmail.trim().toLowerCase(),
         timezone: newTimezone,
         trades: newTrades,
@@ -121,6 +124,7 @@ export default function PlatformAdminPage() {
     setCompanies((current) => [...current, data.company])
     setCompanyName('')
     setNewOwnerName('')
+    setNewOwnerPreferredName('')
     setNewOwnerEmail('')
     setNewTrades(['plumbing'])
     setNewJurisdictions([{ country: 'US', state: 'IN' }])
@@ -146,7 +150,7 @@ export default function PlatformAdminPage() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: ownerName, email: ownerEmail }),
+      body: JSON.stringify({ name: ownerName, preferredName: ownerPreferredName.replace(/\s+/g, ' ').trim(), email: ownerEmail }),
     })
 
     const data = await response.json().catch(() => ({}))
@@ -166,6 +170,7 @@ export default function PlatformAdminPage() {
     )
     setInviteStatus(`Invite sent to ${ownerEmail.trim().toLowerCase()}.`)
     setOwnerName('')
+    setOwnerPreferredName('')
     setOwnerEmail('')
     setInviting(false)
   }
@@ -273,9 +278,6 @@ export default function PlatformAdminPage() {
             )}
           </div>
 
-        </div>
-      </section>
-
       {onboardingOpen && (
         <div style={modalBackdropStyle} onClick={() => !creating && setOnboardingOpen(false)}>
           <form
@@ -299,6 +301,10 @@ export default function PlatformAdminPage() {
               <label style={modalLabelStyle}>
                 Owner name
                 <input value={newOwnerName} onChange={(event) => setNewOwnerName(event.target.value)} maxLength={120} style={{ ...inputStyle, minWidth: 0 }} />
+              </label>
+              <label style={modalLabelStyle}>
+                Owner preferred name
+                <input value={newOwnerPreferredName} onChange={(event) => setNewOwnerPreferredName(event.target.value)} maxLength={80} placeholder="Optional" style={{ ...inputStyle, minWidth: 0 }} />
               </label>
               <label style={modalLabelStyle}>
                 Owner email
@@ -375,6 +381,17 @@ export default function PlatformAdminPage() {
                 value={ownerName}
                 onChange={(event) => setOwnerName(event.target.value)}
                 placeholder="Owner name"
+                style={inputStyle}
+              />
+            </label>
+
+            <label style={labelStyle}>
+              Preferred name
+              <input
+                value={ownerPreferredName}
+                onChange={(event) => setOwnerPreferredName(event.target.value)}
+                maxLength={80}
+                placeholder="Optional"
                 style={inputStyle}
               />
             </label>

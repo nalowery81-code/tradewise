@@ -19,10 +19,17 @@ export async function POST(request: Request) {
     const companyId = auth.profile.company_id
     const body = await request.json()
     const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+    const preferredName = typeof body?.preferredName === 'string'
+      ? body.preferredName.replace(/\s+/g, ' ').trim()
+      : ''
     const email = String(body?.email || '').trim().toLowerCase()
 
     if (!name || name.length < 2) {
       return Response.json({ error: 'Technician name is required.' }, { status: 400 })
+    }
+
+    if (preferredName.length > 80) {
+      return Response.json({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
     }
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -49,7 +56,7 @@ export async function POST(request: Request) {
       email,
       {
         redirectTo: getInviteRedirectUrl(),
-        data: { full_name: name, company_id: companyId, role: 'technician' },
+        data: { full_name: name, preferred_name: preferredName || null, company_id: companyId, role: 'technician' },
       }
     )
 
@@ -67,6 +74,7 @@ export async function POST(request: Request) {
       auth_user_id: invitedUserId,
       role: 'technician',
       company_id: companyId,
+      preferred_name: preferredName || null,
     })
 
     if (userProfileError) throw userProfileError
@@ -96,7 +104,8 @@ export async function POST(request: Request) {
     }
 
     return Response.json({
-      technician: { id: technician.id, name: technician.canonical_name },
+      technician: { id: technician.id, name: preferredName || technician.canonical_name, canonicalName: technician.canonical_name },
+      preferredName,
       email,
       invited: true,
     })

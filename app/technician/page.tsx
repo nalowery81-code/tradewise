@@ -290,7 +290,7 @@ export default function TechnicianPage() {
       }
 
       setTechnicianId(data.technician.id)
-      setTechnicianName(data.technician.canonical_name)
+      setTechnicianName(data.technician.display_name || data.technician.canonical_name)
 
       const jurisdictions = (Array.isArray(data.companyJurisdictions) ? data.companyJurisdictions : [])
         .map(normalizeJurisdiction)
@@ -809,9 +809,26 @@ export default function TechnicianPage() {
           </span>
         </div>
 
+        {!impersonating && (
+          <a
+            href="/account/password"
+            style={{
+              ...styles.newConversation,
+              display: 'block',
+              boxSizing: 'border-box',
+              textDecoration: 'none',
+              textAlign: 'center',
+              marginTop: 'auto',
+              marginBottom: 8,
+            }}
+          >
+            Account & password
+          </a>
+        )}
+
         <button
           type="button"
-          style={styles.newConversation}
+          style={{ ...styles.newConversation, marginTop: impersonating ? 'auto' : 0 }}
           onClick={async () => {
             if (impersonating) {
               const session = (await supabase.auth.getSession()).data.session

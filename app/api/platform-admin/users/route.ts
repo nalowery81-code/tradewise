@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     { data: technicians },
     authResult,
   ] = await Promise.all([
-    supabaseServer.from('UserProfiles').select('id, auth_user_id, company_id, role, is_active, is_platform_admin, created_at'),
+    supabaseServer.from('UserProfiles').select('id, auth_user_id, company_id, role, is_active, is_platform_admin, preferred_name, created_at'),
     supabaseServer.from('Companies').select('id, name'),
     supabaseServer.from('Technicians').select('auth_user_id, canonical_name').not('auth_user_id', 'is', null),
     supabaseServer.auth.admin.listUsers({ page: 1, perPage: 1000 }),
@@ -44,6 +44,8 @@ export async function GET(request: Request) {
       id: profile.id,
       authUserId: profile.auth_user_id,
       name: metadataName || technicianName,
+      preferredName: profile.preferred_name || '',
+      displayName: profile.preferred_name || metadataName || technicianName,
       email: authUser?.email || 'Unknown email',
       companyId: profile.company_id,
       companyName: companyById.get(profile.company_id) || 'Unknown company',
@@ -65,7 +67,7 @@ export async function PATCH(request: Request) {
 
   const body = await request.json().catch(() => ({}))
   const profileId = String(body?.profileId || '')
-  const isProfileEdit = ['name', 'email', 'companyId', 'role', 'password'].some((key) => body?.[key] !== undefined)
+  const isProfileEdit = ['name', 'preferredName', 'email', 'companyId', 'role', 'password'].some((key) => body?.[key] !== undefined)
 
   if (!profileId) {
     return jsonNoStore({ error: 'User is required.' }, { status: 400 })
@@ -110,6 +112,9 @@ export async function PATCH(request: Request) {
   }
 
   const name = String(body?.name || '').replace(/\s+/g, ' ').trim()
+  const preferredName = typeof body?.preferredName === 'string'
+    ? body.preferredName.replace(/\s+/g, ' ').trim()
+    : ''
   const email = String(body?.email || '').trim().toLowerCase()
   const companyId = String(body?.companyId || '').trim()
   const role = String(body?.role || '').trim().toLowerCase()
@@ -118,6 +123,9 @@ export async function PATCH(request: Request) {
 
   if (!name || name.length < 2 || name.length > 120) {
     return jsonNoStore({ error: 'Name must be between 2 and 120 characters.' }, { status: 400 })
+  }
+  if (preferredName.length > 80) {
+    return jsonNoStore({ error: 'Preferred name must be 80 characters or fewer.' }, { status: 400 })
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return jsonNoStore({ error: 'Enter a valid email address.' }, { status: 400 })
@@ -246,7 +254,7 @@ export async function PATCH(request: Request) {
 
     const { error: profileError } = await supabaseServer
       .from('UserProfiles')
-      .update({ company_id: companyId, role, is_active: isActive })
+      .update({ company_id: companyId, role, is_active: isActive, preferred_name: preferredName || null })
       .eq('id', profileId)
     if (profileError) throw profileError
 
@@ -261,6 +269,7 @@ export async function PATCH(request: Request) {
       user_metadata: {
         ...(authUser.user_metadata || {}),
         full_name: name,
+        preferred_name: preferredName || null,
         company_id: companyId,
         role,
       },

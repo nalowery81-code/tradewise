@@ -59,6 +59,19 @@ export async function GET(
       }
     }
 
+    const { data: userProfile, error: userProfileError } = await supabaseServer
+      .from('UserProfiles')
+      .select('preferred_name')
+      .eq('company_id', companyId)
+      .eq('technician_id', technician.id)
+      .eq('role', 'technician')
+      .eq('is_active', true)
+      .maybeSingle()
+
+    if (userProfileError) {
+      console.error('MANAGER TECHNICIAN PREFERRED NAME ERROR:', userProfileError)
+    }
+
     const { data: managerNote, error: noteError } = await supabaseServer
       .from('ManagerNotes')
       .select('note, updated_at')
@@ -73,7 +86,8 @@ export async function GET(
     return Response.json({
       technician: {
         id: technician.id,
-        name: technician.canonical_name,
+        name: userProfile?.preferred_name || technician.canonical_name,
+        canonicalName: technician.canonical_name,
       },
       reflections: reflections || [],
       managerNote: managerNote || null,

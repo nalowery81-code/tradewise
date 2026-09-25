@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 export default function AddManagerPage() {
   const [checkingAccess, setCheckingAccess] = useState(true)
   const [name, setName] = useState('')
+  const [preferredName, setPreferredName] = useState('')
   const [email, setEmail] = useState('')
   const [sending, setSending] = useState(false)
   const [status, setStatus] = useState('')
@@ -67,7 +68,7 @@ export default function AddManagerPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ name: cleanName, email: cleanEmail }),
+        body: JSON.stringify({ name: cleanName, preferredName: preferredName.replace(/\s+/g, ' ').trim(), email: cleanEmail }),
       })
       const data = await response.json()
 
@@ -81,6 +82,7 @@ export default function AddManagerPage() {
 
       setStatus(`Invite sent to ${cleanEmail}. ${cleanName} will join this company as a manager.`)
       setName('')
+      setPreferredName('')
       setEmail('')
     } catch (inviteError) {
       console.error('INVITE MANAGER ERROR:', inviteError)
@@ -104,12 +106,23 @@ export default function AddManagerPage() {
         </p>
 
         <label style={labelStyle}>
-          Manager name
+          Full name
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             placeholder="Example: Mike Smith"
             autoComplete="name"
+            style={inputStyle}
+          />
+        </label>
+
+        <label style={labelStyle}>
+          Preferred name
+          <input
+            value={preferredName}
+            onChange={(event) => setPreferredName(event.target.value)}
+            maxLength={80}
+            placeholder="Example: Mike (optional)"
             style={inputStyle}
           />
         </label>

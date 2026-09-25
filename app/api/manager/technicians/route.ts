@@ -70,7 +70,11 @@ export async function GET(request: Request) {
     const technicianIds = currentTechnicians.map((technician) => technician.id)
     if (technicianIds.length === 0) return Response.json({ technicians: [] })
 
-    const [{ data: reflections, error: reflectionError }, { data: conversations, error: conversationError }] = await Promise.all([
+    const [
+      { data: reflections, error: reflectionError },
+      { data: conversations, error: conversationError },
+      { data: technicianProfiles, error: technicianProfileError },
+    ] = await Promise.all([
       supabaseServer
         .from('Reflections')
         .select('technician_id, technician_name, created_at')
@@ -83,6 +87,13 @@ export async function GET(request: Request) {
         .eq('company_id', companyId)
         .in('technician_id', technicianIds)
         .order('created_at', { ascending: false }),
+      supabaseServer
+        .from('UserProfiles')
+        .select('technician_id, preferred_name')
+        .eq('company_id', companyId)
+        .eq('role', 'technician')
+        .eq('is_active', true)
+        .in('technician_id', technicianIds),
     ])
 
     if (reflectionError) {
@@ -90,10 +101,16 @@ export async function GET(request: Request) {
       return Response.json({ error: 'Could not load technician activity.' }, { status: 500 })
     }
 
-    if (conversationError) {
-      console.error('MANAGER TECHNICIAN CONVERSATION LOAD ERROR:', conversationError)
+    if (conversationError || technicianProfileError) {
+      console.error('MANAGER TECHNICIAN ACTIVITY LOAD ERROR:', conversationError || technicianProfileError)
       return Response.json({ error: 'Could not load technician activity.' }, { status: 500 })
     }
+
+    const preferredNameByTechnicianId = new Map(
+      (technicianProfiles || [])
+        .filter((profile) => profile.technician_id && profile.preferred_name)
+        .map((profile) => [profile.technician_id as string, profile.preferred_name as string])
+    )
 
     const reflectionActivity = new Map<string, { count: number; latest: string | null }>()
     const conversationActivity = new Map<string, { count: number; latest: string | null }>()
@@ -125,7 +142,8 @@ export async function GET(request: Request) {
 
       return {
         id: technician.id,
-        name: technician.canonical_name,
+        name: preferredNameByTechnicianId.get(technician.id) || technician.canonical_name,
+        canonicalName: technician.canonical_name,
         reflectionCount: reflectionSummary.count,
         latestReflectionAt: reflectionSummary.latest,
         conversationCount: conversationSummary.count,
