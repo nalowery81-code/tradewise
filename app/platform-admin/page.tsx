@@ -37,6 +37,10 @@ type OpenAICostData = {
   }[]
   featureUsageError?: string | null
   billingScopeNote?: string
+  cacheStatus?: 'live' | 'cached' | 'stale'
+  cachedAt?: string
+  cacheAgeSeconds?: number | null
+  warning?: string
   efficiency?: {
     status: 'collecting' | 'ready'
     totalCalls: number
@@ -261,7 +265,18 @@ export default function PlatformAdminDashboard() {
 
               <section style={{ ...cardStyle, marginTop: 14 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 14, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                  <SectionHeader title="OpenAI Cost Tracker" subtitle="Live organization billing and model usage from OpenAI." />
+                  <div>
+                    <SectionHeader title="OpenAI Cost Tracker" subtitle="Organization billing and usage, cached to protect the OpenAI Admin API rate limit." />
+                    {costs?.configured && !costs.error && costs.cacheStatus && (
+                      <div style={{ marginTop: 4, color: costs.cacheStatus === 'stale' ? '#9a3412' : '#64748b', fontSize: 11, fontWeight: 750 }}>
+                        {costs.cacheStatus === 'live'
+                          ? 'Fresh OpenAI snapshot'
+                          : costs.cacheStatus === 'cached'
+                            ? `Cached snapshot · ${Math.max(0, Math.round((costs.cacheAgeSeconds || 0) / 60))} min old`
+                            : 'Last good snapshot · OpenAI refresh temporarily unavailable'}
+                      </div>
+                    )}
+                  </div>
                   {costs?.configured && !costs.error && (
                     <a href="https://platform.openai.com/usage" target="_blank" rel="noreferrer" style={buttonLink}>
                       View in OpenAI ↗
@@ -282,6 +297,11 @@ export default function PlatformAdminDashboard() {
                   <div style={errorStyle}>OpenAI cost tracker: {costs.error}</div>
                 ) : (
                   <>
+                    {costs.warning && (
+                      <div style={{ ...billingScopeStyle, background: '#fff7ed', borderColor: '#fed7aa', color: '#9a3412' }}>
+                        <strong>Telemetry note:</strong> {costs.warning}
+                      </div>
+                    )}
                     {costs.billingScopeNote && (
                       <div style={billingScopeStyle}>
                         <strong>Billing scope:</strong> {costs.billingScopeNote}

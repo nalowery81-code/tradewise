@@ -4,6 +4,9 @@ import { analyzeAIEfficiency } from '../../../lib/ai-efficiency'
 
 export const dynamic = 'force-dynamic'
 
+const COST_CACHE_KEY = 'organization_cost_usage_v1'
+const COST_CACHE_TTL_MS = 5 * 60 * 1000
+
 const jsonNoStore = (body: unknown, init?: ResponseInit) =>
   Response.json(body, {
     ...init,
@@ -72,6 +75,28 @@ export async function GET(request: Request) {
     return jsonNoStore({
       configured: false,
       reason: 'OPENAI_ADMIN_KEY is not configured in the production environment.',
+    })
+  }
+
+  const { data: snapshot, error: snapshotError } = await supabaseServer
+    .from('PlatformAdminOpenAICostSnapshots')
+    .select('payload, fetched_at')
+    .eq('cache_key', COST_CACHE_KEY)
+    .maybeSingle()
+
+  if (snapshotError) {
+    console.error('OPENAI COST SNAPSHOT LOAD ERROR:', snapshotError)
+  }
+
+  const snapshotFetchedAt = snapshot?.fetched_at ? new Date(snapshot.fetched_at) : null
+  const snapshotAgeMs = snapshotFetchedAt ? Date.now() - snapshotFetchedAt.getTime() : Number.POSITIVE_INFINITY
+
+  if (snapshot?.payload && snapshotAgeMs < COST_CACHE_TTL_MS) {
+    return jsonNoStore({
+      ...(snapshot.payload as Record<string, unknown>),
+      cacheStatus: 'cached',
+      cachedAt: snapshot.fetched_at,
+      cacheAgeSeconds: Math.max(0, Math.round(snapshotAgeMs / 1000)),
     })
   }
 
@@ -307,7 +332,7 @@ export async function GET(request: Request) {
       .sort((a, b) => b.cost - a.cost)
       .slice(0, 8)
 
-    return jsonNoStore({
+    const payload = {
       configured: true,
       currency: 'usd',
       generatedAt: now.toISOString(),
@@ -327,9 +352,40 @@ export async function GET(request: Request) {
       efficiency,
       billingScopeNote: 'Dollar totals above are organization-wide and may include Fantasy Guru or other OpenAI projects. CraftCompass feature telemetry and efficiency recommendations below are app-specific from the moment Commit 3 went live.',
       source: 'OpenAI organization Costs and Usage APIs',
+    }
+
+    const { error: cacheWriteError } = await supabaseServer
+      .from('PlatformAdminOpenAICostSnapshots')
+      .upsert({
+        cache_key: COST_CACHE_KEY,
+        payload,
+        fetched_at: now.toISOString(),
+        updated_at: now.toISOString(),
+      }, { onConflict: 'cache_key' })
+
+    if (cacheWriteError) {
+      console.error('OPENAI COST SNAPSHOT WRITE ERROR:', cacheWriteError)
+    }
+
+    return jsonNoStore({
+      ...payload,
+      cacheStatus: 'live',
+      cachedAt: now.toISOString(),
+      cacheAgeSeconds: 0,
     })
   } catch (error: any) {
     console.error('OPENAI COST TRACKER ERROR:', error)
+
+    if (snapshot?.payload) {
+      return jsonNoStore({
+        ...(snapshot.payload as Record<string, unknown>),
+        cacheStatus: 'stale',
+        cachedAt: snapshot.fetched_at,
+        cacheAgeSeconds: snapshotFetchedAt ? Math.max(0, Math.round((Date.now() - snapshotFetchedAt.getTime()) / 1000)) : null,
+        warning: 'OpenAI billing telemetry is temporarily rate-limited or unavailable. Showing the last successful snapshot.',
+      })
+    }
+
     return jsonNoStore(
       {
         configured: true,
