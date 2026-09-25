@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 const items = [
   { href: '/platform-admin', label: 'Dashboard' },
   { href: '/platform-admin/companies', label: 'Companies' },
+  { href: '/platform-admin/reports', label: 'Reports' },
   { href: '/platform-admin/users', label: 'Users' },
   { href: '/platform-admin/conversation-audit', label: 'Conversation Audit' },
   { href: '/platform-admin/guidance', label: 'Guidance Library' },
